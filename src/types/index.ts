@@ -1,0 +1,55 @@
+export interface Message {
+  sender: "customer" | "ai" | "human";
+  text: string;
+  time: string;
+}
+
+export interface Conversation {
+  id: number;
+  customerName: string;
+  customerPhone: string;
+  status: "ai_active" | "human_takeover" | "closed";
+  avatar: string;
+  unread: boolean;
+  messages: Message[];
+}
+
+export interface OrderItem {
+  product: string;
+  quantity: number;
+  price: number;
+}
+
+export interface Order {
+  id: string;
+  customer: string;
+  customerPhone: string;
+  customerAddress: string;
+  date: string;
+  status: "discussing" | "confirmed" | "sent_to_courier" | "delivered" | "paid" | "cancelled";
+  paymentStatus: "paid" | "pending" | "overdue";
+  total: number;
+  shippingFee: number;
+  deliveryZone: string;
+  items: OrderItem[];
+  courier?: string;
+  chatId?: number;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  firstContact: string;
+  tags: string[];
+  totalSpent: number;
+}
+
+export interface Courier {
+  name: string;
+  phone: string;
+  active: boolean;
+  load: number;
+}

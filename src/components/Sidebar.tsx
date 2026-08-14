@@ -1,0 +1,94 @@
+import React from "react";
+import { 
+  LayoutDashboard, 
+  MessageSquare, 
+  ShoppingBag, 
+  Users, 
+  Truck, 
+  Clock, 
+  Settings, 
+  X 
+} from "lucide-react";
+
+interface SidebarProps {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  mobileMenuOpen: boolean;
+  setMobileMenuOpen: (open: boolean) => void;
+  conversationsCount: number;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  setActiveTab,
+  mobileMenuOpen,
+  setMobileMenuOpen,
+  conversationsCount
+}) => {
+  return (
+    <aside className={`fixed inset-y-0 left-0 w-80 bg-encre text-neige flex flex-col justify-between border-r border-graphite p-8 transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen shrink-0`}>
+      <div className="flex flex-col gap-8">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black tracking-tight text-neige">MON CLOSEUR</span>
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            </div>
+            <span className="text-[10px] text-neige/50 mt-1 uppercase tracking-wider">Espace Client</span>
+          </div>
+          <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-neige/60 hover:text-corail">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <nav className="flex flex-col gap-1">
+          <button onClick={() => { setActiveTab("dashboard"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "dashboard" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <LayoutDashboard className="w-4.5 h-4.5" />
+            <span className="text-xs">Vue d'ensemble</span>
+          </button>
+          <button onClick={() => { setActiveTab("conversations"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "conversations" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <MessageSquare className="w-4.5 h-4.5" />
+            <span className="text-xs flex-1">Conversations</span>
+            <span className="text-[10px] bg-corail text-white px-2 py-0.5 rounded-full font-bold">{conversationsCount}</span>
+          </button>
+          <button onClick={() => { setActiveTab("orders"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "orders" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <ShoppingBag className="w-4.5 h-4.5" />
+            <span className="text-xs">Commandes</span>
+          </button>
+          <button onClick={() => { setActiveTab("customers"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "customers" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <Users className="w-4.5 h-4.5" />
+            <span className="text-xs">Clients</span>
+          </button>
+          <button onClick={() => { setActiveTab("couriers"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "couriers" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <Truck className="w-4.5 h-4.5" />
+            <span className="text-xs">Livreurs</span>
+          </button>
+          <button onClick={() => { setActiveTab("followups"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "followups" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <Clock className="w-4.5 h-4.5" />
+            <span className="text-xs">Relances</span>
+          </button>
+          <button onClick={() => { setActiveTab("settings"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "settings" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <Settings className="w-4.5 h-4.5" />
+            <span className="text-xs">Paramètres</span>
+          </button>
+        </nav>
+      </div>
+
+      <div className="flex flex-col gap-4 pt-6 border-t border-graphite">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-graphite flex items-center justify-center text-neige font-bold border border-corail/30 text-xs">
+            WT
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold text-neige">Tiedrebeogo Wilfried</span>
+            <span className="text-[9px] text-neige/40 font-semibold uppercase">Propriétaire</span>
+          </div>
+        </div>
+        <div className="text-[9px] text-neige/40 font-semibold flex items-center justify-between">
+          <span>Fait avec le vibe coding</span>
+          <span className="w-2 h-2 bg-green-500 rounded-full inline-block animate-ping"></span>
+        </div>
+      </div>
+    </aside>
+  );
+};

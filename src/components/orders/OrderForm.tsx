@@ -84,7 +84,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   return (
     <div className="bg-white p-6 md:p-8 rounded-2xl border border-graphite/10 flex flex-col gap-6 max-w-3xl mx-auto w-full">
       <div className="flex items-center gap-3">
-        <button onClick={() => setOrdersSubView("list")} className="text-encre/50 hover:text-corail p-1 bg-neige rounded-lg border border-graphite/10">
+        <button onClick={() => setOrdersSubView("list")} className="text-encre/50 hover:text-menthe p-1 bg-neige rounded-lg border border-graphite/10">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <h3 className="text-sm font-bold text-encre">
@@ -100,7 +100,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             <button
               type="button"
               onClick={() => setOrderFormNewClientInline(!orderFormNewClientInline)}
-              className="text-[10px] font-bold text-corail flex items-center gap-1.5 hover:underline"
+              className="text-[10px] font-bold text-menthe flex items-center gap-1.5 hover:underline"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>{orderFormNewClientInline ? "Sélectionner client existant" : "Créer un nouveau client"}</span>
@@ -112,7 +112,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
               <select
                 value={orderFormCustomerId}
                 onChange={(e) => setOrderFormCustomerId(e.target.value)}
-                className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-corail font-semibold text-encre"
+                className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
               >
                 {customers.map(c => (
                   <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
@@ -128,7 +128,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                   value={orderFormInlineName}
                   onChange={(e) => setOrderFormInlineName(e.target.value)}
                   placeholder="Ex: Amadou Fall"
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-corail font-semibold"
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -138,7 +138,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                   value={orderFormInlinePhone}
                   onChange={(e) => setOrderFormInlinePhone(e.target.value)}
                   placeholder="Ex: +221 77 000 00 00"
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-corail font-semibold"
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold"
                 />
               </div>
             </div>
@@ -152,7 +152,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
               type="date"
               value={orderFormDate}
               onChange={(e) => setOrderFormDate(e.target.value)}
-              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-corail font-semibold"
+              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold"
             />
           </div>
 
@@ -161,7 +161,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             <select
               value={orderFormZone}
               onChange={(e) => setOrderFormZone(e.target.value)}
-              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-corail font-semibold text-encre"
+              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
             >
               {zones.map(z => (
                 <option key={z.name} value={z.name}>{z.name} (+{formatFCFA(z.fee)})</option>
@@ -188,7 +188,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                         handleUpdateFormItemProduct(idx, e.target.value);
                       }
                     }}
-                    className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-corail font-semibold"
+                    className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold"
                   >
                     {catalog.map(cat => (
                       <option key={cat.name} value={cat.name}>{cat.name}</option>
@@ -201,7 +201,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                       placeholder="Description personnalisée..."
                       value={item.product}
                       onChange={(e) => handleUpdateFormItemField(idx, "product", e.target.value)}
-                      className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-corail font-semibold mt-1.5"
+                      className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold mt-1.5"
                     />
                   )}
                 </div>
@@ -213,7 +213,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     min={1}
                     value={item.quantity}
                     onChange={(e) => handleUpdateFormItemField(idx, "quantity", parseInt(e.target.value) || 1)}
-                    className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-corail text-center font-bold"
+                    className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe text-center font-bold"
                   />
                 </div>
 
@@ -224,7 +224,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     min={0}
                     value={item.price}
                     onChange={(e) => handleUpdateFormItemField(idx, "price", parseInt(e.target.value) || 0)}
-                    className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-corail text-right font-bold"
+                    className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe text-right font-bold"
                   />
                 </div>
 
@@ -245,7 +245,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           <button
             type="button"
             onClick={handleAddFormItemRow}
-            className="magnetic-btn border border-dashed border-corail/50 text-corail py-2 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-corail/5 mt-1"
+            className="magnetic-btn border border-dashed border-menthe/50 text-menthe py-2 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-menthe/5 mt-1"
           >
             <Plus className="w-4 h-4" />
             <span>Ajouter un produit</span>
@@ -264,7 +264,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           </div>
           <div className="text-sm font-extrabold text-encre mt-1">
             <span>Montant total à payer : </span>
-            <span className="text-corail font-black tabular-nums">{formatFCFA(calculateFormTotal())}</span>
+            <span className="text-menthe font-black tabular-nums">{formatFCFA(calculateFormTotal())}</span>
           </div>
         </div>
 
@@ -280,7 +280,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           <button
             type="button"
             onClick={() => handleSaveOrder("confirmed")}
-            className="magnetic-btn bg-corail text-neige font-bold py-3 px-6 rounded-xl text-xs shadow-md shadow-corail/25"
+            className="magnetic-btn bg-menthe text-neige font-bold py-3 px-6 rounded-xl text-xs shadow-md shadow-menthe/25"
           >
             {orderFormId ? "Mettre à jour la commande" : "Confirmer la commande"}
           </button>

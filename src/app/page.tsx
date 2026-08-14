@@ -410,10 +410,10 @@ export default function Home() {
       {/* Mobile Top Bar */}
       <header className="md:hidden w-full bg-encre text-neige px-6 py-4 flex items-center justify-between border-b border-graphite sticky top-0 z-50">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-extrabold tracking-tight text-corail">MON CLOSEUR</span>
+          <span className="text-lg font-extrabold tracking-tight text-menthe">MON CLOSEUR</span>
           <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 bg-green-950 text-green-400 rounded font-semibold">IA active</span>
         </div>
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-neige hover:text-corail focus:outline-none">
+        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-neige hover:text-menthe focus:outline-none">
           <Menu className="w-6 h-6" />
         </button>
       </header>
@@ -471,7 +471,7 @@ export default function Home() {
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
               <span>Websocket connecté</span>
             </div>
-            <button onClick={triggerPDFDownload} className="magnetic-btn bg-encre text-neige hover:bg-corail hover:text-neige font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition-all">
+            <button onClick={triggerPDFDownload} className="magnetic-btn bg-encre text-neige hover:bg-menthe hover:text-neige font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition-all">
               <Download className="w-3.5 h-3.5" />
               <span>Exporter le rapport</span>
             </button>

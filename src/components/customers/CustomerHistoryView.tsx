@@ -36,7 +36,7 @@ export const CustomerHistoryView: React.FC<CustomerHistoryViewProps> = ({
     <div className="bg-white p-6 md:p-8 rounded-2xl border border-graphite/10 flex flex-col gap-6 max-w-3xl mx-auto w-full">
       <div className="flex items-center justify-between border-b border-graphite/5 pb-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setCustomerSubView("list")} className="text-encre/50 hover:text-corail p-1 bg-neige rounded-lg border border-graphite/10">
+          <button onClick={() => setCustomerSubView("list")} className="text-encre/50 hover:text-menthe p-1 bg-neige rounded-lg border border-graphite/10">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>

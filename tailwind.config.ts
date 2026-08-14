@@ -10,7 +10,7 @@ const config: Config = {
     extend: {
       colors: {
         encre: '#1C1C1E',
-        corail: '#E8634A',
+        menthe: '#16A34A',
         neige: '#FAFAFA',
         graphite: '#2D2D2D',
         'graphite-light': '#3A3A3C',

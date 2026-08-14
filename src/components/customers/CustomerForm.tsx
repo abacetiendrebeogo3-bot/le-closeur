@@ -37,7 +37,7 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
           <h3 className="text-sm font-bold text-encre">
             {showCustomerModal.mode === "create" ? "Ajouter un nouveau client" : "Modifier le client"}
           </h3>
-          <button onClick={() => setShowCustomerModal(null)} className="text-encre/50 hover:text-corail">
+          <button onClick={() => setShowCustomerModal(null)} className="text-encre/50 hover:text-menthe">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -51,7 +51,7 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
               value={custFormName}
               onChange={(e) => setCustFormName(e.target.value)}
               placeholder="Ex: Youssou Ndiaye"
-              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-corail font-semibold"
+              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold"
             />
           </div>
 
@@ -63,7 +63,7 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
               value={custFormPhone}
               onChange={(e) => setCustFormPhone(e.target.value)}
               placeholder="Ex: +221 77 654 32 10"
-              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-corail font-semibold font-mono"
+              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold font-mono"
             />
           </div>
 
@@ -74,7 +74,7 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
               value={custFormEmail}
               onChange={(e) => setCustFormEmail(e.target.value)}
               placeholder="Ex: client@domain.sn"
-              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-corail font-semibold"
+              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold"
             />
           </div>
 
@@ -85,11 +85,11 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
               value={custFormAddress}
               onChange={(e) => setCustFormAddress(e.target.value)}
               placeholder="Ex: Almadies, Villa 12, Dakar"
-              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-corail font-semibold"
+              className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold"
             />
           </div>
 
-          <button type="submit" className="magnetic-btn bg-corail text-neige font-bold py-3 rounded-xl text-center text-xs transition-all mt-2 shadow-md shadow-corail/20">
+          <button type="submit" className="magnetic-btn bg-menthe text-neige font-bold py-3 rounded-xl text-center text-xs transition-all mt-2 shadow-md shadow-menthe/20">
             Enregistrer le client
           </button>
         </form>

@@ -25,7 +25,7 @@ export const CouriersView: React.FC<CouriersViewProps> = ({ couriers }) => {
 
           <div className="flex items-center justify-between mt-4 border-t border-graphite/5 pt-3">
             <span className="text-[10px] uppercase font-bold text-encre/40">Commandes actives</span>
-            <span className="text-base font-bold text-corail tabular-nums">{courier.load}</span>
+            <span className="text-base font-bold text-menthe tabular-nums">{courier.load}</span>
           </div>
         </div>
       ))}

@@ -55,7 +55,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="interactive-card bg-graphite/40 backdrop-blur-md p-5 rounded-2xl border border-graphite-light/30 flex flex-col justify-between h-36">
           <div className="flex items-center justify-between text-neige/50">
             <span className="text-[9px] uppercase tracking-widest font-bold">Total Commandes</span>
-            <ShoppingBag className="w-4 h-4 text-corail" />
+            <ShoppingBag className="w-4 h-4 text-menthe" />
           </div>
           <div className="flex flex-col mt-2">
             <span className="text-2xl font-extrabold tabular-nums text-neige">{orders.length}</span>
@@ -67,7 +67,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="interactive-card bg-graphite/40 backdrop-blur-md p-5 rounded-2xl border border-graphite-light/30 flex flex-col justify-between h-36">
           <div className="flex items-center justify-between text-neige/50">
             <span className="text-[9px] uppercase tracking-widest font-bold">Montant Facturé</span>
-            <span className="text-xs font-bold text-corail">XOF</span>
+            <span className="text-xs font-bold text-menthe">XOF</span>
           </div>
           <div className="flex flex-col mt-2">
             <span className="text-2xl font-extrabold tabular-nums text-neige">{formatFCFA(totalBilled)}</span>
@@ -76,10 +76,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Highlighted Metric 3: Montant Payé */}
-        <div className="interactive-card sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-graphite to-encre border border-corail/30 p-5 rounded-2xl flex flex-col justify-between h-36 shadow-lg shadow-corail/5">
+        <div className="interactive-card sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-graphite to-encre border border-menthe/30 p-5 rounded-2xl flex flex-col justify-between h-36 shadow-lg shadow-menthe/5">
           <div className="flex items-center justify-between text-neige/50">
-            <span className="text-[9px] uppercase tracking-widest font-bold text-corail font-black">Montant Payé (Clôturé)</span>
-            <span className="text-[10px] bg-corail/20 text-corail px-2.5 py-0.5 rounded-full font-bold">Actif</span>
+            <span className="text-[9px] uppercase tracking-widest font-bold text-menthe font-black">Montant Payé (Clôturé)</span>
+            <span className="text-[10px] bg-menthe/20 text-menthe px-2.5 py-0.5 rounded-full font-bold">Actif</span>
           </div>
           <div className="flex flex-col mt-2">
             <span className="text-3xl font-black tabular-nums text-neige tracking-tight">{formatFCFA(totalPaid)}</span>
@@ -94,10 +94,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Highlighted Metric 4: Taux de Conversion */}
-        <div className="interactive-card sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-graphite to-encre border border-corail/30 p-5 rounded-2xl flex flex-col justify-between h-36 shadow-lg shadow-corail/5">
+        <div className="interactive-card sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-graphite to-encre border border-menthe/30 p-5 rounded-2xl flex flex-col justify-between h-36 shadow-lg shadow-menthe/5">
           <div className="flex items-center justify-between text-neige/50">
-            <span className="text-[9px] uppercase tracking-widest font-bold text-corail font-black">Taux de Conversion (Closing IA)</span>
-            <UserCheck className="w-4 h-4 text-corail" />
+            <span className="text-[9px] uppercase tracking-widest font-bold text-menthe font-black">Taux de Conversion (Closing IA)</span>
+            <UserCheck className="w-4 h-4 text-menthe" />
           </div>
           <div className="flex flex-col mt-2">
             <span className="text-3xl font-black tabular-nums text-neige tracking-tight">78.5 %</span>
@@ -120,7 +120,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="flex items-center gap-3 text-[10px]">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-corail rounded-full"></span>
+                <span className="w-2 h-2 bg-menthe rounded-full"></span>
                 <span>IA Closeur</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -136,8 +136,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorIA" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#E8634A" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#E8634A" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#16A34A" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#16A34A" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="colorHumain" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#FAFAFA" stopOpacity={0.15}/>
@@ -149,9 +149,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <YAxis stroke="#9A9A9A" />
                   <Tooltip 
                     contentStyle={{ backgroundColor: "#1C1C1E", borderColor: "#2D2D2D", borderRadius: "0.8rem", color: "#FAFAFA" }} 
-                    itemStyle={{ color: "#E8634A" }}
+                    itemStyle={{ color: "#16A34A" }}
                   />
-                  <Area type="monotone" dataKey="IA" stroke="#E8634A" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIA)" />
+                  <Area type="monotone" dataKey="IA" stroke="#16A34A" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIA)" />
                   <Area type="monotone" dataKey="Humain" stroke="#FAFAFA" strokeWidth={1.5} strokeDasharray="4 4" fillOpacity={1} fill="url(#colorHumain)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -173,7 +173,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <button 
               onClick={onNavigateToConversations} 
-              className="text-xs text-corail font-bold hover:underline flex items-center gap-1 self-start mt-1"
+              className="text-xs text-menthe font-bold hover:underline flex items-center gap-1 self-start mt-1"
             >
               <span>Voir plus</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
@@ -185,7 +185,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                   <span className="text-[11px] font-semibold">Tonalité active</span>
                 </div>
-                <span className="text-[9px] font-bold bg-graphite/80 px-2 py-0.5 rounded border border-graphite-light/20 text-corail">Chaleureux</span>
+                <span className="text-[9px] font-bold bg-graphite/80 px-2 py-0.5 rounded border border-graphite-light/20 text-menthe">Chaleureux</span>
               </div>
 
               <div className="flex items-center justify-between p-3 bg-encre/30 rounded-xl border border-graphite-light/10">
@@ -198,7 +198,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <button onClick={onNavigateToSettings} className="magnetic-btn w-full bg-encre text-neige hover:bg-corail hover:text-neige font-bold py-2.5 rounded-xl text-center text-xs transition-all mt-4 flex items-center justify-center gap-2 border border-graphite-light/20">
+          <button onClick={onNavigateToSettings} className="magnetic-btn w-full bg-encre text-neige hover:bg-menthe hover:text-neige font-bold py-2.5 rounded-xl text-center text-xs transition-all mt-4 flex items-center justify-center gap-2 border border-graphite-light/20">
             <Settings className="w-3.5 h-3.5" />
             <span>Ajuster les consignes</span>
           </button>
@@ -213,7 +213,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <h3 className="text-sm font-bold text-neige">Dernières commandes enregistrées</h3>
             <p className="text-[10px] text-neige/40">Traitement en direct des fiches de ventes.</p>
           </div>
-          <button onClick={onNavigateToOrders} className="text-xs text-corail font-semibold hover:underline flex items-center gap-1">
+          <button onClick={onNavigateToOrders} className="text-xs text-menthe font-semibold hover:underline flex items-center gap-1">
             <span>Voir tout</span>
           </button>
         </div>

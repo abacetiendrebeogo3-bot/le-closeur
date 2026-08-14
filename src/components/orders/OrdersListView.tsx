@@ -47,11 +47,11 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
               placeholder="Rechercher par nom de client..."
               value={orderSearchQuery}
               onChange={(e) => setOrderSearchQuery(e.target.value)}
-              className="w-full bg-neige border border-graphite/10 rounded-xl pl-10 pr-4 py-2 text-xs focus:outline-none focus:border-corail"
+              className="w-full bg-neige border border-graphite/10 rounded-xl pl-10 pr-4 py-2 text-xs focus:outline-none focus:border-menthe"
             />
           </div>
           
-          <button onClick={openCreateOrderForm} className="magnetic-btn bg-corail text-neige px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 self-start md:self-auto shrink-0">
+          <button onClick={openCreateOrderForm} className="magnetic-btn bg-menthe text-neige px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 self-start md:self-auto shrink-0">
             <Plus className="w-4 h-4" />
             <span>Créer une commande</span>
           </button>

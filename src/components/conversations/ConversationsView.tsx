@@ -30,7 +30,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       {/* Left sidebar: ConversationList */}
       <div className="w-full lg:w-80 bg-white rounded-2xl border border-graphite/10 flex flex-col min-h-0 shrink-0">
         <div className="p-4 border-b border-graphite/10">
-          <input type="text" placeholder="Rechercher une discussion..." className="w-full bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-corail" />
+          <input type="text" placeholder="Rechercher une discussion..." className="w-full bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-menthe" />
         </div>
         
         <div className="flex-1 overflow-y-auto divide-y divide-graphite/5">
@@ -48,7 +48,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             };
 
             return (
-              <button key={conv.id} onClick={() => setActiveChatId(conv.id)} className={`w-full text-left p-4 flex flex-col gap-1.5 transition-colors hover:bg-neige/60 ${activeChatId === conv.id ? 'bg-neige-dark border-l-4 border-corail' : ''}`}>
+              <button key={conv.id} onClick={() => setActiveChatId(conv.id)} className={`w-full text-left p-4 flex flex-col gap-1.5 transition-colors hover:bg-neige/60 ${activeChatId === conv.id ? 'bg-neige-dark border-l-4 border-menthe' : ''}`}>
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-encre">{conv.customerName}</span>
                   <span className="text-[9px] text-encre/40">{lastMsg ? lastMsg.time : ''}</span>
@@ -56,7 +56,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                 <p className="text-xs text-encre/60 truncate">{lastMsg ? lastMsg.text : ''}</p>
                 <div className="flex items-center justify-between mt-1">
                   <span className={`text-[9px] uppercase px-2 py-0.5 rounded-full font-bold ${badgeStyles[conv.status]}`}>{badgeLabels[conv.status]}</span>
-                  {conv.unread && <span className="w-2 h-2 bg-corail rounded-full"></span>}
+                  {conv.unread && <span className="w-2 h-2 bg-menthe rounded-full"></span>}
                 </div>
               </button>
             );
@@ -70,7 +70,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
           <>
             <div className="px-6 py-4 border-b border-graphite/10 flex items-center justify-between bg-neige/30">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-graphite text-neige font-bold flex items-center justify-center border border-corail/30 text-xs">
+                <div className="w-9 h-9 rounded-full bg-graphite text-neige font-bold flex items-center justify-center border border-menthe/30 text-xs">
                   {activeChat.avatar}
                 </div>
                 <div className="flex flex-col">
@@ -81,7 +81,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                   <span className="text-[10px] text-encre/40">{activeChat.customerPhone}</span>
                 </div>
               </div>
-              <button onClick={toggleTakeover} className="magnetic-btn px-4 py-1.5 rounded-lg bg-white border border-graphite/20 hover:border-corail text-[10px] font-bold shadow-sm transition-all">
+              <button onClick={toggleTakeover} className="magnetic-btn px-4 py-1.5 rounded-lg bg-white border border-graphite/20 hover:border-menthe text-[10px] font-bold shadow-sm transition-all">
                 {activeChat.status === "human_takeover" ? "Laisser l’IA répondre" : "Prendre la main"}
               </button>
             </div>
@@ -101,15 +101,15 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             </div>
 
             <form onSubmit={handleSendMessage} className="p-4 border-t border-graphite/10 flex gap-3 bg-white">
-              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} disabled={activeChat.status !== "human_takeover"} type="text" placeholder={`Répondre en tant que Tiedrebeogo Wilfried (reprise manuelle)...`} className="flex-1 bg-neige border border-graphite/10 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-corail" />
-              <button type="submit" disabled={activeChat.status !== "human_takeover"} className="magnetic-btn bg-encre text-neige px-4 rounded-xl font-bold text-xs flex items-center justify-center hover:bg-corail transition-all">
+              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} disabled={activeChat.status !== "human_takeover"} type="text" placeholder={`Répondre en tant que Tiedrebeogo Wilfried (reprise manuelle)...`} className="flex-1 bg-neige border border-graphite/10 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-menthe" />
+              <button type="submit" disabled={activeChat.status !== "human_takeover"} className="magnetic-btn bg-encre text-neige px-4 rounded-xl font-bold text-xs flex items-center justify-center hover:bg-menthe transition-all">
                 <Send className="w-3.5 h-3.5" />
               </button>
             </form>
           </>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-encre/30 text-xs gap-3">
-            <MessageSquare className="w-10 h-10 text-corail/60" />
+            <MessageSquare className="w-10 h-10 text-menthe/60" />
             <span className="font-semibold text-center max-w-xs leading-relaxed">Choisissez une discussion dans la liste de gauche pour interagir et simuler des réponses.</span>
           </div>
         )}

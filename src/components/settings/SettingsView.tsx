@@ -13,7 +13,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast }) => {
         
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] uppercase font-bold text-encre/50">Tonalité conversationnelle</label>
-          <select className="bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-corail font-bold">
+          <select className="bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold">
             <option>Chaleureux et Respectueux</option>
             <option>Direct et Professionnel</option>
             <option>Amical et Détendu</option>
@@ -22,10 +22,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast }) => {
 
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] uppercase font-bold text-encre/50">Consignes système (Prompt de base)</label>
-          <textarea rows={5} className="bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-corail leading-relaxed" defaultValue="Tu es l'agent IA de vente de la boutique de Wilfried Tiedrebeogo. Tu vends des pièces de rechange et du matériel informatique de haute qualité. Parle de manière chaleureuse, accueille les clients avec politesse et réponds toujours en proposant les prix exacts en FCFA. Utilise les outils de calcul pour valider les coûts de livraison." />
+          <textarea rows={5} className="bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-menthe leading-relaxed" defaultValue="Tu es l'agent IA de vente de la boutique de Wilfried Tiedrebeogo. Tu vends des pièces de rechange et du matériel informatique de haute qualité. Parle de manière chaleureuse, accueille les clients avec politesse et réponds toujours en proposant les prix exacts en FCFA. Utilise les outils de calcul pour valider les coûts de livraison." />
         </div>
 
-        <button onClick={() => triggerToast("Instructions enregistrées dans Supabase pour Tiedrebeogo Wilfried.", "success")} className="magnetic-btn bg-encre text-neige hover:bg-corail hover:text-neige font-bold py-3 rounded-xl text-center text-xs transition-all">
+        <button onClick={() => triggerToast("Instructions enregistrées dans Supabase pour Tiedrebeogo Wilfried.", "success")} className="magnetic-btn bg-encre text-neige hover:bg-menthe hover:text-neige font-bold py-3 rounded-xl text-center text-xs transition-all">
           Enregistrer la configuration IA
         </button>
       </div>
@@ -50,7 +50,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast }) => {
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] uppercase font-bold text-encre/50">Numéro WhatsApp Meta Business ID</label>
-            <input type="text" value="105943895748395" className="bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-corail font-mono" disabled />
+            <input type="text" value="105943895748395" className="bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-menthe font-mono" disabled />
           </div>
         </div>
 

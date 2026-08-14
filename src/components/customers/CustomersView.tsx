@@ -29,7 +29,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
         <h3 className="text-sm font-bold text-encre">Clients inscrits ({customers.length})</h3>
         <button
           onClick={openCreateCustomerModal}
-          className="magnetic-btn bg-corail text-neige px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2"
+          className="magnetic-btn bg-menthe text-neige px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           <span>Ajouter un client</span>
@@ -75,7 +75,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                       <div className="flex gap-2 justify-end">
                         <button
                           onClick={() => openEditCustomerModal(customer)}
-                          className="text-encre/60 hover:text-corail p-1 bg-neige border border-graphite/10 rounded-lg"
+                          className="text-encre/60 hover:text-menthe p-1 bg-neige border border-graphite/10 rounded-lg"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>

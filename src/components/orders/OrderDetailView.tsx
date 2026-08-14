@@ -47,7 +47,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({
       {/* Header detail */}
       <div className="flex items-center justify-between border-b border-graphite/5 pb-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setOrdersSubView("list")} className="text-encre/50 hover:text-corail p-1 bg-neige rounded-lg border border-graphite/10">
+          <button onClick={() => setOrdersSubView("list")} className="text-encre/50 hover:text-menthe p-1 bg-neige rounded-lg border border-graphite/10">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
@@ -60,7 +60,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={() => openEditOrderForm(orderObj)} className="text-xs font-semibold text-encre/70 hover:text-corail p-2 bg-neige border border-graphite/10 rounded-xl flex items-center gap-1.5 transition-colors">
+          <button onClick={() => openEditOrderForm(orderObj)} className="text-xs font-semibold text-encre/70 hover:text-menthe p-2 bg-neige border border-graphite/10 rounded-xl flex items-center gap-1.5 transition-colors">
             <Edit2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Modifier</span>
           </button>
@@ -84,7 +84,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({
                 setActiveChatId(orderObj.chatId!);
                 setActiveTab("conversations");
               }}
-              className="text-[10px] font-bold text-corail flex items-center gap-1 hover:underline mt-2 self-start"
+              className="text-[10px] font-bold text-menthe flex items-center gap-1 hover:underline mt-2 self-start"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span>Voir la discussion WhatsApp d’origine</span>
@@ -111,7 +111,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({
                     if (e.target.value) handleAssignCourier(orderObj.id, e.target.value);
                   }}
                   defaultValue=""
-                  className="bg-white border border-graphite/10 rounded-lg px-2 py-1.5 text-[11px] focus:outline-none focus:border-corail font-semibold text-encre"
+                  className="bg-white border border-graphite/10 rounded-lg px-2 py-1.5 text-[11px] focus:outline-none focus:border-menthe font-semibold text-encre"
                 >
                   <option value="" disabled>-- Choisir un livreur --</option>
                   {couriers.filter(c => c.active).map(c => (
@@ -163,7 +163,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({
         </div>
         <div className="text-sm font-extrabold text-encre">
           <span>Total de la facture : </span>
-          <span className="text-corail font-black tabular-nums">{formatFCFA(orderObj.total)}</span>
+          <span className="text-menthe font-black tabular-nums">{formatFCFA(orderObj.total)}</span>
         </div>
         <div className="text-xs mt-1">
           <span>Statut du paiement : </span>
@@ -191,7 +191,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({
           {orderObj.status !== "paid" && orderObj.status !== "cancelled" && (
             <button
               onClick={() => handleAdvanceOrderStatus(orderObj.id)}
-              className="magnetic-btn bg-encre text-neige hover:bg-corail px-5 py-2.5 rounded-xl text-xs font-bold"
+              className="magnetic-btn bg-encre text-neige hover:bg-menthe px-5 py-2.5 rounded-xl text-xs font-bold"
             >
               {orderObj.status === "discussing" && "Confirmer la commande"}
               {orderObj.status === "confirmed" && "Expédier (Chez livreur)"}

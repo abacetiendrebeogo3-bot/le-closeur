@@ -26,11 +26,11 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
         </div>
       </div>
 
-      <div className="mt-4 border-l-2 border-corail/30 pl-6 ml-4 space-y-6">
+      <div className="mt-4 border-l-2 border-menthe/30 pl-6 ml-4 space-y-6">
         <div className="relative">
-          <span className="absolute -left-[31px] top-0.5 w-3.5 h-3.5 bg-corail rounded-full border-4 border-white"></span>
+          <span className="absolute -left-[31px] top-0.5 w-3.5 h-3.5 bg-menthe rounded-full border-4 border-white"></span>
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-corail font-bold uppercase">Étape 1 — Après 1 heure d’inactivité</span>
+            <span className="text-[10px] text-menthe font-bold uppercase">Étape 1 — Après 1 heure d’inactivité</span>
             <span className="text-xs font-bold text-encre">Rappel Panier Abandonné</span>
             <p className="text-xs text-encre/60 mt-1 italic">
               {"« Bonjour {{name}}, nous avons remarqué que vous n’avez pas validé votre panier pour {{total_amount}} FCFA. Souhaitez-vous de l’aide ? »"}
@@ -40,9 +40,9 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
         </div>
 
         <div className="relative">
-          <span className="absolute -left-[31px] top-0.5 w-3.5 h-3.5 bg-corail rounded-full border-4 border-white"></span>
+          <span className="absolute -left-[31px] top-0.5 w-3.5 h-3.5 bg-menthe rounded-full border-4 border-white"></span>
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-corail font-bold uppercase">Étape 2 — Après 24 heures</span>
+            <span className="text-[10px] text-menthe font-bold uppercase">Étape 2 — Après 24 heures</span>
             <span className="text-xs font-bold text-encre">Offre de livraison prioritaire</span>
             <p className="text-xs text-encre/60 mt-1 italic">
               {"« Bonjour {{name}} ! Finalisez votre commande aujourd’hui et profitez d’une expédition rapide pour {{delivery_zone}}. »"}

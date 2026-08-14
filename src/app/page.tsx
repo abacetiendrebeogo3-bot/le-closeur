@@ -307,7 +307,7 @@ export default function Home() {
         </div>
 
         <div className="flex flex-col gap-4 pt-6 border-t border-graphite">
-          <div class="flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-graphite flex items-center justify-center text-neige font-bold border border-corail/30 text-xs">
               WT
             </div>
@@ -828,7 +828,7 @@ export default function Home() {
 
               <div className="bg-white p-6 rounded-2xl border border-graphite/10 flex flex-col justify-between gap-5">
                 <div className="flex flex-col gap-5">
-                  <h3 class="text-sm font-bold text-encre">Zones de livraison & Tarifs</h3>
+                  <h3 className="text-sm font-bold text-encre">Zones de livraison & Tarifs</h3>
                   
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-neige rounded-xl border border-graphite/10 flex flex-col gap-1">

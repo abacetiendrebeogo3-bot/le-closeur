@@ -19,9 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" class="scroll-smooth">
+    <html lang="fr" className="scroll-smooth">
       <body className={`${plusJakarta.className} antialiased bg-neige text-encre min-h-screen`}>
-        <div class="noise-overlay"></div>
+        <div className="noise-overlay"></div>
         {children}
       </body>
     </html>

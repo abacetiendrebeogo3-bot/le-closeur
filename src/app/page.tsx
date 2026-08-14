@@ -656,7 +656,7 @@ export default function Home() {
           <nav className="flex flex-col gap-1">
             <button onClick={() => { setActiveTab("dashboard"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "dashboard" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
               <LayoutDashboard className="w-4.5 h-4.5" />
-              <span className="text-xs">Vue d'ensemble</span>
+              <span className="text-xs">Vue d’ensemble</span>
             </button>
             <button onClick={() => { setActiveTab("conversations"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "conversations" ? 'bg-corail text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
               <MessageSquare className="w-4.5 h-4.5" />
@@ -710,7 +710,7 @@ export default function Home() {
         <header className="hidden md:flex items-center justify-between px-10 py-6 border-b border-graphite/10 bg-white">
           <div>
             <h1 className="text-lg font-bold tracking-tight text-encre">
-              {activeTab === "dashboard" && "Vue d'ensemble"}
+              {activeTab === "dashboard" && "Vue d’ensemble"}
               {activeTab === "conversations" && "Conversations WhatsApp"}
               {activeTab === "orders" && (
                 ordersSubView === "list" ? "Commandes clients" :
@@ -729,17 +729,17 @@ export default function Home() {
               {activeTab === "dashboard" && "Suivi en temps réel de vos ventes et de vos agents de closing IA."}
               {activeTab === "conversations" && "Simulez, supervisez et répondez aux messages de vos acheteurs."}
               {activeTab === "orders" && (
-                ordersSubView === "list" ? "Cycle de vie complet de facturation et d'expédition des commandes." :
+                ordersSubView === "list" ? "Cycle de vie complet de facturation et d’expédition des commandes." :
                 ordersSubView === "create" ? "Ajouter une nouvelle transaction client manuellement." :
                 ordersSubView === "edit" ? "Formulaire de modification de la transaction sélectionnée." :
                 "Consulter la progression de livraison et le détail des produits commandés."
               )}
               {activeTab === "customers" && (
-                customerSubView === "list" ? "Statistiques d'achat et classification de votre clientèle." : "Historique complet des commandes passées par le client."
+                customerSubView === "list" ? "Statistiques d’achat et classification de votre clientèle." : "Historique complet des commandes passées par le client."
               )}
               {activeTab === "couriers" && "Assignation de courses et charges de livraison."}
               {activeTab === "followups" && "Configurez des relances automatiques par templates Meta WhatsApp."}
-              {activeTab === "settings" && "Modifiez les consignes système de l'IA et vos zones logistiques."}
+              {activeTab === "settings" && "Modifiez les consignes système de l’IA et vos zones logistiques."}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -874,10 +874,10 @@ export default function Home() {
 
                 <div className="bg-white p-5 rounded-2xl border border-graphite/10 flex flex-col justify-between">
                   <div>
-                    <span className="text-[9px] uppercase tracking-widest font-bold text-encre/40">Statut de l'Agent IA</span>
+                    <span className="text-[9px] uppercase tracking-widest font-bold text-encre/40">Statut de l’Agent IA</span>
                     <h3 className="text-sm font-bold text-encre mt-0.5">Assistant WhatsApp Live</h3>
                     <p className="text-xs text-encre/60 mt-2 leading-relaxed">
-                      L'IA de Mon Closeur analyse et répond en direct à vos prospects pour accélérer la prise de commande.
+                      L’IA de Mon Closeur analyse et répond en direct à vos prospects pour accélérer la prise de commande.
                     </p>
                     
                     <div className="mt-4 flex flex-col gap-2.5">
@@ -1002,13 +1002,13 @@ export default function Home() {
                         <div className="flex flex-col">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-xs text-encre">{activeChat.customerName}</span>
-                            <span className={`text-[9px] uppercase px-2 py-0.5 rounded-full font-bold ${activeChat.status === "ai_active" ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>{activeChat.status === "ai_active" ? 'IA active' : 'Reprise manuelle'}</span>
+                            <span className={`text-[9px] uppercase px-2 py-0.5 rounded-full font-bold ${activeChat.status === "ai_active" ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>{activeChat.status === "ai_active" ? "IA active" : "Reprise manuelle"}</span>
                           </div>
                           <span className="text-[10px] text-encre/40">{activeChat.customerPhone}</span>
                         </div>
                       </div>
                       <button onClick={toggleTakeover} className="magnetic-btn px-4 py-1.5 rounded-lg bg-white border border-graphite/20 hover:border-corail text-[10px] font-bold shadow-sm transition-all">
-                        {activeChat.status === "human_takeover" ? "Laisser l'IA répondre" : "Prendre la main"}
+                        {activeChat.status === "human_takeover" ? "Laisser l’IA répondre" : "Prendre la main"}
                       </button>
                     </div>
 
@@ -1016,7 +1016,7 @@ export default function Home() {
                       {activeChat.messages.map((msg, idx) => (
                         <div key={idx} className={`flex w-full ${msg.sender === "customer" ? 'justify-start' : 'justify-end'}`}>
                           <div className="max-w-[70%] flex flex-col gap-0.5">
-                            <span className="text-[9px] text-encre/40 px-1">{msg.sender === "customer" ? 'Client' : (msg.sender === "ai" ? 'Assistant IA' : 'Wilfried')}</span>
+                            <span className="text-[9px] text-encre/40 px-1">{msg.sender === "customer" ? "Client" : (msg.sender === "ai" ? "Assistant IA" : "Wilfried")}</span>
                             <div className={`px-4 py-2.5 rounded-[1.2rem] text-xs leading-relaxed ${msg.sender === "customer" ? 'bg-white border border-graphite/10 text-encre' : 'bg-encre text-neige'}`}>
                               {msg.text}
                             </div>
@@ -1432,7 +1432,7 @@ export default function Home() {
                             className="text-[10px] font-bold text-corail flex items-center gap-1 hover:underline mt-2 self-start"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Voir la discussion WhatsApp d'origine</span>
+                            <span>Voir la discussion WhatsApp d’origine</span>
                           </button>
                         )}
                       </div>
@@ -1520,7 +1520,7 @@ export default function Home() {
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-neige p-4 rounded-xl border border-graphite/10 mt-2">
                       <div>
                         <span className="text-[9px] uppercase font-bold text-encre/40 block">Cycle de vie de la commande</span>
-                        <span className="text-xs font-semibold text-encre">Faire avancer l'état logistique de la commande.</span>
+                        <span className="text-xs font-semibold text-encre">Faire avancer l’état logistique de la commande.</span>
                       </div>
 
                       <div className="flex gap-2">
@@ -1732,7 +1732,7 @@ export default function Home() {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-bold text-encre">Relances WhatsApp Automatiques</h3>
-                  <p className="text-[10px] text-encre/50 mt-0.5">Conformes aux fenêtres de 24h de l'API Meta WhatsApp Business Cloud.</p>
+                  <p className="text-[10px] text-encre/50 mt-0.5">Conformes aux fenêtres de 24h de l’API Meta WhatsApp Business Cloud.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-semibold text-encre/60">Statut Global</span>
@@ -1746,12 +1746,12 @@ export default function Home() {
                 <div className="relative">
                   <span className="absolute -left-[31px] top-0.5 w-3.5 h-3.5 bg-corail rounded-full border-4 border-white"></span>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-corail font-bold uppercase">Étape 1 — Après 1 heure d'inactivité</span>
+                    <span className="text-[10px] text-corail font-bold uppercase">Étape 1 — Après 1 heure d’inactivité</span>
                     <span className="text-xs font-bold text-encre">Rappel Panier Abandonné</span>
                     <p className="text-xs text-encre/60 mt-1 italic">
-                      "Bonjour {{name}}, nous avons remarqué que vous n'avez pas validé votre panier pour {{total_amount}} FCFA. Souhaitez-vous de l'aide ?"
+                      « Bonjour {{name}}, nous avons remarqué que vous n’avez pas validé votre panier pour {{total_amount}} FCFA. Souhaitez-vous de l’aide ? »
                     </p>
-                    <span className="text-[9px] text-encre/40 mt-1 font-bold">Template Meta : "cart_recovery_fr"</span>
+                    <span className="text-[9px] text-encre/40 mt-1 font-bold">Template Meta : « cart_recovery_fr »</span>
                   </div>
                 </div>
 
@@ -1761,9 +1761,9 @@ export default function Home() {
                     <span className="text-[10px] text-corail font-bold uppercase">Étape 2 — Après 24 heures</span>
                     <span className="text-xs font-bold text-encre">Offre de livraison prioritaire</span>
                     <p className="text-xs text-encre/60 mt-1 italic">
-                      "Bonjour {{name}} ! Finalisez votre commande aujourd'hui et profitez d'une expédition rapide pour {{delivery_zone}}."
+                      « Bonjour {{name}} ! Finalisez votre commande aujourd’hui et profitez d’une expédition rapide pour {{delivery_zone}}. »
                     </p>
-                    <span className="text-[9px] text-encre/40 mt-1 font-bold">Template Meta : "delivery_incentive_fr"</span>
+                    <span className="text-[9px] text-encre/40 mt-1 font-bold">Template Meta : « delivery_incentive_fr »</span>
                   </div>
                 </div>
               </div>
@@ -1774,7 +1774,7 @@ export default function Home() {
           {activeTab === "settings" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white p-6 rounded-2xl border border-graphite/10 flex flex-col gap-5">
-                <h3 className="text-sm font-bold text-encre">Instructions de l'Agent IA</h3>
+                <h3 className="text-sm font-bold text-encre">Instructions de l’Agent IA</h3>
                 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] uppercase font-bold text-encre/50">Tonalité conversationnelle</label>
@@ -1822,8 +1822,8 @@ export default function Home() {
                 <div className="p-3 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-200/50 text-[10px] flex gap-2.5 items-start">
                   <AlertTriangle className="w-4 h-4 shrink-0 text-yellow-600" />
                   <div>
-                    <span className="font-bold">Sécurité d'accès</span><br />
-                    L'API Meta requiert un jeton d'accès permanent stocké de manière isolée pour Tiedrebeogo Wilfried.
+                    <span className="font-bold">Sécurité d’accès</span><br />
+                    L’API Meta requiert un jeton d’accès permanent stocké de manière isolée pour Tiedrebeogo Wilfried.
                   </div>
                 </div>
               </div>

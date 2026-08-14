@@ -1749,7 +1749,7 @@ export default function Home() {
                     <span className="text-[10px] text-corail font-bold uppercase">Étape 1 — Après 1 heure d’inactivité</span>
                     <span className="text-xs font-bold text-encre">Rappel Panier Abandonné</span>
                     <p className="text-xs text-encre/60 mt-1 italic">
-                      « Bonjour {{name}}, nous avons remarqué que vous n’avez pas validé votre panier pour {{total_amount}} FCFA. Souhaitez-vous de l’aide ? »
+                      {"« Bonjour {{name}}, nous avons remarqué que vous n’avez pas validé votre panier pour {{total_amount}} FCFA. Souhaitez-vous de l’aide ? »"}
                     </p>
                     <span className="text-[9px] text-encre/40 mt-1 font-bold">Template Meta : « cart_recovery_fr »</span>
                   </div>
@@ -1761,7 +1761,7 @@ export default function Home() {
                     <span className="text-[10px] text-corail font-bold uppercase">Étape 2 — Après 24 heures</span>
                     <span className="text-xs font-bold text-encre">Offre de livraison prioritaire</span>
                     <p className="text-xs text-encre/60 mt-1 italic">
-                      « Bonjour {{name}} ! Finalisez votre commande aujourd’hui et profitez d’une expédition rapide pour {{delivery_zone}}. »
+                      {"« Bonjour {{name}} ! Finalisez votre commande aujourd’hui et profitez d’une expédition rapide pour {{delivery_zone}}. »"}
                     </p>
                     <span className="text-[9px] text-encre/40 mt-1 font-bold">Template Meta : « delivery_incentive_fr »</span>
                   </div>

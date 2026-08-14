@@ -491,6 +491,7 @@ export default function Home() {
               onViewOrder={(id) => { setSelectedOrderId(id); setOrdersSubView("detail"); setActiveTab("orders"); }}
               onNavigateToSettings={() => setActiveTab("settings")}
               onNavigateToOrders={() => { setActiveTab("orders"); setOrdersSubView("list"); }}
+              onNavigateToConversations={() => setActiveTab("conversations")}
             />
           )}
 

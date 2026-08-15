@@ -46,46 +46,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const closedCount = orders.filter(o => o.status === "paid" || o.status === "delivered").length;
 
   return (
-    <div className="flex flex-col gap-6 text-neige bg-encre p-4 rounded-custom-lg border border-graphite-light/20">
+    <div className="flex flex-col gap-6 text-encre bg-neige">
       
       {/* Stats Cards Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Metric 1 */}
-        <div className="interactive-card bg-graphite/40 backdrop-blur-md p-5 rounded-2xl border border-graphite-light/30 flex flex-col justify-between h-36">
-          <div className="flex items-center justify-between text-neige/50">
+        <div className="interactive-card bg-white p-5 rounded-2xl border border-graphite/10 shadow-sm flex flex-col justify-between h-36">
+          <div className="flex items-center justify-between text-encre/50">
             <span className="text-[9px] uppercase tracking-widest font-bold">Total Commandes</span>
             <ShoppingBag className="w-4 h-4 text-menthe" />
           </div>
           <div className="flex flex-col mt-2">
-            <span className="text-2xl font-extrabold tabular-nums text-neige">{orders.length}</span>
-            <span className="text-[10px] text-green-500 font-semibold mt-1">↑ +12% cette semaine</span>
+            <span className="text-2xl font-black tabular-nums text-encre">{orders.length}</span>
+            <span className="text-[10px] text-menthe font-semibold mt-1">↑ +12% cette semaine</span>
           </div>
         </div>
 
         {/* Metric 2 */}
-        <div className="interactive-card bg-graphite/40 backdrop-blur-md p-5 rounded-2xl border border-graphite-light/30 flex flex-col justify-between h-36">
-          <div className="flex items-center justify-between text-neige/50">
+        <div className="interactive-card bg-white p-5 rounded-2xl border border-graphite/10 shadow-sm flex flex-col justify-between h-36">
+          <div className="flex items-center justify-between text-encre/50">
             <span className="text-[9px] uppercase tracking-widest font-bold">Montant Facturé</span>
             <span className="text-xs font-bold text-menthe">XOF</span>
           </div>
           <div className="flex flex-col mt-2">
-            <span className="text-2xl font-extrabold tabular-nums text-neige">{formatFCFA(totalBilled)}</span>
-            <span className="text-[10px] text-green-500 font-semibold mt-1">↑ +8.4% ce mois</span>
+            <span className="text-2xl font-black tabular-nums text-encre">{formatFCFA(totalBilled)}</span>
+            <span className="text-[10px] text-menthe font-semibold mt-1">↑ +8.4% ce mois</span>
           </div>
         </div>
 
         {/* Highlighted Metric 3: Montant Payé */}
-        <div className="interactive-card sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-graphite to-encre border border-menthe/30 p-5 rounded-2xl flex flex-col justify-between h-36 shadow-lg shadow-menthe/5">
-          <div className="flex items-center justify-between text-neige/50">
-            <span className="text-[9px] uppercase tracking-widest font-bold text-menthe font-black">Montant Payé (Clôturé)</span>
-            <span className="text-[10px] bg-menthe/20 text-menthe px-2.5 py-0.5 rounded-full font-bold">Actif</span>
+        <div className="interactive-card sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-menthe/10 via-white to-white border border-menthe/30 p-5 rounded-2xl flex flex-col justify-between h-36 shadow-sm shadow-menthe/5">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] uppercase tracking-widest text-menthe font-black">Montant Payé (Clôturé)</span>
+            <span className="text-[10px] bg-menthe text-white px-2.5 py-0.5 rounded-full font-bold shadow-sm">Actif</span>
           </div>
           <div className="flex flex-col mt-2">
-            <span className="text-3xl font-black tabular-nums text-neige tracking-tight">{formatFCFA(totalPaid)}</span>
-            <span className="text-[11px] text-neige/60 font-semibold mt-1 flex items-center justify-between">
+            <span className="text-3xl font-black tabular-nums text-encre tracking-tight">{formatFCFA(totalPaid)}</span>
+            <span className="text-[11px] text-encre/60 font-semibold mt-1 flex items-center justify-between">
               <span>{formatFCFA(totalPending)} restant à recouvrer</span>
-              <span className="text-green-400 font-bold flex items-center gap-0.5"><TrendingUp className="w-3.5 h-3.5" /> +18%</span>
+              <span className="text-menthe font-bold flex items-center gap-0.5"><TrendingUp className="w-3.5 h-3.5" /> +18%</span>
             </span>
           </div>
         </div>
@@ -94,14 +94,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Highlighted Metric 4: Taux de Conversion */}
-        <div className="interactive-card sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-graphite to-encre border border-menthe/30 p-5 rounded-2xl flex flex-col justify-between h-36 shadow-lg shadow-menthe/5">
-          <div className="flex items-center justify-between text-neige/50">
-            <span className="text-[9px] uppercase tracking-widest font-bold text-menthe font-black">Taux de Conversion (Closing IA)</span>
+        <div className="interactive-card sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-menthe/10 via-white to-white border border-menthe/30 p-5 rounded-2xl flex flex-col justify-between h-36 shadow-sm shadow-menthe/5">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] uppercase tracking-widest text-menthe font-black">Taux de Conversion (Closing IA)</span>
             <UserCheck className="w-4 h-4 text-menthe" />
           </div>
           <div className="flex flex-col mt-2">
-            <span className="text-3xl font-black tabular-nums text-neige tracking-tight">78.5 %</span>
-            <span className="text-[11px] text-neige/60 font-semibold mt-1">
+            <span className="text-3xl font-black tabular-nums text-encre tracking-tight">78.5 %</span>
+            <span className="text-[11px] text-encre/60 font-semibold mt-1">
               Performance de négociation et closing automatisé par WhatsApp
             </span>
           </div>
@@ -112,20 +112,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Recharts Area Chart */}
-        <div className="bg-graphite/40 p-5 rounded-2xl border border-graphite-light/20 lg:col-span-2 flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-2xl border border-graphite/10 shadow-sm lg:col-span-2 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <span className="text-[9px] uppercase tracking-widest font-bold text-neige/40">Performance IA vs Humain</span>
-              <span className="block text-sm font-bold text-neige mt-0.5">Évolution hebdomadaire</span>
+              <span className="text-[9px] uppercase tracking-widest font-bold text-encre/40">Performance IA vs Humain</span>
+              <span className="block text-sm font-bold text-encre mt-0.5">Évolution hebdomadaire</span>
             </div>
             <div className="flex items-center gap-3 text-[10px]">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 bg-menthe rounded-full"></span>
-                <span>IA Closeur</span>
+                <span className="font-semibold text-encre">IA Closeur</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-neige rounded-full"></span>
-                <span>Reprise Manuelle</span>
+                <span className="w-2 h-2 bg-encre/60 rounded-full"></span>
+                <span className="font-semibold text-encre/60">Reprise Manuelle</span>
               </div>
             </div>
           </div>
@@ -136,38 +136,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorIA" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#16A34A" stopOpacity={0.4}/>
+                      <stop offset="5%" stopColor="#16A34A" stopOpacity={0.35}/>
                       <stop offset="95%" stopColor="#16A34A" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="colorHumain" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#FAFAFA" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="#FAFAFA" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#1C1C1E" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#1C1C1E" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2D2D2D" vertical={false} />
-                  <XAxis dataKey="name" stroke="#9A9A9A" />
-                  <YAxis stroke="#9A9A9A" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F2" vertical={false} />
+                  <XAxis dataKey="name" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: "#1C1C1E", borderColor: "#2D2D2D", borderRadius: "0.8rem", color: "#FAFAFA" }} 
-                    itemStyle={{ color: "#16A34A" }}
+                    contentStyle={{ backgroundColor: "#FFFFFF", borderColor: "#E5E7EB", borderRadius: "0.8rem", color: "#1C1C1E", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }} 
+                    itemStyle={{ color: "#16A34A", fontWeight: "bold" }}
                   />
                   <Area type="monotone" dataKey="IA" stroke="#16A34A" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIA)" />
-                  <Area type="monotone" dataKey="Humain" stroke="#FAFAFA" strokeWidth={1.5} strokeDasharray="4 4" fillOpacity={1} fill="url(#colorHumain)" />
+                  <Area type="monotone" dataKey="Humain" stroke="#4B5563" strokeWidth={1.5} strokeDasharray="4 4" fillOpacity={1} fill="url(#colorHumain)" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full w-full bg-graphite/10 rounded animate-pulse" />
+              <div className="h-full w-full bg-neige rounded animate-pulse" />
             )}
           </div>
         </div>
 
         {/* AI Summary Card */}
-        <div className="bg-graphite/40 p-5 rounded-2xl border border-graphite-light/20 flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-2xl border border-graphite/10 shadow-sm flex flex-col justify-between">
           <div className="flex flex-col gap-3">
-            <span className="text-[9px] uppercase tracking-widest font-bold text-neige/40">Statut de l’Agent IA</span>
-            <h3 className="text-sm font-bold text-neige">Résumé IA</h3>
+            <span className="text-[9px] uppercase tracking-widest font-bold text-encre/40">Statut de l’Agent IA</span>
+            <h3 className="text-sm font-bold text-encre">Résumé IA</h3>
             
-            <p className="text-xs text-neige/70 leading-relaxed bg-encre/40 p-3.5 rounded-xl border border-graphite-light/10">
+            <p className="text-xs text-encre/70 leading-relaxed bg-neige p-3.5 rounded-xl border border-graphite/5">
               Activité stable cette semaine. {closedCount} commandes closées automatiquement, aucune anomalie détectée.
             </p>
 
@@ -180,25 +180,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
             
             <div className="mt-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between p-3 bg-encre/30 rounded-xl border border-graphite-light/10">
+              <div className="flex items-center justify-between p-3 bg-neige rounded-xl border border-graphite/5">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="w-2 h-2 bg-menthe rounded-full animate-pulse"></span>
                   <span className="text-[11px] font-semibold">Tonalité active</span>
                 </div>
-                <span className="text-[9px] font-bold bg-graphite/80 px-2 py-0.5 rounded border border-graphite-light/20 text-menthe">Chaleureux</span>
+                <span className="text-[9px] font-bold bg-menthe/10 px-2 py-0.5 rounded border border-menthe/20 text-menthe">Chaleureux</span>
               </div>
 
-              <div className="flex items-center justify-between p-3 bg-encre/30 rounded-xl border border-graphite-light/10">
+              <div className="flex items-center justify-between p-3 bg-neige rounded-xl border border-graphite/5">
                 <div className="flex items-center gap-2">
-                  <Database className="w-3.5 h-3.5 text-neige/40" />
+                  <Database className="w-3.5 h-3.5 text-encre/40" />
                   <span className="text-[11px] font-semibold">Workspace</span>
                 </div>
-                <span className="text-[9px] font-bold text-green-400 uppercase">Wilfried Tiedrebeogo</span>
+                <span className="text-[9px] font-bold text-menthe uppercase">Wilfried Tiedrebeogo</span>
               </div>
             </div>
           </div>
 
-          <button onClick={onNavigateToSettings} className="magnetic-btn w-full bg-encre text-neige hover:bg-menthe hover:text-neige font-bold py-2.5 rounded-xl text-center text-xs transition-all mt-4 flex items-center justify-center gap-2 border border-graphite-light/20">
+          <button onClick={onNavigateToSettings} className="magnetic-btn w-full bg-encre text-neige hover:bg-menthe hover:text-neige font-bold py-2.5 rounded-xl text-center text-xs transition-all mt-4 flex items-center justify-center gap-2">
             <Settings className="w-3.5 h-3.5" />
             <span>Ajuster les consignes</span>
           </button>
@@ -207,11 +207,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Latest Orders Section */}
-      <div className="bg-graphite/30 p-5 rounded-2xl border border-graphite-light/20 mt-2">
+      <div className="bg-white p-5 rounded-2xl border border-graphite/10 shadow-sm mt-2">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-bold text-neige">Dernières commandes enregistrées</h3>
-            <p className="text-[10px] text-neige/40">Traitement en direct des fiches de ventes.</p>
+            <h3 className="text-sm font-bold text-encre">Dernières commandes enregistrées</h3>
+            <p className="text-[10px] text-encre/40">Traitement en direct des fiches de ventes.</p>
           </div>
           <button onClick={onNavigateToOrders} className="text-xs text-menthe font-semibold hover:underline flex items-center gap-1">
             <span>Voir tout</span>
@@ -221,7 +221,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-graphite-light/20 text-[9px] text-neige/40 uppercase tracking-widest font-bold">
+              <tr className="border-b border-graphite/10 text-[9px] text-encre/40 uppercase tracking-widest font-bold">
                 <th className="py-2.5 px-3">ID Commande</th>
                 <th className="py-2.5 px-3">Client</th>
                 <th className="py-2.5 px-3">Date</th>
@@ -230,15 +230,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <th className="py-2.5 px-3 text-right">Total</th>
               </tr>
             </thead>
-            <tbody className="text-xs text-neige/80">
+            <tbody className="text-xs text-encre">
               {orders.slice(0, 3).map(order => (
-                <tr key={order.id} onClick={() => onViewOrder(order.id)} className="border-b border-graphite-light/10 hover:bg-graphite/20 transition-colors cursor-pointer">
-                  <td className="py-3 px-3 font-semibold text-neige">{order.id}</td>
+                <tr key={order.id} onClick={() => onViewOrder(order.id)} className="border-b border-graphite/5 hover:bg-neige transition-colors cursor-pointer">
+                  <td className="py-3 px-3 font-semibold text-encre">{order.id}</td>
                   <td className="py-3 px-3 font-semibold">{order.customer}</td>
                   <td className="py-3 px-3">{new Date(order.date).toLocaleDateString('fr-FR')}</td>
                   <td className="py-3 px-3">{orderBadges[order.status]}</td>
                   <td className="py-3 px-3">{paymentBadges[order.paymentStatus]}</td>
-                  <td className="py-3 px-3 text-right font-bold tabular-nums text-neige">{formatFCFA(order.total)}</td>
+                  <td className="py-3 px-3 text-right font-bold tabular-nums text-encre">{formatFCFA(order.total)}</td>
                 </tr>
               ))}
             </tbody>

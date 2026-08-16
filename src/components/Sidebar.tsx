@@ -32,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className="text-lg font-black tracking-tight text-neige">MON CLOSEUR</span>
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="w-2 h-2 bg-menthe rounded-full animate-pulse"></span>
             </div>
             <span className="text-[10px] text-neige/50 mt-1 uppercase tracking-wider">Espace Client</span>
           </div>
@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <nav className="flex flex-col gap-1">
           <button onClick={() => { setActiveTab("dashboard"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "dashboard" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <LayoutDashboard className="w-4.5 h-4.5" />
-            <span className="text-xs">Vue d'ensemble</span>
+            <span className="text-xs">Vue d&apos;ensemble</span>
           </button>
           <button onClick={() => { setActiveTab("conversations"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "conversations" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <MessageSquare className="w-4.5 h-4.5" />
@@ -85,8 +85,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
         <div className="text-[9px] text-neige/40 font-semibold flex items-center justify-between">
-          <span>Fait avec le vibe coding</span>
-          <span className="w-2 h-2 bg-green-500 rounded-full inline-block animate-ping"></span>
+          <span>v0.1.0</span>
+          <span className="w-2 h-2 bg-menthe rounded-full inline-block animate-ping"></span>
         </div>
       </div>
     </aside>

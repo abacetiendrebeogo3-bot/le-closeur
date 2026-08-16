@@ -71,37 +71,47 @@ export default function Home() {
       try {
         // Fetch products
         const { data: pData, error: pErr } = await supabase.from("products").select("*");
-        if (!pErr && pData && pData.length > 0) {
-          setProducts(pData as Product[]);
+        if (pErr) {
+          console.error("Error fetching products from Supabase:", pErr);
+        } else {
+          setProducts((pData || []) as Product[]);
         }
 
         // Fetch delivery zones
         const { data: zData, error: zErr } = await supabase.from("delivery_zones").select("*");
-        if (!zErr && zData && zData.length > 0) {
-          setZones(zData as Zone[]);
+        if (zErr) {
+          console.error("Error fetching delivery zones from Supabase:", zErr);
+        } else {
+          setZones((zData || []) as Zone[]);
         }
 
         // Fetch customers
         const { data: cData, error: cErr } = await supabase.from("customers").select("*");
-        if (!cErr && cData && cData.length > 0) {
-          setCustomers(cData.map(c => ({
+        if (cErr) {
+          console.error("Error fetching customers from Supabase:", cErr);
+        } else {
+          setCustomers(((cData || []).map(c => ({
             ...c,
             tags: c.tags || [],
-          })) as Customer[]);
+          }))) as Customer[]);
         }
 
         // Fetch couriers
         const { data: coData, error: coErr } = await supabase.from("couriers").select("*");
-        if (!coErr && coData && coData.length > 0) {
-          setCouriers(coData as Courier[]);
+        if (coErr) {
+          console.error("Error fetching couriers from Supabase:", coErr);
+        } else {
+          setCouriers((coData || []) as Courier[]);
         }
 
         // Fetch conversations
         const { data: convData, error: convErr } = await supabase
           .from("conversations")
           .select("*, messages(*)");
-        if (!convErr && convData && convData.length > 0) {
-          const mappedConvs = convData.map((c: any) => ({
+        if (convErr) {
+          console.error("Error fetching conversations from Supabase:", convErr);
+        } else {
+          const mappedConvs = (convData || []).map((c: any) => ({
             id: c.id,
             customerName: c.customer_name,
             customerPhone: c.customer_phone,
@@ -122,8 +132,10 @@ export default function Home() {
         const { data: oData, error: oErr } = await supabase
           .from("orders")
           .select("*, order_items(*)");
-        if (!oErr && oData && oData.length > 0) {
-          const mappedOrders = oData.map((o: any) => ({
+        if (oErr) {
+          console.error("Error fetching orders from Supabase:", oErr);
+        } else {
+          const mappedOrders = (oData || []).map((o: any) => ({
             id: o.id,
             customer: o.customer,
             customerPhone: o.customer_phone,

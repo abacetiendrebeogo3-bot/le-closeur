@@ -12,26 +12,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast }) => {
       {/* Meta API Integration Card */}
       <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 flex flex-col justify-between gap-5 shadow-sm">
         <div className="flex flex-col gap-5">
-          <h3 className="text-sm font-bold text-encre flex items-center gap-2">
-            <Settings className="w-4 h-4 text-menthe" />
-            <span>Intégration API WhatsApp</span>
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-encre flex items-center gap-2">
+              <Settings className="w-4 h-4 text-menthe" />
+              <span>Intégration API WhatsApp</span>
+            </h3>
+            <span className="text-[9px] uppercase px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              Phase 5
+            </span>
+          </div>
           
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase font-bold text-encre/50">Numéro WhatsApp Meta Business ID</label>
-            <input 
-              type="text" 
-              value="105943895748395" 
-              className="bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-menthe font-mono text-encre/65" 
-              disabled 
-            />
+          <div className="flex flex-col gap-2">
+            <button 
+              disabled
+              className="w-full bg-neige border border-graphite/15 text-encre/40 font-bold py-3 px-4 rounded-xl text-xs text-center opacity-70 cursor-not-allowed"
+            >
+              Connecter mon compte WhatsApp Business
+            </button>
+            <span className="text-[10px] text-amber-600 font-semibold text-center block mt-1">
+              ⚠️ Non connecté — à configurer en Phase 5
+            </span>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] uppercase font-bold text-encre/50">Statut de la connexion Meta</label>
-            <div className="flex items-center gap-2 bg-menthe/10 text-menthe border border-menthe/20 px-3 py-2 rounded-xl text-xs font-bold">
-              <span className="w-2.5 h-2.5 bg-menthe rounded-full animate-pulse"></span>
-              <span>Connecté et opérationnel</span>
+            <div className="flex items-center gap-2 bg-neige text-encre/50 border border-graphite/10 px-3 py-2 rounded-xl text-xs font-bold">
+              <span className="w-2.5 h-2.5 bg-graphite rounded-full"></span>
+              <span>Non connecté</span>
             </div>
           </div>
         </div>
@@ -48,26 +55,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast }) => {
       {/* Database/Sync card */}
       <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 flex flex-col justify-between gap-5 shadow-sm">
         <div className="flex flex-col gap-5">
-          <h3 className="text-sm font-bold text-encre flex items-center gap-2">
-            <Database className="w-4 h-4 text-menthe" />
-            <span>Synchronisation Supabase</span>
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-encre flex items-center gap-2">
+              <Database className="w-4 h-4 text-menthe" />
+              <span>Synchronisation Supabase</span>
+            </h3>
+            <span className="text-[9px] uppercase px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              Phase 3
+            </span>
+          </div>
+          
           <p className="text-xs text-encre/60 leading-relaxed font-semibold">
-            Les données locales de sessions (prospects, commandes, livreurs, catalogue) sont configurées pour une synchronisation bilatérale temps réel avec votre base de données Supabase.
+            Les données locales de sessions (prospects, commandes, livreurs, catalogue) seront synchronisées en temps réel avec votre base de données Supabase.
           </p>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] uppercase font-bold text-encre/50">Base de données active</label>
-            <div className="flex items-center gap-2 bg-encre/5 text-encre border border-graphite/10 px-3 py-2.5 rounded-xl text-xs font-mono font-bold">
-              <span>moncloseur-prod-db</span>
+            <div className="flex items-center gap-2 bg-neige text-encre/40 border border-graphite/10 px-3 py-2.5 rounded-xl text-xs font-mono font-semibold">
+              <span>(Aucune base de données connectée)</span>
             </div>
           </div>
         </div>
 
         <button 
-          onClick={() => triggerToast("Synchronisation forcée effectuée.", "success")}
-          className="magnetic-btn bg-encre hover:bg-menthe hover:text-neige text-neige font-bold py-3 rounded-xl text-center text-xs transition-all shadow-xs"
+          onClick={() => triggerToast("Option disponible après connexion Supabase (Phase 3)", "warning")}
+          className="magnetic-btn bg-neige hover:bg-graphite/10 text-encre/50 border border-graphite/15 font-bold py-3 rounded-xl text-center text-xs transition-all shadow-xs"
         >
-          Forcer la synchronisation
+          Forcer la synchronisation (Indisponible)
         </button>
       </div>
 

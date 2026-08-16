@@ -94,9 +94,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="text-[9px] text-neige/40 font-semibold uppercase">Propriétaire</span>
           </div>
         </div>
-        <div className="text-[9px] text-neige/40 font-semibold flex items-center justify-between">
+        <div className="text-[9px] text-neige/45 font-semibold flex items-center justify-between">
           <span>v0.1.0</span>
-          <span className="w-2 h-2 bg-menthe rounded-full inline-block animate-ping"></span>
         </div>
       </div>
     </aside>

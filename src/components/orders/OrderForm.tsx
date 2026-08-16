@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { ArrowLeft, UserPlus, Plus, Trash2 } from "lucide-react";
 import { Customer, OrderItem, Order } from "../../types";
+import { gsap } from "gsap";
 
 interface OrderFormProps {
   orderFormId: string | null;
@@ -68,7 +69,30 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
   const handleRemoveFormItemRow = (index: number) => {
     if (orderFormItems.length <= 1) return;
-    setOrderFormItems(prev => prev.filter((_, idx) => idx !== index));
+    
+    const rowElements = document.querySelectorAll(".order-row");
+    const targetRow = rowElements[index] as HTMLElement;
+    
+    if (targetRow) {
+      gsap.to(targetRow, {
+        opacity: 0,
+        x: -30,
+        height: 0,
+        paddingTop: 0,
+        paddingBottom: 0,
+        marginTop: 0,
+        marginBottom: 0,
+        duration: 0.35,
+        ease: "power2.in",
+        onComplete: () => {
+          setOrderFormItems(prev => prev.filter((_, idx) => idx !== index));
+          // Reset styles on completion to prevent layout state mismatch in React
+          gsap.set(targetRow, { clearProps: "all" });
+        }
+      });
+    } else {
+      setOrderFormItems(prev => prev.filter((_, idx) => idx !== index));
+    }
   };
 
   const handleUpdateFormItemProduct = (index: number, productName: string) => {
@@ -81,8 +105,16 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     setOrderFormItems(prev => prev.map((item, idx) => idx === index ? { ...item, [field]: value } : item));
   };
 
+  // Animate new rows on addition
+  useEffect(() => {
+    gsap.fromTo(".order-row",
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.3, stagger: 0.05, ease: "power2.out" }
+    );
+  }, [orderFormItems.length]);
+
   return (
-    <div className="bg-white p-6 md:p-8 rounded-2xl border border-graphite/10 flex flex-col gap-6 max-w-3xl mx-auto w-full">
+    <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-graphite/10 flex flex-col gap-6 max-w-3xl mx-auto w-full shadow-sm">
       <div className="flex items-center gap-3">
         <button onClick={() => setOrdersSubView("list")} className="text-encre/50 hover:text-menthe p-1 bg-neige rounded-lg border border-graphite/10">
           <ArrowLeft className="w-4 h-4" />
@@ -175,7 +207,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           <span className="text-[10px] uppercase font-bold text-encre/50">Lignes de la commande</span>
           <div className="flex flex-col gap-2.5">
             {orderFormItems.map((item, idx) => (
-              <div key={idx} className="flex flex-col md:flex-row gap-2.5 items-end md:items-center bg-neige/50 p-3 rounded-xl border border-graphite/5">
+              <div key={idx} className="order-row flex flex-col md:flex-row gap-2.5 items-end md:items-center bg-neige/50 p-3 rounded-xl border border-graphite/5 overflow-hidden">
                 <div className="flex-1 w-full">
                   <label className="text-[9px] uppercase font-bold text-encre/30 block mb-1 md:hidden">Produit / Description</label>
                   <select

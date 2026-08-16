@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Search, Plus } from "lucide-react";
 import { Order } from "../../types";
+import { gsap } from "gsap";
 
 interface OrdersListViewProps {
   orders: Order[];
@@ -33,9 +34,18 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
   paymentBadges,
   formatFCFA
 }) => {
+
+  // Staggered entry for table rows on filter/search change
+  useEffect(() => {
+    gsap.fromTo(".order-table-row",
+      { opacity: 0, y: 8 },
+      { opacity: 1, y: 0, duration: 0.35, stagger: 0.04, ease: "power2.out" }
+    );
+  }, [orderFilter, paymentFilter, orderSearchQuery]);
+
   return (
     <>
-      <div className="flex flex-col gap-4 bg-white p-5 rounded-2xl border border-graphite/10">
+      <div className="flex flex-col gap-4 bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Search Bar */}
           <div className="relative flex-1 max-w-md">
@@ -47,11 +57,11 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
               placeholder="Rechercher par nom de client..."
               value={orderSearchQuery}
               onChange={(e) => setOrderSearchQuery(e.target.value)}
-              className="w-full bg-neige border border-graphite/10 rounded-xl pl-10 pr-4 py-2 text-xs focus:outline-none focus:border-menthe"
+              className="w-full bg-neige border border-graphite/10 rounded-xl pl-10 pr-4 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold"
             />
           </div>
           
-          <button onClick={openCreateOrderForm} className="magnetic-btn bg-menthe text-neige px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 self-start md:self-auto shrink-0">
+          <button onClick={openCreateOrderForm} className="magnetic-btn bg-menthe text-neige px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 self-start md:self-auto shrink-0 shadow-sm">
             <Plus className="w-4 h-4" />
             <span>Créer une commande</span>
           </button>
@@ -74,7 +84,11 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
                 <button
                   key={filter.id}
                   onClick={() => setOrderFilter(filter.id)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all inline-block shrink-0 ${orderFilter === filter.id ? 'bg-encre text-neige' : 'bg-neige border border-graphite/10 text-encre hover:bg-graphite/5'}`}
+                  className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] inline-block shrink-0 ${
+                    orderFilter === filter.id 
+                      ? 'bg-encre text-neige ring-2 ring-encre/10 shadow-xs' 
+                      : 'bg-neige border border-graphite/10 text-encre hover:bg-graphite/5'
+                  }`}
                 >
                   {filter.label}
                 </button>
@@ -94,7 +108,11 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
                 <button
                   key={filter.id}
                   onClick={() => setPaymentFilter(filter.id)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all inline-block shrink-0 ${paymentFilter === filter.id ? 'bg-encre text-neige' : 'bg-neige border border-graphite/10 text-encre hover:bg-graphite/5'}`}
+                  className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] inline-block shrink-0 ${
+                    paymentFilter === filter.id 
+                      ? 'bg-encre text-neige ring-2 ring-encre/10 shadow-xs' 
+                      : 'bg-neige border border-graphite/10 text-encre hover:bg-graphite/5'
+                  }`}
                 >
                   {filter.label}
                 </button>
@@ -104,7 +122,7 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-graphite/10">
+      <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -126,7 +144,7 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
                   <tr
                     key={order.id}
                     onClick={() => { setSelectedOrderId(order.id); setOrdersSubView("detail"); }}
-                    className="border-b border-graphite/5 hover:bg-neige/40 transition-colors cursor-pointer"
+                    className="order-table-row border-b border-graphite/5 hover:bg-neige/40 transition-colors cursor-pointer"
                   >
                     <td className="py-3.5 px-4 font-semibold text-encre">{order.id}</td>
                     <td className="py-3.5 px-4 font-semibold">{order.customer}</td>

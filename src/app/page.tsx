@@ -499,6 +499,7 @@ export default function Home() {
           {activeTab === "conversations" && (
             <ConversationsView 
               conversations={conversations}
+              setConversations={setConversations}
               customers={customers}
               activeChatId={activeChatId}
               setActiveChatId={setActiveChatId}

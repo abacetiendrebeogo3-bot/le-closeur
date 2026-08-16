@@ -11,6 +11,7 @@ interface CatalogViewProps {
   setZones: React.Dispatch<React.SetStateAction<Zone[]>>;
   formatFCFA: (val: number) => string;
   triggerToast: (msg: string, type?: "success" | "warning" | "info") => void;
+  businessId: string | null;
 }
 
 export const CatalogView: React.FC<CatalogViewProps> = ({
@@ -19,7 +20,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   zones,
   setZones,
   formatFCFA,
-  triggerToast
+  triggerToast,
+  businessId
 }) => {
   const [activeTab, setActiveTab] = useState<"products" | "zones">("products");
   
@@ -140,6 +142,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       const newId = `PROD-${Date.now().toString().slice(-4)}`;
       const { error } = await supabase.from("products").insert({
         id: newId,
+        business_id: businessId,
         name: prodFormName.trim(),
         price: prodFormPrice,
         category: prodFormCategory.trim() || "Général",
@@ -196,6 +199,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       const newId = `ZONE-${Date.now().toString().slice(-4)}`;
       const { error } = await supabase.from("delivery_zones").insert({
         id: newId,
+        business_id: businessId,
         name: zoneFormName.trim(),
         fee: zoneFormFee,
         delivery_time: zoneFormTime.trim()

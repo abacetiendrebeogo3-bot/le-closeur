@@ -10,6 +10,7 @@ interface CouriersViewProps {
   orders: Order[];
   formatFCFA: (val: number) => string;
   triggerToast: (msg: string, type?: "success" | "warning" | "info") => void;
+  businessId: string | null;
 }
 
 export const CouriersView: React.FC<CouriersViewProps> = ({
@@ -17,7 +18,8 @@ export const CouriersView: React.FC<CouriersViewProps> = ({
   setCouriers,
   orders,
   formatFCFA,
-  triggerToast
+  triggerToast,
+  businessId
 }) => {
   // Modal states
   const [showCourierModal, setShowCourierModal] = useState<{ mode: "create" | "edit"; courierId?: string } | null>(null);
@@ -104,6 +106,7 @@ export const CouriersView: React.FC<CouriersViewProps> = ({
       const newId = `COURIER-${Date.now().toString().slice(-4)}`;
       const { error } = await supabase.from("couriers").insert({
         id: newId,
+        business_id: businessId,
         name: courierFormName.trim(),
         phone: courierFormPhone.trim(),
         active: courierFormActive,

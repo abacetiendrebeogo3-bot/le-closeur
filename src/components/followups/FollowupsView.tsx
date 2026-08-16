@@ -9,6 +9,7 @@ interface FollowupsViewProps {
   setFollowupsActive: (active: boolean) => void;
   triggerToast: (msg: string, type?: "success" | "warning" | "info") => void;
   onNavigateToChat: (customerName: string) => void;
+  businessId: string | null;
 }
 
 // Prefilled default steps
@@ -76,7 +77,8 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
   followupsActive,
   setFollowupsActive,
   triggerToast,
-  onNavigateToChat
+  onNavigateToChat,
+  businessId
 }) => {
   const [steps, setSteps] = useState<FollowupStep[]>(defaultSteps);
   const [clientsList, setClientsList] = useState<FollowupClient[]>(mockFollowupClients);
@@ -86,10 +88,12 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
 
   // Fetch steps from Supabase
   useEffect(() => {
+    if (!businessId) return;
     const fetchSteps = async () => {
       const { data, error } = await supabase
         .from("followup_steps")
         .select("*")
+        .eq("business_id", businessId)
         .order("created_at", { ascending: true });
       if (!error && data && data.length > 0) {
         setSteps(data.map(fs => ({
@@ -103,7 +107,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
       }
     };
     fetchSteps();
-  }, []);
+  }, [businessId]);
 
   // GSAP Entrance animations
   useEffect(() => {
@@ -129,6 +133,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
 
   // Add step
   const handleAddStep = async () => {
+    if (!businessId) return;
     const newId = `STEP-${Date.now()}`;
     const newStep: FollowupStep = {
       id: newId,
@@ -141,6 +146,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
 
     const { error } = await supabase.from("followup_steps").insert({
       id: newId,
+      business_id: businessId,
       delay_value: newStep.delayValue,
       delay_unit: newStep.delayUnit,
       name: newStep.name,

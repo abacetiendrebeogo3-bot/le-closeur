@@ -18,6 +18,9 @@ interface SidebarProps {
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
   conversationsCount: number;
+  businessName?: string;
+  ownerName?: string;
+  onSignOut: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -25,7 +28,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   mobileMenuOpen,
   setMobileMenuOpen,
-  conversationsCount
+  conversationsCount,
+  businessName,
+  ownerName,
+  onSignOut
 }) => {
   return (
     <aside className={`fixed inset-y-0 left-0 w-80 bg-encre text-neige flex flex-col justify-between border-r border-graphite p-8 transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen shrink-0`}>
@@ -33,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-tight text-neige">MON CLOSEUR</span>
+              <span className="text-lg font-black tracking-tight text-neige">{businessName || "MON CLOSEUR"}</span>
               <span className="w-2 h-2 bg-menthe rounded-full animate-pulse"></span>
             </div>
             <span className="text-[10px] text-neige/50 mt-1 uppercase tracking-wider">Espace Client</span>
@@ -87,14 +93,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex flex-col gap-4 pt-6 border-t border-graphite">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-graphite flex items-center justify-center text-neige font-bold border border-menthe/30 text-xs">
-            WT
+            {ownerName ? ownerName.split(" ").map(n => n[0]).join("").toUpperCase() : "WT"}
           </div>
           <div className="flex flex-col">
-            <span className="text-xs font-semibold text-neige">Tiedrebeogo Wilfried</span>
+            <span className="text-xs font-semibold text-neige">{ownerName || "Tiedrebeogo Wilfried"}</span>
             <span className="text-[9px] text-neige/40 font-semibold uppercase">Propriétaire</span>
           </div>
         </div>
-        <div className="text-[9px] text-neige/45 font-semibold flex items-center justify-between">
+        <button onClick={onSignOut} className="w-full text-left px-4 py-2.5 rounded-xl font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs transition-all flex items-center gap-2">
+          Se déconnecter
+        </button>
+        <div className="text-[9px] text-neige/45 font-semibold flex items-center justify-between px-4">
           <span>v0.1.0</span>
         </div>
       </div>

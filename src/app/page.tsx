@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase/client";
 import { 
   Download, 
@@ -35,6 +36,12 @@ import { Toast } from "../components/ui/Toast";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
 
 export default function Home() {
+  const router = useRouter();
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [businessName, setBusinessName] = useState<string>("");
+  const [ownerName, setOwnerName] = useState<string>("");
+  const [loadingSession, setLoadingSession] = useState(true);
+
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
@@ -57,20 +64,66 @@ export default function Home() {
   const [showDeleteConfirmCustomer, setShowDeleteConfirmCustomer] = useState<string | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState<{ mode: "create" | "edit", customerId?: string } | null>(null);
 
-  // State data
-  const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [couriers, setCouriers] = useState<Courier[]>(initialCouriers);
-  const [products, setProducts] = useState<Product[]>(initialCatalog);
-  const [zones, setZones] = useState<Zone[]>(initialZones);
+  // State data initialized to empty for new accounts (Supabase will populate them if present)
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
+
+  // Session & Tenant Ingestion Effect
+  useEffect(() => {
+    const getSession = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push("/login");
+          return;
+        }
+
+        // Fetch user's business membership
+        const { data: member, error: memErr } = await supabase
+          .from("business_members")
+          .select("business_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (memErr || !member) {
+          router.push("/onboarding");
+          return;
+        }
+
+        setBusinessId(member.business_id);
+
+        // Fetch business details
+        const { data: bus } = await supabase
+          .from("businesses")
+          .select("name, owner_name")
+          .eq("id", member.business_id)
+          .maybeSingle();
+
+        if (bus) {
+          setBusinessName(bus.name);
+          setOwnerName(bus.owner_name || "");
+        }
+      } catch (err) {
+        console.error("Error loading session:", err);
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+    getSession();
+  }, [router]);
 
   // Dynamic Supabase Ingestion Effect
   useEffect(() => {
+    if (!businessId) return;
+
     const fetchSupabaseData = async () => {
       try {
         // Fetch products
-        const { data: pData, error: pErr } = await supabase.from("products").select("*");
+        const { data: pData, error: pErr } = await supabase.from("products").select("*").eq("business_id", businessId);
         if (pErr) {
           console.error("Error fetching products from Supabase:", pErr);
         } else {
@@ -78,7 +131,7 @@ export default function Home() {
         }
 
         // Fetch delivery zones
-        const { data: zData, error: zErr } = await supabase.from("delivery_zones").select("*");
+        const { data: zData, error: zErr } = await supabase.from("delivery_zones").select("*").eq("business_id", businessId);
         if (zErr) {
           console.error("Error fetching delivery zones from Supabase:", zErr);
         } else {
@@ -86,7 +139,7 @@ export default function Home() {
         }
 
         // Fetch customers
-        const { data: cData, error: cErr } = await supabase.from("customers").select("*");
+        const { data: cData, error: cErr } = await supabase.from("customers").select("*").eq("business_id", businessId);
         if (cErr) {
           console.error("Error fetching customers from Supabase:", cErr);
         } else {
@@ -97,7 +150,7 @@ export default function Home() {
         }
 
         // Fetch couriers
-        const { data: coData, error: coErr } = await supabase.from("couriers").select("*");
+        const { data: coData, error: coErr } = await supabase.from("couriers").select("*").eq("business_id", businessId);
         if (coErr) {
           console.error("Error fetching couriers from Supabase:", coErr);
         } else {
@@ -107,7 +160,8 @@ export default function Home() {
         // Fetch conversations
         const { data: convData, error: convErr } = await supabase
           .from("conversations")
-          .select("*, messages(*)");
+          .select("*, messages(*)")
+          .eq("business_id", businessId);
         if (convErr) {
           console.error("Error fetching conversations from Supabase:", convErr);
         } else {
@@ -131,7 +185,8 @@ export default function Home() {
         // Fetch orders
         const { data: oData, error: oErr } = await supabase
           .from("orders")
-          .select("*, order_items(*)");
+          .select("*, order_items(*)")
+          .eq("business_id", businessId);
         if (oErr) {
           console.error("Error fetching orders from Supabase:", oErr);
         } else {
@@ -162,7 +217,7 @@ export default function Home() {
     };
 
     fetchSupabaseData();
-  }, []);
+  }, [businessId]);
 
   // FORM STATES
   // Customer Form
@@ -704,13 +759,30 @@ export default function Home() {
     overdue: <span className="bg-red-100 text-red-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">En retard</span>
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  if (loadingSession) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-neige relative">
+        <div className="absolute inset-0 noise-overlay pointer-events-none opacity-5"></div>
+        <div className="text-center font-bold text-xs text-encre/50 flex flex-col gap-2.5 items-center z-10">
+          <span className="w-6 h-6 border-2 border-menthe border-t-transparent rounded-full animate-spin"></span>
+          <span>Chargement de votre espace...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row antialiased">
       
       {/* Mobile Top Bar */}
       <header className="md:hidden w-full bg-encre text-neige px-6 py-4 flex items-center justify-between border-b border-graphite sticky top-0 z-50">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-extrabold tracking-tight text-menthe">MON CLOSEUR</span>
+          <span className="text-lg font-extrabold tracking-tight text-menthe">{businessName || "MON CLOSEUR"}</span>
           <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 bg-green-950 text-green-400 rounded font-semibold">IA active</span>
         </div>
         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-neige hover:text-menthe focus:outline-none">
@@ -725,6 +797,9 @@ export default function Home() {
         mobileMenuOpen={mobileMenuOpen} 
         setMobileMenuOpen={setMobileMenuOpen}
         conversationsCount={conversations.filter(c => c.unread).length}
+        businessName={businessName}
+        ownerName={ownerName}
+        onSignOut={handleSignOut}
       />
 
       {/* Main Panel Content Area */}
@@ -922,6 +997,7 @@ export default function Home() {
               setZones={setZones}
               formatFCFA={formatFCFA}
               triggerToast={triggerToast}
+              businessId={businessId}
             />
           )}
 
@@ -933,6 +1009,7 @@ export default function Home() {
               orders={orders}
               formatFCFA={formatFCFA}
               triggerToast={triggerToast}
+              businessId={businessId}
             />
           )}
 
@@ -951,6 +1028,7 @@ export default function Home() {
                   triggerToast(`Aucune conversation active trouvée pour ${clientName}`, "info");
                 }
               }}
+              businessId={businessId}
             />
           )}
 

@@ -29,6 +29,7 @@ import { CouriersView } from "../components/couriers/CouriersView";
 import { FollowupsView } from "../components/followups/FollowupsView";
 import { CatalogView } from "../components/catalog/CatalogView";
 import { SettingsView } from "../components/settings/SettingsView";
+import { AgentConfigView } from "../components/agent/AgentConfigView";
 import { Toast } from "../components/ui/Toast";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
 
@@ -79,6 +80,14 @@ export default function Home() {
   const [orderFormDate, setOrderFormDate] = useState(new Date().toISOString().substring(0, 10));
   const [orderFormZone, setOrderFormZone] = useState("Medina");
   const [orderFormItems, setOrderFormItems] = useState<OrderItem[]>([{ product: initialCatalog[0].name, quantity: 1, price: initialCatalog[0].price }]);
+
+  // Agent configuration
+  const [agentConfig, setAgentConfig] = useState({
+    identity: "Tu es l'agent IA de vente de la boutique de Wilfried Tiedrebeogo. Accueille chaleureusement les clients avec politesse et réponds toujours en proposant les prix exacts en FCFA.",
+    salesRules: "Nos prix sont fermes et calculés au plus juste. Pas de remise sans validation préalable. Ne promettez jamais une livraison en moins de 2h.",
+    escalationRules: "Transférer à un conseiller humain (reprise manuelle) si le client demande un remboursement, s'il a une réclamation concernant un produit défectueux, ou s'il demande un produit sur-mesure hors catalogue.",
+    tone: "Chaleureux et Respectueux"
+  });
 
   // Toast System
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" | "info" } | null>(null);
@@ -630,7 +639,13 @@ export default function Home() {
 
           {/* TAB: COURIERS */}
           {activeTab === "couriers" && (
-            <CouriersView couriers={couriers} />
+            <CouriersView 
+              couriers={couriers} 
+              setCouriers={setCouriers}
+              orders={orders}
+              formatFCFA={formatFCFA}
+              triggerToast={triggerToast}
+            />
           )}
 
           {/* TAB: FOLLOWUPS */}
@@ -638,6 +653,15 @@ export default function Home() {
             <FollowupsView 
               followupsActive={followupsActive}
               setFollowupsActive={setFollowupsActive}
+              triggerToast={triggerToast}
+            />
+          )}
+
+          {/* TAB: AGENT CONFIG */}
+          {activeTab === "agent-config" && (
+            <AgentConfigView 
+              config={agentConfig}
+              onSaveConfig={setAgentConfig}
               triggerToast={triggerToast}
             />
           )}

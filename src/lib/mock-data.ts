@@ -112,7 +112,7 @@ export const initialOrders: Order[] = [
 ];
 
 export const initialCouriers: Courier[] = [
-  { name: "Moussa Sarr", phone: "+221 77 555 11 22", active: true, load: 1 },
-  { name: "Ousmane Sow", phone: "+221 77 444 33 22", active: true, load: 0 },
-  { name: "Ibrahima Diallo", phone: "+221 76 222 99 88", active: false, load: 0 }
+  { id: "COURIER-001", name: "Moussa Sarr", phone: "+221 77 555 11 22", active: true, load: 1 },
+  { id: "COURIER-002", name: "Ousmane Sow", phone: "+221 77 444 33 22", active: true, load: 0 },
+  { id: "COURIER-003", name: "Ibrahima Diallo", phone: "+221 76 222 99 88", active: false, load: 0 }
 ];

@@ -8,7 +8,8 @@ import {
   Truck, 
   Clock, 
   Settings, 
-  X 
+  X,
+  Bot
 } from "lucide-react";
 
 interface SidebarProps {
@@ -62,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
           <button onClick={() => { setActiveTab("customers"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "customers" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <Users className="w-4.5 h-4.5" />
-            <span className="text-xs">Clients</span>
+            <span className="text-xs font-medium">Clients</span>
           </button>
           <button onClick={() => { setActiveTab("couriers"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "couriers" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <Truck className="w-4.5 h-4.5" />
@@ -71,6 +72,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button onClick={() => { setActiveTab("followups"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "followups" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <Clock className="w-4.5 h-4.5" />
             <span className="text-xs">Relances</span>
+          </button>
+          <button onClick={() => { setActiveTab("agent-config"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "agent-config" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <Bot className="w-4.5 h-4.5" />
+            <span className="text-xs">Agent IA</span>
           </button>
           <button onClick={() => { setActiveTab("settings"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "settings" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <Settings className="w-4.5 h-4.5" />

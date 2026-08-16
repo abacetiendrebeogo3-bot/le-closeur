@@ -48,6 +48,7 @@ export interface Customer {
 }
 
 export interface Courier {
+  id: string;
   name: string;
   phone: string;
   active: boolean;

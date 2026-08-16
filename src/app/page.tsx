@@ -654,6 +654,15 @@ export default function Home() {
               followupsActive={followupsActive}
               setFollowupsActive={setFollowupsActive}
               triggerToast={triggerToast}
+              onNavigateToChat={(clientName) => {
+                const chat = conversations.find(c => c.customerName.toLowerCase() === clientName.toLowerCase());
+                if (chat) {
+                  setActiveChatId(chat.id);
+                  setActiveTab("conversations");
+                } else {
+                  triggerToast(`Aucune conversation active trouvée pour ${clientName}`, "info");
+                }
+              }}
             />
           )}
 

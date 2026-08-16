@@ -71,3 +71,12 @@ export interface Zone {
   fee: number;
   deliveryTime: string;
 }
+
+export interface FollowupStep {
+  id: string;
+  delayValue: number;
+  delayUnit: "hours" | "days";
+  name: string;
+  messageText: string;
+  metaTemplateName: string;
+}

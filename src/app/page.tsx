@@ -323,9 +323,25 @@ export default function Home() {
     }));
   };
 
+  // Dynamic Agent Identity update
+  useEffect(() => {
+    if (ownerName) {
+      setAgentConfig(prev => ({
+        ...prev,
+        identity: `Tu es l'agent IA de vente de la boutique de ${ownerName}. Accueille chaleureusement les clients avec politesse et réponds toujours en proposant les prix exacts en FCFA.`
+      }));
+    }
+  }, [ownerName]);
+
   const triggerPDFDownload = (e: React.MouseEvent) => {
     e.preventDefault();
-    const content = `RAPPORT DE COMPTABILITE MON CLOSEUR\nPropriétaire: Tiedrebeogo Wilfried\nExportation du: ${new Date().toLocaleDateString('fr-FR')}\nTotal Facturé: 5 840 000 FCFA\nTotal Payé: 4 920 000 FCFA\nTaux Closing IA: 78.5%`;
+    const totalBilled = orders.reduce((sum, o) => sum + o.total, 0);
+    const totalPaid = orders.filter(o => o.status === "paid" || o.paymentStatus === "paid").reduce((sum, o) => sum + o.total, 0);
+    const totalCount = orders.length;
+    const closedCount = orders.filter(o => o.status === "paid" || o.status === "confirmed").length;
+    const closingRate = totalCount > 0 ? ((closedCount / totalCount) * 100).toFixed(1) : "0.0";
+
+    const content = `RAPPORT DE COMPTABILITE MON CLOSEUR\nPropriétaire: ${ownerName || "Tiedrebeogo Wilfried"}\nExportation du: ${new Date().toLocaleDateString('fr-FR')}\nTotal Facturé: ${formatFCFA(totalBilled)}\nTotal Payé: ${formatFCFA(totalPaid)}\nTaux Closing IA: ${closingRate}%`;
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     
@@ -883,6 +899,7 @@ export default function Home() {
               handleSendMessage={handleSendMessage}
               toggleTakeover={toggleTakeover}
               triggerToast={triggerToast}
+              ownerName={ownerName}
             />
           )}
 
@@ -1043,7 +1060,7 @@ export default function Home() {
 
           {/* TAB: SETTINGS */}
           {activeTab === "settings" && (
-            <SettingsView triggerToast={triggerToast} />
+            <SettingsView triggerToast={triggerToast} ownerName={ownerName} />
           )}
 
         </div>

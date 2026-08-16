@@ -3,9 +3,10 @@ import { Settings, AlertTriangle, Database } from "lucide-react";
 
 interface SettingsViewProps {
   triggerToast: (msg: string, type?: "success" | "warning" | "info") => void;
+  ownerName: string;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerName }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full text-encre">
       
@@ -47,7 +48,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast }) => {
           <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
           <div>
             <span className="font-bold text-encre">Sécurité d’accès</span><br />
-            L’API Meta requiert un jeton d’accès permanent stocké de manière isolée pour Tiedrebeogo Wilfried.
+            L’API Meta requiert un jeton d’accès permanent stocké de manière isolée pour {ownerName || "Tiedrebeogo Wilfried"}.
           </div>
         </div>
       </div>

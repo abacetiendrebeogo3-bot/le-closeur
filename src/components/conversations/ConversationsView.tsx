@@ -32,6 +32,7 @@ interface ConversationsViewProps {
   handleSendMessage: (e: React.FormEvent) => void;
   toggleTakeover: () => void;
   triggerToast: (msg: string, type?: "success" | "warning" | "info") => void;
+  ownerName?: string;
 }
 
 export const ConversationsView: React.FC<ConversationsViewProps> = ({
@@ -44,7 +45,8 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   setChatInput,
   handleSendMessage,
   toggleTakeover,
-  triggerToast
+  triggerToast,
+  ownerName
 }) => {
   const activeChat = conversations.find(c => c.id === activeChatId);
   const [showCustomerSidebar, setShowCustomerSidebar] = useState(false);
@@ -355,7 +357,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                               ? 'Client' 
                               : isAI 
                                 ? 'Assistant IA (Bot)' 
-                                : 'Wilfried (Reprise)'}
+                                : ownerName 
+                                  ? `${ownerName.split(" ")[0]} (Reprise)` 
+                                  : 'Wilfried (Reprise)'}
                           </span>
                           <div className={`px-4 py-2.5 rounded-[1.2rem] text-xs leading-relaxed ${
                             isCust 

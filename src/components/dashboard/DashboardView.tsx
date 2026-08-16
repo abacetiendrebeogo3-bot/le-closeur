@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { 
   ShoppingBag, 
   UserCheck, 
@@ -94,26 +94,125 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const [isMounted, setIsMounted] = useState(false);
   const [activePeriod, setActivePeriod] = useState<"weekly" | "monthly" | "yearly" | "period">("yearly");
-  const [currentChartData, setCurrentChartData] = useState<any[]>(yearlyData);
-  const [selectedBar, setSelectedBar] = useState<any>(yearlyData[1]); // Default to August
+
+  // Dynamic Chart Data Calculation
+  const refDate = orders.length > 0 
+    ? new Date(orders.map(o => o.date).sort().pop() || "") 
+    : new Date();
+  const refYear = refDate.getFullYear();
+  const refMonth = refDate.getMonth(); // 0-indexed
+
+  // 1. Yearly data (last 12 months ending at refMonth/refYear)
+  const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"];
+  const dynamicYearlyData = Array.from({ length: 12 }).map((_, idx) => {
+    // 11 months ago to current month
+    const d = new Date(refYear, refMonth - 11 + idx, 1);
+    const mName = monthNames[d.getMonth()];
+    const totalAmount = orders
+      .filter(o => {
+        if (!o.date || !o.date.includes("-")) return false;
+        const [oy, om] = o.date.split("-").map(Number);
+        return oy === d.getFullYear() && om === (d.getMonth() + 1);
+      })
+      .reduce((sum, o) => sum + o.total, 0);
+
+    return {
+      name: mName,
+      montant: totalAmount,
+      percentage: "",
+      isCurrent: d.getMonth() === refMonth && d.getFullYear() === refYear
+    };
+  });
+
+  // 2. Weekly data (Monday to Sunday of the refDate week)
+  const getMonday = (d: Date) => {
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.getFullYear(), d.getMonth(), diff);
+  };
+  const monday = getMonday(refDate);
+  const dynamicWeeklyData = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((dayName, idx) => {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
+    const totalAmount = orders
+      .filter(o => {
+        if (!o.date || !o.date.includes("-")) return false;
+        const [oy, om, od] = o.date.split("-").map(Number);
+        return oy === d.getFullYear() && om === (d.getMonth() + 1) && od === d.getDate();
+      })
+      .reduce((sum, o) => sum + o.total, 0);
+
+    return {
+      name: dayName,
+      montant: totalAmount,
+      percentage: "",
+      isCurrent: d.getDate() === refDate.getDate() && d.getMonth() === refDate.getMonth() && d.getFullYear() === refDate.getFullYear()
+    };
+  });
+
+  // 3. Monthly data (Weeks of the refMonth)
+  const dynamicMonthlyData = [
+    { name: "Sem 1", start: 1, end: 7 },
+    { name: "Sem 2", start: 8, end: 14 },
+    { name: "Sem 3", start: 15, end: 21 },
+    { name: "Sem 4", start: 22, end: 31 }
+  ].map(w => {
+    const totalAmount = orders
+      .filter(o => {
+        if (!o.date || !o.date.includes("-")) return false;
+        const [oy, om, od] = o.date.split("-").map(Number);
+        return oy === refYear && om === (refMonth + 1) && od >= w.start && od <= w.end;
+      })
+      .reduce((sum, o) => sum + o.total, 0);
+
+    const isCurrentWeek = refDate.getDate() >= w.start && refDate.getDate() <= w.end;
+    return {
+      name: w.name,
+      montant: totalAmount,
+      percentage: "",
+      isCurrent: isCurrentWeek
+    };
+  });
+
+  // 4. Period data (Quarters of refYear)
+  const dynamicPeriodData = [
+    { name: "T1", months: [1, 2, 3] },
+    { name: "T2", months: [4, 5, 6] },
+    { name: "T3", months: [7, 8, 9] },
+    { name: "T4", months: [10, 11, 12] }
+  ].map(q => {
+    const totalAmount = orders
+      .filter(o => {
+        if (!o.date || !o.date.includes("-")) return false;
+        const [oy, om] = o.date.split("-").map(Number);
+        return oy === refYear && q.months.includes(om);
+      })
+      .reduce((sum, o) => sum + o.total, 0);
+
+    const isCurrentQuarter = q.months.includes(refMonth + 1);
+    return {
+      name: q.name,
+      montant: totalAmount,
+      percentage: "",
+      isCurrent: isCurrentQuarter
+    };
+  });
+
+  const currentChartData = activePeriod === "weekly" ? dynamicWeeklyData
+    : activePeriod === "monthly" ? dynamicMonthlyData
+    : activePeriod === "period" ? dynamicPeriodData
+    : dynamicYearlyData;
+
+  const [selectedBar, setSelectedBar] = useState<any>(null);
   const [chatInput, setChatInput] = useState("");
-  const [selectedCalendarDay, setSelectedCalendarDay] = useState<number | null>(14); // Default to August 14th (day of CMD 1 & 2)
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState<number | null>(refDate.getDate());
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sync data whenever active period changes
+  // Sync selected bar whenever active period or orders list changes
   useEffect(() => {
-    let data = yearlyData;
-    if (activePeriod === "weekly") data = weeklyData;
-    else if (activePeriod === "monthly") data = monthlyData;
-    else if (activePeriod === "period") data = periodData;
-
-    setCurrentChartData(data);
-    
-    // Find current or first item
-    const currentItem = data.find(d => d.isCurrent) || data[0];
+    const currentItem = currentChartData.find(d => d.isCurrent) || currentChartData[0];
     setSelectedBar(currentItem);
-  }, [activePeriod]);
+  }, [activePeriod, orders, currentChartData]);
 
   // GSAP Animations on entry
   useEffect(() => {
@@ -174,21 +273,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     color: donutColors[idx % donutColors.length]
   }));
 
-  // Calendar for August 2026
-  // August 2026 starts on Saturday (5 empty slots if Mon-Sun layout)
-  const calendarDays = [
-    null, null, null, null, null, 1, 2,
-    3, 4, 5, 6, 7, 8, 9,
-    10, 11, 12, 13, 14, 15, 16,
-    17, 18, 19, 20, 21, 22, 23,
-    24, 25, 26, 27, 28, 29, 30,
-    31
-  ];
+  // Dynamically generate calendar days for refYear and refMonth (Mon-Sun layout)
+  const getCalendarDays = () => {
+    const firstDayIndex = new Date(refYear, refMonth, 1).getDay(); // 0 is Sunday, 1 is Monday...
+    const emptySlots = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+    const totalDays = new Date(refYear, refMonth + 1, 0).getDate();
+
+    const days: (number | null)[] = Array(emptySlots).fill(null);
+    for (let i = 1; i <= totalDays; i++) {
+      days.push(i);
+    }
+    return days;
+  };
+  const calendarDays = getCalendarDays();
 
   // Check if a day has orders
   const getDayOrders = (day: number | null) => {
     if (!day) return [];
-    const dateStr = `2026-08-${day.toString().padStart(2, '0')}`;
+    const dateStr = `${refYear}-${(refMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
     return orders.filter(o => o.date === dateStr);
   };
 
@@ -381,7 +483,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Calendar Widget */}
           <div className="grid-card bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow duration-300">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-black text-encre uppercase tracking-wider animated-text">Août 2026</span>
+              <span className="text-xs font-black text-encre uppercase tracking-wider animated-text">
+                {monthNames[refMonth]} {refYear}
+              </span>
               <div className="flex items-center gap-1">
                 <button className="p-1 hover:bg-neige rounded-lg border border-graphite/5 text-encre/70 transition-colors">
                   <ChevronLeft className="w-4 h-4" />

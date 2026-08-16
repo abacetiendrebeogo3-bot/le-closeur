@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Assurer la présence de la colonne owner_name si la table existait déjà
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS owner_name TEXT;
+
 -- Insertion de l'entreprise par défaut pour la simulation avant authentification
 INSERT INTO public.businesses (id, name, owner_name)
 VALUES ('00000000-0000-0000-0000-000000000000', 'Mon Closeur Default', 'Tiedrebeogo Wilfried')

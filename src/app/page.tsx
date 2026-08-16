@@ -78,7 +78,7 @@ export default function Home() {
   const [orderFormInlinePhone, setOrderFormInlinePhone] = useState("");
   const [orderFormDate, setOrderFormDate] = useState(new Date().toISOString().substring(0, 10));
   const [orderFormZone, setOrderFormZone] = useState("Medina");
-  const [orderFormItems, setOrderFormItems] = useState<OrderItem[]>([{ product: "Disque SSD 1TB Enterprise", quantity: 1, price: 150000 }]);
+  const [orderFormItems, setOrderFormItems] = useState<OrderItem[]>([{ product: initialCatalog[0].name, quantity: 1, price: initialCatalog[0].price }]);
 
   // Toast System
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" | "info" } | null>(null);

@@ -9,7 +9,7 @@ export const CouriersView: React.FC<CouriersViewProps> = ({ couriers }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {couriers.map((courier, idx) => (
-        <div key={idx} className="interactive-card bg-white p-6 rounded-2xl border border-graphite/10 flex flex-col justify-between h-40">
+        <div key={idx} className="interactive-card bg-white p-6 rounded-[2rem] border border-graphite/10 flex flex-col justify-between h-40 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-neige border border-graphite/10 rounded-full flex items-center justify-center font-bold text-xs text-encre/70">

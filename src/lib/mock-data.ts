@@ -9,12 +9,12 @@ export const initialZones: Zone[] = [
 ];
 
 export const initialCatalog: Product[] = [
-  { id: "PROD-001", name: "Disque SSD 1TB Enterprise", price: 150000, category: "Composants", active: true },
-  { id: "PROD-002", name: "RAM DDR5 32GB Corsair", price: 65000, category: "Composants", active: true },
-  { id: "PROD-003", name: "Processeur AMD Ryzen 9", price: 250000, category: "Composants", active: true },
-  { id: "PROD-004", name: "Clavier Mécanique RGB", price: 45000, category: "Périphériques", active: true },
-  { id: "PROD-005", name: "Souris Gamer Sans Fil", price: 35000, category: "Périphériques", active: true },
-  { id: "PROD-006", name: "Écran 27\" Quad HD 144Hz", price: 180000, category: "Périphériques", active: true }
+  { id: "PROD-001", name: "Disque SSD 1TB Enterprise", price: 150000, category: "Composants", active: true, stock: 12 },
+  { id: "PROD-002", name: "RAM DDR5 32GB Corsair", price: 65000, category: "Composants", active: true, stock: 3 },
+  { id: "PROD-003", name: "Processeur AMD Ryzen 9", price: 250000, category: "Composants", active: true, stock: 0 },
+  { id: "PROD-004", name: "Clavier Mécanique RGB", price: 45000, category: "Périphériques", active: true, stock: 15 },
+  { id: "PROD-005", name: "Souris Gamer Sans Fil", price: 35000, category: "Périphériques", active: true, stock: 8 },
+  { id: "PROD-006", name: "Écran 27\" Quad HD 144Hz", price: 180000, category: "Périphériques", active: true, stock: 2 }
 ];
 
 export const initialConversations: Conversation[] = [

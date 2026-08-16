@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Edit2, Trash2, X, Package, MapPin, Info, Layers, RefreshCw } from "lucide-react";
+import { Plus, Edit2, Trash2, X, Package, MapPin, Layers, Coins, Image } from "lucide-react";
 import { Product, Zone } from "../../types";
 import { gsap } from "gsap";
 
@@ -26,8 +26,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [showProductModal, setShowProductModal] = useState<{ mode: "create" | "edit"; productId?: string } | null>(null);
   const [prodFormName, setProdFormName] = useState("");
   const [prodFormPrice, setProdFormPrice] = useState(0);
-  const [prodFormCategory, setProdFormCategory] = useState("Composants");
+  const [prodFormCategory, setProdFormCategory] = useState("");
   const [prodFormActive, setProdFormActive] = useState(true);
+  const [prodFormStock, setProdFormStock] = useState<string>("");
+  const [prodFormImageUrl, setProdFormImageUrl] = useState("");
 
   // Zone Form States
   const [showZoneModal, setShowZoneModal] = useState<{ mode: "create" | "edit"; zoneId?: string } | null>(null);
@@ -43,6 +45,11 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // Extract unique categories from actual catalog for suggestions
+  const existingCategories = Array.from(
+    new Set(products.map(p => p.category).filter(Boolean))
+  );
 
   // Animate the list on mount or tab change
   useEffect(() => {
@@ -68,12 +75,16 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       setProdFormPrice(prod.price);
       setProdFormCategory(prod.category);
       setProdFormActive(prod.active);
+      setProdFormStock(prod.stock !== undefined ? prod.stock.toString() : "");
+      setProdFormImageUrl(prod.imageUrl || "");
     } else {
       setShowProductModal({ mode: "create" });
       setProdFormName("");
       setProdFormPrice(0);
-      setProdFormCategory("Composants");
+      setProdFormCategory("");
       setProdFormActive(true);
+      setProdFormStock("");
+      setProdFormImageUrl("");
     }
   };
 
@@ -97,13 +108,17 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     e.preventDefault();
     if (!prodFormName.trim()) return;
 
+    const parsedStock = prodFormStock.trim() !== "" ? parseInt(prodFormStock) : undefined;
+
     if (showProductModal?.mode === "edit" && showProductModal.productId) {
       setProducts(prev => prev.map(p => p.id === showProductModal.productId ? {
         ...p,
         name: prodFormName.trim(),
         price: prodFormPrice,
-        category: prodFormCategory,
-        active: prodFormActive
+        category: prodFormCategory.trim() || "Général",
+        active: prodFormActive,
+        stock: parsedStock,
+        imageUrl: prodFormImageUrl.trim() || undefined
       } : p));
       triggerToast(`Produit mis à jour avec succès.`, "success");
     } else {
@@ -112,11 +127,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         id: newId,
         name: prodFormName.trim(),
         price: prodFormPrice,
-        category: prodFormCategory,
-        active: prodFormActive
+        category: prodFormCategory.trim() || "Général",
+        active: prodFormActive,
+        stock: parsedStock,
+        imageUrl: prodFormImageUrl.trim() || undefined
       };
       setProducts(prev => [...prev, newProd]);
-      triggerToast(`Produit ${prodFormName} ajouté au catalogue.`, "success");
+      triggerToast(`Produit "${prodFormName}" ajouté au catalogue.`, "success");
     }
     setShowProductModal(null);
   };
@@ -143,7 +160,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         deliveryTime: zoneFormTime.trim()
       };
       setZones(prev => [...prev, newZone]);
-      triggerToast(`Zone ${zoneFormName} ajoutée avec succès.`, "success");
+      triggerToast(`Zone "${zoneFormName}" ajoutée avec succès.`, "success");
     }
     setShowZoneModal(null);
   };
@@ -164,11 +181,37 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     setShowDeleteConfirmZone(null);
   };
 
+  // Helper to render stock badge
+  const renderStockBadge = (stockVal?: number) => {
+    if (stockVal === undefined) {
+      return <span className="text-[10px] text-encre/40 font-semibold">Non suivi</span>;
+    }
+    if (stockVal === 0) {
+      return (
+        <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-extrabold border bg-red-50 text-red-600 border-red-200">
+          Rupture
+        </span>
+      );
+    }
+    if (stockVal < 5) {
+      return (
+        <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-extrabold border bg-amber-50 text-amber-600 border-amber-200">
+          Bas ({stockVal})
+        </span>
+      );
+    }
+    return (
+      <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border bg-menthe/10 text-menthe border-menthe/20">
+        {stockVal} dispo.
+      </span>
+    );
+  };
+
   return (
-    <div ref={containerRef} className="flex flex-col gap-6">
+    <div ref={containerRef} className="flex flex-col gap-6 w-full">
       
       {/* Upper Tabs navigation & Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase font-bold text-encre/40 tracking-wider">Gestion de l&apos;offre</span>
           <div className="flex items-center gap-2">
@@ -178,10 +221,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex gap-2 bg-neige p-1 rounded-xl border border-graphite/5 self-start sm:self-auto">
+        <div className="flex gap-2 bg-neige p-1 rounded-xl border border-graphite/5 self-start md:self-auto w-full md:w-auto">
           <button 
             onClick={() => setActiveTab("products")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               activeTab === "products" ? 'bg-white text-encre shadow-xs border border-graphite/5' : 'text-encre/50 hover:text-encre'
             }`}
           >
@@ -190,7 +233,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           </button>
           <button 
             onClick={() => setActiveTab("zones")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               activeTab === "zones" ? 'bg-white text-encre shadow-xs border border-graphite/5' : 'text-encre/50 hover:text-encre'
             }`}
           >
@@ -206,7 +249,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           
           {/* Header Actions */}
           <div className="flex items-center justify-between bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
-            <span className="text-xs font-bold text-encre">Catalogue des articles disponibles</span>
+            <span className="text-xs font-bold text-encre">Catalogue des articles</span>
             <button
               onClick={() => openProductForm()}
               className="magnetic-btn bg-menthe text-neige px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
@@ -216,16 +259,17 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </button>
           </div>
 
-          {/* Table list */}
-          <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
+          {/* TABLE FOR DESKTOP (>= 768px) */}
+          <div className="hidden md:block bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-graphite/10 text-[9px] text-encre/40 uppercase tracking-widest font-bold">
-                    <th className="py-3 px-4">ID</th>
+                    <th className="py-3 px-4">Visuel</th>
                     <th className="py-3 px-4">Désignation</th>
                     <th className="py-3 px-4">Catégorie</th>
                     <th className="py-3 px-4 text-right">Prix Unitaire</th>
+                    <th className="py-3 px-4 text-center">Stock</th>
                     <th className="py-3 px-4 text-center">Statut</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -233,14 +277,28 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 <tbody className="text-xs">
                   {products.map(prod => (
                     <tr key={prod.id} className="catalog-row border-b border-graphite/5 hover:bg-neige/40 transition-colors">
-                      <td className="py-3.5 px-4 font-mono text-[10px] text-encre/50">{prod.id}</td>
-                      <td className="py-3.5 px-4 font-bold text-encre">{prod.name}</td>
-                      <td className="py-3.5 px-4 text-encre/60">
-                        <span className="bg-neige px-2.5 py-0.5 rounded-full border border-graphite/5 font-semibold text-[10px]">
+                      <td className="py-2 px-4">
+                        {prod.imageUrl ? (
+                          <img src={prod.imageUrl} alt={prod.name} className="w-8 h-8 rounded-lg object-cover border border-graphite/10 shadow-xs" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-neige border border-graphite/10 flex items-center justify-center text-encre/40">
+                            <Package className="w-3.5 h-3.5" />
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-encre">{prod.name}</span>
+                          <span className="text-[9px] font-mono text-encre/40">{prod.id}</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="bg-neige px-2.5 py-0.5 rounded-full border border-graphite/5 font-semibold text-[10px] text-encre/70">
                           {prod.category}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold tabular-nums text-encre">{formatFCFA(prod.price)}</td>
+                      <td className="py-3.5 px-4 text-center">{renderStockBadge(prod.stock)}</td>
                       <td className="py-3.5 px-4 text-center">
                         <span className={`text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border ${
                           prod.active 
@@ -274,6 +332,64 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               </table>
             </div>
           </div>
+
+          {/* LIST FOR MOBILE (< 768px) */}
+          <div className="md:hidden flex flex-col gap-4">
+            {products.map(prod => (
+              <div key={prod.id} className="catalog-row bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col gap-3.5">
+                <div className="flex items-center gap-3">
+                  {prod.imageUrl ? (
+                    <img src={prod.imageUrl} alt={prod.name} className="w-12 h-12 rounded-xl object-cover border border-graphite/10 shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-neige border border-graphite/10 flex items-center justify-center text-encre/40 shrink-0">
+                      <Package className="w-5 h-5" />
+                    </div>
+                  )}
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-[9px] text-encre/40 font-mono">{prod.id}</span>
+                    <span className="font-bold text-xs text-encre truncate">{prod.name}</span>
+                    <span className="text-[9px] bg-neige px-2.5 py-0.5 rounded-full border border-graphite/5 font-bold self-start mt-1 text-encre/70">{prod.category}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10px] border-t border-graphite/5 pt-3">
+                  <div>
+                    <span className="text-encre/45 font-semibold block mb-0.5">Prix unitaire</span>
+                    <span className="font-bold text-encre text-xs">{formatFCFA(prod.price)}</span>
+                  </div>
+                  <div>
+                    <span className="text-encre/45 font-semibold block mb-0.5">Stock disponible</span>
+                    <span className="font-bold text-encre">{renderStockBadge(prod.stock)}</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center border-t border-graphite/5 pt-3 mt-1">
+                  <span className={`text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border ${
+                    prod.active ? 'bg-menthe/10 text-menthe border-menthe/20' : 'bg-graphite/10 text-graphite-light border-graphite/20'
+                  }`}>
+                    {prod.active ? "Actif" : "Inactif"}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openProductForm(prod)}
+                      className="text-xs font-bold text-encre/75 px-3 py-1.5 bg-neige border border-graphite/10 rounded-xl flex items-center gap-1.5"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>Modifier</span>
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirmProd(prod.id)}
+                      className="text-xs font-bold text-red-600 px-3 py-1.5 bg-red-50 border border-red-100 rounded-xl flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Supprimer</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
         </div>
       )}
 
@@ -283,7 +399,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           
           {/* Header Actions */}
           <div className="flex items-center justify-between bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
-            <span className="text-xs font-bold text-encre">Définition des zones de livraison et tarifs</span>
+            <span className="text-xs font-bold text-encre">Zones logistiques</span>
             <button
               onClick={() => openZoneForm()}
               className="magnetic-btn bg-menthe text-neige px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
@@ -293,8 +409,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </button>
           </div>
 
-          {/* Table list */}
-          <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
+          {/* TABLE FOR DESKTOP (>= 768px) */}
+          <div className="hidden md:block bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -335,13 +451,47 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               </table>
             </div>
           </div>
+
+          {/* LIST FOR MOBILE (< 768px) */}
+          <div className="md:hidden flex flex-col gap-4">
+            {zones.map(z => (
+              <div key={z.id} className="catalog-row bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-xs text-encre">{z.name}</span>
+                  <span className="text-xs font-black text-menthe">{formatFCFA(z.fee)}</span>
+                </div>
+                
+                <div className="text-[10px] text-encre/50 font-semibold">
+                  Délai estimé de livraison : <span className="text-encre font-bold">{z.deliveryTime}</span>
+                </div>
+
+                <div className="flex gap-2 justify-end border-t border-graphite/5 pt-3 mt-1">
+                  <button
+                    onClick={() => openZoneForm(z)}
+                    className="text-xs font-bold text-encre/75 px-3.5 py-1.5 bg-neige border border-graphite/10 rounded-xl flex items-center gap-1.5"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                    <span>Modifier</span>
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirmZone(z.id)}
+                    className="text-xs font-bold text-red-600 px-3.5 py-1.5 bg-red-50 border border-red-100 rounded-xl flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Supprimer</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
         </div>
       )}
 
       {/* EDIT/CREATE PRODUCT MODAL */}
       {showProductModal && (
-        <div ref={overlayRef} className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-          <div ref={modalRef} className="bg-white w-full max-w-md rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg">
+        <div ref={overlayRef} className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div ref={modalRef} className="bg-white w-full max-w-md rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg my-8">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-encre">
                 {showProductModal.mode === "create" ? "Ajouter un produit" : "Modifier le produit"}
@@ -359,35 +509,79 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   required
                   value={prodFormName}
                   onChange={(e) => setProdFormName(e.target.value)}
-                  placeholder="Ex: Ryzen 9 stock..."
+                  placeholder="Ex: T-shirt noir, Panier garni..."
                   className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
                 />
               </div>
 
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Prix de vente (FCFA) *</label>
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  value={prodFormPrice}
-                  onChange={(e) => setProdFormPrice(parseInt(e.target.value) || 0)}
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold text-encre text-right"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] uppercase font-bold text-encre/50">Prix (FCFA) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={prodFormPrice}
+                    onChange={(e) => setProdFormPrice(parseInt(e.target.value) || 0)}
+                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold text-encre text-right"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] uppercase font-bold text-encre/50">Stock (optionnel)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={prodFormStock}
+                    onChange={(e) => setProdFormStock(e.target.value)}
+                    placeholder="Illimité"
+                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold text-encre text-right"
+                  />
+                </div>
               </div>
 
+              {/* Free Text Category with suggestions pills */}
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Catégorie</label>
-                <select
+                <label className="text-[10px] uppercase font-bold text-encre/50">Catégorie *</label>
+                <input
+                  type="text"
+                  required
                   value={prodFormCategory}
                   onChange={(e) => setProdFormCategory(e.target.value)}
+                  placeholder="Ex: Vêtements, Électronique, Alimentaire..."
                   className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
-                >
-                  <option value="Composants">Composants</option>
-                  <option value="Périphériques">Périphériques</option>
-                  <option value="Accessoires">Accessoires</option>
-                  <option value="Autre">Autre</option>
-                </select>
+                />
+                
+                {/* Categories suggestions pills */}
+                {existingCategories.length > 0 && (
+                  <div className="mt-1">
+                    <span className="text-[9px] text-encre/30 font-semibold block mb-1">Suggestions de catégories :</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {existingCategories.map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setProdFormCategory(cat)}
+                          className="text-[9px] bg-neige hover:bg-menthe/10 hover:text-menthe px-2 py-0.5 rounded-md border border-graphite/5 font-bold transition-all text-encre/60"
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Image URL field */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">URL de l&apos;image (optionnelle)</label>
+                <input
+                  type="text"
+                  value={prodFormImageUrl}
+                  onChange={(e) => setProdFormImageUrl(e.target.value)}
+                  placeholder="https://images.unsplash.com/photo-..."
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
+                />
               </div>
 
               <div className="flex items-center gap-3 py-1">
@@ -411,8 +605,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       {/* EDIT/CREATE ZONE MODAL */}
       {showZoneModal && (
-        <div ref={overlayRef} className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-          <div ref={modalRef} className="bg-white w-full max-w-md rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg">
+        <div ref={overlayRef} className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div ref={modalRef} className="bg-white w-full max-w-md rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg my-8">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-encre">
                 {showZoneModal.mode === "create" ? "Ajouter une zone" : "Modifier la zone"}
@@ -430,7 +624,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   required
                   value={zoneFormName}
                   onChange={(e) => setZoneFormName(e.target.value)}
-                  placeholder="Ex: Dakar Plateau..."
+                  placeholder="Ex: Secteur A, Ville Haute..."
                   className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
                 />
               </div>
@@ -453,7 +647,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   type="text"
                   value={zoneFormTime}
                   onChange={(e) => setZoneFormTime(e.target.value)}
-                  placeholder="Ex: 24h, 48h, 2 heures..."
+                  placeholder="Ex: 24h, 2 heures..."
                   className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
                 />
               </div>
@@ -468,7 +662,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       {/* CONFIRM DELETE PRODUCT MODAL */}
       {showDeleteConfirmProd && (
-        <div className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg">
             <h3 className="text-sm font-black text-encre">Supprimer le produit</h3>
             <p className="text-xs text-encre/60 leading-relaxed font-semibold">Êtes-vous certain de vouloir retirer ce produit du catalogue ? Cette action est irréversible.</p>
@@ -492,7 +686,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       {/* CONFIRM DELETE ZONE MODAL */}
       {showDeleteConfirmZone && (
-        <div className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg">
             <h3 className="text-sm font-black text-encre">Supprimer la zone</h3>
             <p className="text-xs text-encre/60 leading-relaxed font-semibold">Êtes-vous certain de vouloir supprimer cette zone de livraison ? Toutes les futures commandes sur cette zone devront être réassignées.</p>

@@ -64,7 +64,12 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   };
 
   const handleAddFormItemRow = () => {
-    setOrderFormItems(prev => [...prev, { product: "Disque SSD 1TB Enterprise", quantity: 1, price: 150000 }]);
+    const firstProd = catalog.find(p => p.active) || catalog[0] || null;
+    setOrderFormItems(prev => [...prev, { 
+      product: firstProd ? firstProd.name : "", 
+      quantity: 1, 
+      price: firstProd ? firstProd.price : 0 
+    }]);
   };
 
   const handleRemoveFormItemRow = (index: number) => {

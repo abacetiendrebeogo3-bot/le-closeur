@@ -60,6 +60,8 @@ export interface Product {
   price: number;
   category: string;
   active: boolean;
+  stock?: number;
+  imageUrl?: string;
 }
 
 export interface Zone {

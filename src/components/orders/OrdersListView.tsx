@@ -37,7 +37,7 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
 
   // Staggered entry for table rows on filter/search change
   useEffect(() => {
-    gsap.fromTo(".order-table-row",
+    gsap.fromTo(".order-table-row, .order-card",
       { opacity: 0, y: 8 },
       { opacity: 1, y: 0, duration: 0.35, stagger: 0.04, ease: "power2.out" }
     );
@@ -122,7 +122,8 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
+      {/* TABLE FOR DESKTOP (>= 768px) */}
+      <div className="hidden md:block bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -162,6 +163,50 @@ export const OrdersListView: React.FC<OrdersListViewProps> = ({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* CARDS LIST FOR MOBILE (< 768px) */}
+      <div className="md:hidden flex flex-col gap-4">
+        {orders
+          .filter(o => orderFilter === "all" || o.status === orderFilter)
+          .filter(o => paymentFilter === "all" || o.paymentStatus === paymentFilter)
+          .filter(o => o.customer.toLowerCase().includes(orderSearchQuery.toLowerCase()))
+          .map(order => (
+            <div
+              key={order.id}
+              onClick={() => { setSelectedOrderId(order.id); setOrdersSubView("detail"); }}
+              className="order-card bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col gap-3.5 cursor-pointer hover:bg-neige/20 transition-colors"
+            >
+              <div className="flex justify-between items-center">
+                <span className="font-black text-xs text-encre">{order.id}</span>
+                <span className="text-xs font-bold text-encre">{formatFCFA(order.total)}</span>
+              </div>
+
+              <div className="flex flex-col gap-1 text-[10px] text-encre/60">
+                <div>
+                  <span className="text-encre/40 font-semibold">Client : </span>
+                  <span className="font-bold text-encre">{order.customer}</span>
+                </div>
+                <div>
+                  <span className="text-encre/40 font-semibold">Date : </span>
+                  <span className="font-bold text-encre">{new Date(order.date).toLocaleDateString('fr-FR')}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-graphite/5 justify-between items-center">
+                <div className="flex gap-1.5">
+                  {orderBadges[order.status]}
+                  {paymentBadges[order.paymentStatus]}
+                </div>
+                <span className="text-[10px] text-menthe font-bold hover:underline">Voir détails →</span>
+              </div>
+            </div>
+          ))}
+        {orders.filter(o => orderFilter === "all" || o.status === orderFilter).filter(o => paymentFilter === "all" || o.paymentStatus === paymentFilter).filter(o => o.customer.toLowerCase().includes(orderSearchQuery.toLowerCase())).length === 0 && (
+          <div className="bg-white p-8 rounded-[2rem] border border-graphite/10 text-center text-xs font-semibold text-encre/30 shadow-sm">
+            Aucune commande ne correspond à vos filtres.
+          </div>
+        )}
       </div>
     </>
   );

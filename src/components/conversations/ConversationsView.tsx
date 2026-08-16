@@ -170,7 +170,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-10rem)] min-h-0">
       
       {/* Left sidebar: ConversationList */}
-      <div className="w-full lg:w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shrink-0 shadow-sm">
+      <div className={`w-full lg:w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shrink-0 shadow-sm ${activeChatId !== null ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 border-b border-graphite/10">
           <input 
             type="text" 
@@ -228,7 +228,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       </div>
 
       {/* Right side: Flex container holding Chat & Customer sidebar */}
-      <div className="flex-1 flex gap-4 min-h-0">
+      <div className={`flex-1 flex gap-4 min-h-0 relative ${activeChatId === null ? 'hidden lg:flex' : 'flex'}`}>
         
         {/* Chat Window */}
         <div className="flex-1 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shadow-sm overflow-hidden">
@@ -236,9 +236,16 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             <>
               {/* Chat Header */}
               <div 
-                className="px-6 py-4 border-b border-graphite/10 flex items-center justify-between bg-neige/30"
+                className="px-4 md:px-6 py-4 border-b border-graphite/10 flex items-center justify-between bg-neige/30"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 md:gap-3">
+                  {/* Back button on mobile */}
+                  <button 
+                    onClick={() => setActiveChatId(null)} 
+                    className="lg:hidden p-1.5 hover:bg-neige rounded-lg border border-graphite/10 text-encre/60 hover:text-menthe transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
                   <div 
                     onClick={() => setShowCustomerSidebar(!showCustomerSidebar)}
                     className="w-9 h-9 rounded-full bg-encre text-neige font-bold flex items-center justify-center border border-menthe/30 text-xs shadow-sm cursor-pointer hover:scale-105 transition-transform"
@@ -383,7 +390,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
         {showCustomerSidebar && activeChat && (
           <div 
             ref={sidebarRef} 
-            className="w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 p-6 shadow-sm overflow-hidden"
+            className="absolute lg:relative right-0 lg:right-auto top-0 lg:top-auto bottom-0 lg:bottom-auto h-full lg:h-auto w-full lg:w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 p-6 shadow-xl lg:shadow-sm overflow-hidden z-20"
           >
             <div className="flex items-center justify-between border-b border-graphite/10 pb-3 mb-5">
               <div className="flex items-center gap-1.5">

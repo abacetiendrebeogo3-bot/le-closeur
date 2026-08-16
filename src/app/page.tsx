@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase/client";
 import { 
   Download, 
   Menu
@@ -63,6 +64,93 @@ export default function Home() {
   const [couriers, setCouriers] = useState<Courier[]>(initialCouriers);
   const [products, setProducts] = useState<Product[]>(initialCatalog);
   const [zones, setZones] = useState<Zone[]>(initialZones);
+
+  // Dynamic Supabase Ingestion Effect
+  useEffect(() => {
+    const fetchSupabaseData = async () => {
+      try {
+        // Fetch products
+        const { data: pData, error: pErr } = await supabase.from("products").select("*");
+        if (!pErr && pData && pData.length > 0) {
+          setProducts(pData as Product[]);
+        }
+
+        // Fetch delivery zones
+        const { data: zData, error: zErr } = await supabase.from("delivery_zones").select("*");
+        if (!zErr && zData && zData.length > 0) {
+          setZones(zData as Zone[]);
+        }
+
+        // Fetch customers
+        const { data: cData, error: cErr } = await supabase.from("customers").select("*");
+        if (!cErr && cData && cData.length > 0) {
+          setCustomers(cData.map(c => ({
+            ...c,
+            tags: c.tags || [],
+          })) as Customer[]);
+        }
+
+        // Fetch couriers
+        const { data: coData, error: coErr } = await supabase.from("couriers").select("*");
+        if (!coErr && coData && coData.length > 0) {
+          setCouriers(coData as Courier[]);
+        }
+
+        // Fetch conversations
+        const { data: convData, error: convErr } = await supabase
+          .from("conversations")
+          .select("*, messages(*)");
+        if (!convErr && convData && convData.length > 0) {
+          const mappedConvs = convData.map((c: any) => ({
+            id: c.id,
+            customerName: c.customer_name,
+            customerPhone: c.customer_phone,
+            status: c.status,
+            avatar: c.avatar,
+            unread: c.unread,
+            messages: (c.messages || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((m: any) => ({
+              id: m.id,
+              sender: m.sender,
+              text: m.text,
+              time: m.time
+            }))
+          }));
+          setConversations(mappedConvs as Conversation[]);
+        }
+
+        // Fetch orders
+        const { data: oData, error: oErr } = await supabase
+          .from("orders")
+          .select("*, order_items(*)");
+        if (!oErr && oData && oData.length > 0) {
+          const mappedOrders = oData.map((o: any) => ({
+            id: o.id,
+            customer: o.customer,
+            customerPhone: o.customer_phone,
+            customerAddress: o.customer_address,
+            date: o.date,
+            status: o.status,
+            paymentStatus: o.payment_status,
+            deliveryZone: o.delivery_zone,
+            shippingFee: o.shipping_fee,
+            total: o.total,
+            courier: o.courier_name,
+            chatId: o.chat_id,
+            items: (o.order_items || []).map((item: any) => ({
+              product: item.product,
+              quantity: item.quantity,
+              price: item.price
+            }))
+          }));
+          setOrders(mappedOrders as Order[]);
+        }
+      } catch (err) {
+        console.error("Supabase dynamic loading error: ", err);
+      }
+    };
+
+    fetchSupabaseData();
+  }, []);
 
   // FORM STATES
   // Customer Form

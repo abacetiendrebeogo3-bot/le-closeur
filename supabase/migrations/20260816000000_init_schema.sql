@@ -159,12 +159,36 @@ CREATE POLICY "Allow user to manage own memberships" ON public.business_members
     FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
 DROP POLICY IF EXISTS "Allow access by business tenant" ON public.businesses;
-CREATE POLICY "Allow access by business tenant" ON public.businesses
-    FOR ALL USING (
+DROP POLICY IF EXISTS "Allow select for business tenant" ON public.businesses;
+DROP POLICY IF EXISTS "Allow insert for authenticated users" ON public.businesses;
+DROP POLICY IF EXISTS "Allow update for business tenant" ON public.businesses;
+DROP POLICY IF EXISTS "Allow delete for business tenant" ON public.businesses;
+
+CREATE POLICY "Allow select for business tenant" ON public.businesses
+    FOR SELECT USING (
+        id IN (
+            SELECT business_id FROM public.business_members WHERE user_id = auth.uid()
+        ) OR id = '00000000-0000-0000-0000-000000000000'
+    );
+
+CREATE POLICY "Allow insert for authenticated users" ON public.businesses
+    FOR INSERT WITH CHECK (
+        auth.uid() IS NOT NULL
+    );
+
+CREATE POLICY "Allow update for business tenant" ON public.businesses
+    FOR UPDATE USING (
         id IN (
             SELECT business_id FROM public.business_members WHERE user_id = auth.uid()
         )
     ) WITH CHECK (
+        id IN (
+            SELECT business_id FROM public.business_members WHERE user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Allow delete for business tenant" ON public.businesses
+    FOR DELETE USING (
         id IN (
             SELECT business_id FROM public.business_members WHERE user_id = auth.uid()
         )

@@ -3,6 +3,7 @@ import {
   LayoutDashboard, 
   MessageSquare, 
   ShoppingBag, 
+  Package,
   Users, 
   Truck, 
   Clock, 
@@ -54,6 +55,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button onClick={() => { setActiveTab("orders"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "orders" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <ShoppingBag className="w-4.5 h-4.5" />
             <span className="text-xs">Commandes</span>
+          </button>
+          <button onClick={() => { setActiveTab("catalog"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "catalog" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <Package className="w-4.5 h-4.5" />
+            <span className="text-xs">Catalogue</span>
           </button>
           <button onClick={() => { setActiveTab("customers"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "customers" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <Users className="w-4.5 h-4.5" />

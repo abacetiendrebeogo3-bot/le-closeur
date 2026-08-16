@@ -53,3 +53,18 @@ export interface Courier {
   active: boolean;
   load: number;
 }
+
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  active: boolean;
+}
+
+export interface Zone {
+  id: string;
+  name: string;
+  fee: number;
+  deliveryTime: string;
+}

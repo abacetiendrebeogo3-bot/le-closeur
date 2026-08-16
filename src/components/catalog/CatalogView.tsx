@@ -1,0 +1,519 @@
+import React, { useState, useEffect, useRef } from "react";
+import { Plus, Edit2, Trash2, X, Package, MapPin, Info, Layers, RefreshCw } from "lucide-react";
+import { Product, Zone } from "../../types";
+import { gsap } from "gsap";
+
+interface CatalogViewProps {
+  products: Product[];
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  zones: Zone[];
+  setZones: React.Dispatch<React.SetStateAction<Zone[]>>;
+  formatFCFA: (val: number) => string;
+  triggerToast: (msg: string, type?: "success" | "warning" | "info") => void;
+}
+
+export const CatalogView: React.FC<CatalogViewProps> = ({
+  products,
+  setProducts,
+  zones,
+  setZones,
+  formatFCFA,
+  triggerToast
+}) => {
+  const [activeTab, setActiveTab] = useState<"products" | "zones">("products");
+  
+  // Product Form States
+  const [showProductModal, setShowProductModal] = useState<{ mode: "create" | "edit"; productId?: string } | null>(null);
+  const [prodFormName, setProdFormName] = useState("");
+  const [prodFormPrice, setProdFormPrice] = useState(0);
+  const [prodFormCategory, setProdFormCategory] = useState("Composants");
+  const [prodFormActive, setProdFormActive] = useState(true);
+
+  // Zone Form States
+  const [showZoneModal, setShowZoneModal] = useState<{ mode: "create" | "edit"; zoneId?: string } | null>(null);
+  const [zoneFormName, setZoneFormName] = useState("");
+  const [zoneFormFee, setZoneFormFee] = useState(0);
+  const [zoneFormTime, setZoneFormTime] = useState("24h");
+
+  // Confirm Delete states
+  const [showDeleteConfirmProd, setShowDeleteConfirmProd] = useState<string | null>(null);
+  const [showDeleteConfirmZone, setShowDeleteConfirmZone] = useState<string | null>(null);
+
+  // Refs for animation
+  const containerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Animate the list on mount or tab change
+  useEffect(() => {
+    gsap.fromTo(".catalog-row",
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.4, stagger: 0.05, ease: "power2.out" }
+    );
+  }, [activeTab, products, zones]);
+
+  // Animate Modal on Open
+  useEffect(() => {
+    if ((showProductModal || showZoneModal) && overlayRef.current && modalRef.current) {
+      gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" });
+      gsap.fromTo(modalRef.current, { scale: 0.95, opacity: 0, y: 10 }, { scale: 1, opacity: 1, y: 0, duration: 0.35, ease: "back.out(1.5)" });
+    }
+  }, [showProductModal, showZoneModal]);
+
+  // Open Product Modal
+  const openProductForm = (prod?: Product) => {
+    if (prod) {
+      setShowProductModal({ mode: "edit", productId: prod.id });
+      setProdFormName(prod.name);
+      setProdFormPrice(prod.price);
+      setProdFormCategory(prod.category);
+      setProdFormActive(prod.active);
+    } else {
+      setShowProductModal({ mode: "create" });
+      setProdFormName("");
+      setProdFormPrice(0);
+      setProdFormCategory("Composants");
+      setProdFormActive(true);
+    }
+  };
+
+  // Open Zone Modal
+  const openZoneForm = (z?: Zone) => {
+    if (z) {
+      setShowZoneModal({ mode: "edit", zoneId: z.id });
+      setZoneFormName(z.name);
+      setZoneFormFee(z.fee);
+      setZoneFormTime(z.deliveryTime);
+    } else {
+      setShowZoneModal({ mode: "create" });
+      setZoneFormName("");
+      setZoneFormFee(0);
+      setZoneFormTime("24h");
+    }
+  };
+
+  // Save Product
+  const handleSaveProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prodFormName.trim()) return;
+
+    if (showProductModal?.mode === "edit" && showProductModal.productId) {
+      setProducts(prev => prev.map(p => p.id === showProductModal.productId ? {
+        ...p,
+        name: prodFormName.trim(),
+        price: prodFormPrice,
+        category: prodFormCategory,
+        active: prodFormActive
+      } : p));
+      triggerToast(`Produit mis à jour avec succès.`, "success");
+    } else {
+      const newId = `PROD-${Date.now().toString().slice(-4)}`;
+      const newProd: Product = {
+        id: newId,
+        name: prodFormName.trim(),
+        price: prodFormPrice,
+        category: prodFormCategory,
+        active: prodFormActive
+      };
+      setProducts(prev => [...prev, newProd]);
+      triggerToast(`Produit ${prodFormName} ajouté au catalogue.`, "success");
+    }
+    setShowProductModal(null);
+  };
+
+  // Save Zone
+  const handleSaveZone = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!zoneFormName.trim()) return;
+
+    if (showZoneModal?.mode === "edit" && showZoneModal.zoneId) {
+      setZones(prev => prev.map(z => z.id === showZoneModal.zoneId ? {
+        ...z,
+        name: zoneFormName.trim(),
+        fee: zoneFormFee,
+        deliveryTime: zoneFormTime.trim()
+      } : z));
+      triggerToast(`Zone de livraison mise à jour.`, "success");
+    } else {
+      const newId = `ZONE-${Date.now().toString().slice(-4)}`;
+      const newZone: Zone = {
+        id: newId,
+        name: zoneFormName.trim(),
+        fee: zoneFormFee,
+        deliveryTime: zoneFormTime.trim()
+      };
+      setZones(prev => [...prev, newZone]);
+      triggerToast(`Zone ${zoneFormName} ajoutée avec succès.`, "success");
+    }
+    setShowZoneModal(null);
+  };
+
+  // Delete Product
+  const handleDeleteProduct = (id: string) => {
+    const prod = products.find(p => p.id === id);
+    setProducts(prev => prev.filter(p => p.id !== id));
+    triggerToast(`Produit "${prod?.name}" retiré du catalogue.`, "info");
+    setShowDeleteConfirmProd(null);
+  };
+
+  // Delete Zone
+  const handleDeleteZone = (id: string) => {
+    const z = zones.find(zn => zn.id === id);
+    setZones(prev => prev.filter(zn => zn.id !== id));
+    triggerToast(`Zone de livraison "${z?.name}" supprimée.`, "info");
+    setShowDeleteConfirmZone(null);
+  };
+
+  return (
+    <div ref={containerRef} className="flex flex-col gap-6">
+      
+      {/* Upper Tabs navigation & Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase font-bold text-encre/40 tracking-wider">Gestion de l&apos;offre</span>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-black text-encre">Catalogue & Zones</h3>
+            <span className="text-[10px] bg-menthe/10 text-menthe border border-menthe/20 px-2 py-0.5 rounded-full font-bold">Centralisé</span>
+          </div>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex gap-2 bg-neige p-1 rounded-xl border border-graphite/5 self-start sm:self-auto">
+          <button 
+            onClick={() => setActiveTab("products")}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === "products" ? 'bg-white text-encre shadow-xs border border-graphite/5' : 'text-encre/50 hover:text-encre'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Produits ({products.length})</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab("zones")}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === "zones" ? 'bg-white text-encre shadow-xs border border-graphite/5' : 'text-encre/50 hover:text-encre'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Zones ({zones.length})</span>
+          </button>
+        </div>
+      </div>
+
+      {/* PRODUCTS TAB VIEW */}
+      {activeTab === "products" && (
+        <div className="flex flex-col gap-6">
+          
+          {/* Header Actions */}
+          <div className="flex items-center justify-between bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
+            <span className="text-xs font-bold text-encre">Catalogue des articles disponibles</span>
+            <button
+              onClick={() => openProductForm()}
+              className="magnetic-btn bg-menthe text-neige px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ajouter un produit</span>
+            </button>
+          </div>
+
+          {/* Table list */}
+          <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-graphite/10 text-[9px] text-encre/40 uppercase tracking-widest font-bold">
+                    <th className="py-3 px-4">ID</th>
+                    <th className="py-3 px-4">Désignation</th>
+                    <th className="py-3 px-4">Catégorie</th>
+                    <th className="py-3 px-4 text-right">Prix Unitaire</th>
+                    <th className="py-3 px-4 text-center">Statut</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="text-xs">
+                  {products.map(prod => (
+                    <tr key={prod.id} className="catalog-row border-b border-graphite/5 hover:bg-neige/40 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-[10px] text-encre/50">{prod.id}</td>
+                      <td className="py-3.5 px-4 font-bold text-encre">{prod.name}</td>
+                      <td className="py-3.5 px-4 text-encre/60">
+                        <span className="bg-neige px-2.5 py-0.5 rounded-full border border-graphite/5 font-semibold text-[10px]">
+                          {prod.category}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-bold tabular-nums text-encre">{formatFCFA(prod.price)}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className={`text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border ${
+                          prod.active 
+                            ? 'bg-menthe/10 text-menthe border-menthe/20' 
+                            : 'bg-graphite/10 text-graphite-light border-graphite/20'
+                        }`}>
+                          {prod.active ? "Actif" : "Inactif"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => openProductForm(prod)}
+                            className="text-encre/60 hover:text-menthe p-1.5 bg-neige border border-graphite/10 rounded-lg transition-colors"
+                            title="Modifier"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirmProd(prod.id)}
+                            className="text-red-500 hover:text-red-700 p-1.5 bg-red-50 border border-red-100 rounded-lg transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ZONES TAB VIEW */}
+      {activeTab === "zones" && (
+        <div className="flex flex-col gap-6">
+          
+          {/* Header Actions */}
+          <div className="flex items-center justify-between bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
+            <span className="text-xs font-bold text-encre">Définition des zones de livraison et tarifs</span>
+            <button
+              onClick={() => openZoneForm()}
+              className="magnetic-btn bg-menthe text-neige px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ajouter une zone</span>
+            </button>
+          </div>
+
+          {/* Table list */}
+          <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 shadow-sm">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-graphite/10 text-[9px] text-encre/40 uppercase tracking-widest font-bold">
+                    <th className="py-3 px-4">Zone</th>
+                    <th className="py-3 px-4">Délai estimé</th>
+                    <th className="py-3 px-4 text-right">Frais logistiques</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="text-xs">
+                  {zones.map(z => (
+                    <tr key={z.id} className="catalog-row border-b border-graphite/5 hover:bg-neige/40 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-encre">{z.name}</td>
+                      <td className="py-3.5 px-4 text-encre/60 font-semibold">{z.deliveryTime}</td>
+                      <td className="py-3.5 px-4 text-right font-black tabular-nums text-menthe">{formatFCFA(z.fee)}</td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => openZoneForm(z)}
+                            className="text-encre/60 hover:text-menthe p-1.5 bg-neige border border-graphite/10 rounded-lg transition-colors"
+                            title="Modifier"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirmZone(z.id)}
+                            className="text-red-500 hover:text-red-700 p-1.5 bg-red-50 border border-red-100 rounded-lg transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT/CREATE PRODUCT MODAL */}
+      {showProductModal && (
+        <div ref={overlayRef} className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div ref={modalRef} className="bg-white w-full max-w-md rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-encre">
+                {showProductModal.mode === "create" ? "Ajouter un produit" : "Modifier le produit"}
+              </h3>
+              <button onClick={() => setShowProductModal(null)} className="text-encre/50 hover:text-menthe p-1 hover:bg-neige rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProduct} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Désignation du produit *</label>
+                <input
+                  type="text"
+                  required
+                  value={prodFormName}
+                  onChange={(e) => setProdFormName(e.target.value)}
+                  placeholder="Ex: Ryzen 9 stock..."
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Prix de vente (FCFA) *</label>
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  value={prodFormPrice}
+                  onChange={(e) => setProdFormPrice(parseInt(e.target.value) || 0)}
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold text-encre text-right"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Catégorie</label>
+                <select
+                  value={prodFormCategory}
+                  onChange={(e) => setProdFormCategory(e.target.value)}
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
+                >
+                  <option value="Composants">Composants</option>
+                  <option value="Périphériques">Périphériques</option>
+                  <option value="Accessoires">Accessoires</option>
+                  <option value="Autre">Autre</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3 py-1">
+                <input
+                  id="prodActive"
+                  type="checkbox"
+                  checked={prodFormActive}
+                  onChange={(e) => setProdFormActive(e.target.checked)}
+                  className="w-4 h-4 text-menthe border-graphite/20 rounded focus:ring-menthe"
+                />
+                <label htmlFor="prodActive" className="text-xs font-bold text-encre/70 cursor-pointer">Activer ce produit dans le catalogue de vente</label>
+              </div>
+
+              <button type="submit" className="magnetic-btn bg-menthe text-neige font-bold py-3 rounded-xl text-center text-xs transition-all mt-2 shadow-md shadow-menthe/20">
+                Enregistrer le produit
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT/CREATE ZONE MODAL */}
+      {showZoneModal && (
+        <div ref={overlayRef} className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div ref={modalRef} className="bg-white w-full max-w-md rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-encre">
+                {showZoneModal.mode === "create" ? "Ajouter une zone" : "Modifier la zone"}
+              </h3>
+              <button onClick={() => setShowZoneModal(null)} className="text-encre/50 hover:text-menthe p-1 hover:bg-neige rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveZone} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Nom de la zone *</label>
+                <input
+                  type="text"
+                  required
+                  value={zoneFormName}
+                  onChange={(e) => setZoneFormName(e.target.value)}
+                  placeholder="Ex: Dakar Plateau..."
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Frais logistiques (FCFA) *</label>
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  value={zoneFormFee}
+                  onChange={(e) => setZoneFormFee(parseInt(e.target.value) || 0)}
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold text-encre text-right"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Délai estimé</label>
+                <input
+                  type="text"
+                  value={zoneFormTime}
+                  onChange={(e) => setZoneFormTime(e.target.value)}
+                  placeholder="Ex: 24h, 48h, 2 heures..."
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
+                />
+              </div>
+
+              <button type="submit" className="magnetic-btn bg-menthe text-neige font-bold py-3 rounded-xl text-center text-xs transition-all mt-2 shadow-md shadow-menthe/20">
+                Enregistrer la zone
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM DELETE PRODUCT MODAL */}
+      {showDeleteConfirmProd && (
+        <div className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-sm rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg">
+            <h3 className="text-sm font-black text-encre">Supprimer le produit</h3>
+            <p className="text-xs text-encre/60 leading-relaxed font-semibold">Êtes-vous certain de vouloir retirer ce produit du catalogue ? Cette action est irréversible.</p>
+            <div className="flex gap-3 justify-end mt-2">
+              <button 
+                onClick={() => setShowDeleteConfirmProd(null)}
+                className="px-4 py-2 border border-graphite/20 hover:border-encre rounded-xl text-xs font-bold text-encre transition-colors"
+              >
+                Annuler
+              </button>
+              <button 
+                onClick={() => handleDeleteProduct(showDeleteConfirmProd)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-xl text-xs font-bold text-white transition-colors"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM DELETE ZONE MODAL */}
+      {showDeleteConfirmZone && (
+        <div className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-sm rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg">
+            <h3 className="text-sm font-black text-encre">Supprimer la zone</h3>
+            <p className="text-xs text-encre/60 leading-relaxed font-semibold">Êtes-vous certain de vouloir supprimer cette zone de livraison ? Toutes les futures commandes sur cette zone devront être réassignées.</p>
+            <div className="flex gap-3 justify-end mt-2">
+              <button 
+                onClick={() => setShowDeleteConfirmZone(null)}
+                className="px-4 py-2 border border-graphite/20 hover:border-encre rounded-xl text-xs font-bold text-encre transition-colors"
+              >
+                Annuler
+              </button>
+              <button 
+                onClick={() => handleDeleteZone(showDeleteConfirmZone)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-xl text-xs font-bold text-white transition-colors"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { ArrowLeft, UserPlus, Plus, Trash2 } from "lucide-react";
-import { Customer, OrderItem, Order } from "../../types";
+import { Customer, OrderItem, Order, Product, Zone } from "../../types";
 import { gsap } from "gsap";
 
 interface OrderFormProps {
@@ -20,8 +20,8 @@ interface OrderFormProps {
   orderFormItems: OrderItem[];
   setOrderFormItems: React.Dispatch<React.SetStateAction<OrderItem[]>>;
   customers: Customer[];
-  zones: { name: string; fee: number }[];
-  catalog: { name: string; price: number }[];
+  zones: Zone[];
+  catalog: Product[];
   setOrdersSubView: (v: "list" | "create" | "detail" | "edit") => void;
   handleSaveOrder: (status: "discussing" | "confirmed") => void;
   formatFCFA: (val: number) => string;
@@ -222,8 +222,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     }}
                     className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold"
                   >
-                    {catalog.map(cat => (
-                      <option key={cat.name} value={cat.name}>{cat.name}</option>
+                    {catalog.filter(cat => cat.active || cat.name === item.product).map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
                     ))}
                     <option value="custom">Saisie libre...</option>
                   </select>

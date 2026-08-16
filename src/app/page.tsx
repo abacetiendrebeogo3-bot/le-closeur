@@ -6,10 +6,10 @@ import {
   Menu
 } from "lucide-react";
 
-import { Conversation, Customer, Order, Courier, OrderItem } from "../types";
+import { Conversation, Customer, Order, Courier, OrderItem, Product, Zone } from "../types";
 import { 
-  zones, 
-  catalog, 
+  initialZones, 
+  initialCatalog, 
   initialConversations, 
   initialCustomers, 
   initialOrders, 
@@ -27,6 +27,7 @@ import { CustomerForm } from "../components/customers/CustomerForm";
 import { CustomerHistoryView } from "../components/customers/CustomerHistoryView";
 import { CouriersView } from "../components/couriers/CouriersView";
 import { FollowupsView } from "../components/followups/FollowupsView";
+import { CatalogView } from "../components/catalog/CatalogView";
 import { SettingsView } from "../components/settings/SettingsView";
 import { Toast } from "../components/ui/Toast";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
@@ -59,6 +60,8 @@ export default function Home() {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [couriers, setCouriers] = useState<Courier[]>(initialCouriers);
+  const [products, setProducts] = useState<Product[]>(initialCatalog);
+  const [zones, setZones] = useState<Zone[]>(initialZones);
 
   // FORM STATES
   // Customer Form
@@ -551,7 +554,7 @@ export default function Home() {
                   setOrderFormItems={setOrderFormItems}
                   customers={customers}
                   zones={zones}
-                  catalog={catalog}
+                  catalog={products}
                   setOrdersSubView={setOrdersSubView}
                   handleSaveOrder={handleSaveOrder}
                   formatFCFA={formatFCFA}
@@ -611,6 +614,18 @@ export default function Home() {
                 />
               )}
             </div>
+          )}
+
+          {/* TAB: CATALOG */}
+          {activeTab === "catalog" && (
+            <CatalogView 
+              products={products}
+              setProducts={setProducts}
+              zones={zones}
+              setZones={setZones}
+              formatFCFA={formatFCFA}
+              triggerToast={triggerToast}
+            />
           )}
 
           {/* TAB: COURIERS */}

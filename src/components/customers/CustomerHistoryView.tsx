@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Customer, Order } from "../../types";
+import { gsap } from "gsap";
 
 interface CustomerHistoryViewProps {
   selectedCustomerId: string;
@@ -28,12 +29,23 @@ export const CustomerHistoryView: React.FC<CustomerHistoryViewProps> = ({
   paymentBadges
 }) => {
   const customerObj = customers.find(c => c.id === selectedCustomerId);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      gsap.fromTo(containerRef.current,
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }
+      );
+    }
+  }, [selectedCustomerId]);
+
   if (!customerObj) return <div className="text-center py-8">Client introuvable</div>;
 
   const clientOrders = orders.filter(o => o.customer === customerObj.name);
 
   return (
-    <div className="bg-white p-6 md:p-8 rounded-2xl border border-graphite/10 flex flex-col gap-6 max-w-3xl mx-auto w-full">
+    <div ref={containerRef} className="bg-white p-6 md:p-8 rounded-[2rem] border border-graphite/10 flex flex-col gap-6 max-w-3xl mx-auto w-full shadow-sm">
       <div className="flex items-center justify-between border-b border-graphite/5 pb-4">
         <div className="flex items-center gap-3">
           <button onClick={() => setCustomerSubView("list")} className="text-encre/50 hover:text-menthe p-1 bg-neige rounded-lg border border-graphite/10">
@@ -41,7 +53,7 @@ export const CustomerHistoryView: React.FC<CustomerHistoryViewProps> = ({
           </button>
           <div>
             <h3 className="text-sm font-bold text-encre">Historique des achats de {customerObj.name}</h3>
-            <span className="text-[10px] text-encre/40">WhatsApp: {customerObj.phone} | Adresse: {customerObj.address || "Non renseignée"}</span>
+            <span className="text-[10px] text-encre/40 font-semibold">WhatsApp: {customerObj.phone} | Adresse: {customerObj.address || "Non renseignée"}</span>
           </div>
         </div>
       </div>

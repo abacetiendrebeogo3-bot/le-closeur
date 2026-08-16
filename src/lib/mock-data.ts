@@ -1,19 +1,20 @@
-import { Conversation, Customer, Order, Courier } from "../types";
+import { Conversation, Customer, Order, Courier, Product, Zone } from "../types";
 
-export const zones = [
-  { name: "Medina", fee: 1500 },
-  { name: "Almadies", fee: 2500 },
-  { name: "Plateau", fee: 2000 },
-  { name: "Yoff", fee: 2000 },
-  { name: "Pikine", fee: 3000 }
+export const initialZones: Zone[] = [
+  { id: "ZONE-001", name: "Medina", fee: 1500, deliveryTime: "24h" },
+  { id: "ZONE-002", name: "Almadies", fee: 2500, deliveryTime: "24h" },
+  { id: "ZONE-003", name: "Plateau", fee: 2000, deliveryTime: "12h" },
+  { id: "ZONE-004", name: "Yoff", fee: 2000, deliveryTime: "24h" },
+  { id: "ZONE-005", name: "Pikine", fee: 3000, deliveryTime: "48h" }
 ];
 
-export const catalog = [
-  { name: "Disque SSD 1TB Enterprise", price: 150000 },
-  { name: "RAM DDR5 32GB Corsair", price: 65000 },
-  { name: "Processeur AMD Ryzen 9", price: 250000 },
-  { name: "Clavier Mécanique RGB", price: 45000 },
-  { name: "Souris Gamer Sans Fil", price: 35000 }
+export const initialCatalog: Product[] = [
+  { id: "PROD-001", name: "Disque SSD 1TB Enterprise", price: 150000, category: "Composants", active: true },
+  { id: "PROD-002", name: "RAM DDR5 32GB Corsair", price: 65000, category: "Composants", active: true },
+  { id: "PROD-003", name: "Processeur AMD Ryzen 9", price: 250000, category: "Composants", active: true },
+  { id: "PROD-004", name: "Clavier Mécanique RGB", price: 45000, category: "Périphériques", active: true },
+  { id: "PROD-005", name: "Souris Gamer Sans Fil", price: 35000, category: "Périphériques", active: true },
+  { id: "PROD-006", name: "Écran 27\" Quad HD 144Hz", price: 180000, category: "Périphériques", active: true }
 ];
 
 export const initialConversations: Conversation[] = [

@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
     customer_phone TEXT NOT NULL,
     customer_address TEXT,
     date TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('discussing', 'confirmed', 'courier_assigned', 'shipping', 'delivered', 'paid', 'cancelled')),
+    status TEXT NOT NULL CHECK (status IN ('discussing', 'confirmed', 'courier_assigned', 'sent_to_courier', 'shipping', 'delivered', 'paid', 'cancelled')),
     payment_status TEXT NOT NULL CHECK (payment_status IN ('pending', 'paid', 'overdue')),
     delivery_zone TEXT,
     shipping_fee INTEGER DEFAULT 0 NOT NULL,
@@ -110,6 +110,18 @@ CREATE TABLE IF NOT EXISTS public.couriers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 10. Table des Étapes de Relance (Followup Steps)
+CREATE TABLE IF NOT EXISTS public.followup_steps (
+    id TEXT PRIMARY KEY,
+    business_id UUID REFERENCES public.businesses(id) DEFAULT '00000000-0000-0000-0000-000000000000' NOT NULL,
+    delay_value INTEGER NOT NULL,
+    delay_unit TEXT NOT NULL CHECK (delay_unit IN ('hours', 'days')),
+    name TEXT NOT NULL,
+    message_text TEXT NOT NULL,
+    meta_template_name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- ==========================================
 -- SÉCURITÉ : Row Level Security (RLS)
 -- ==========================================
@@ -123,25 +135,32 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.couriers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.followup_steps ENABLE ROW LEVEL SECURITY;
 
 -- Stratégies RLS de type "tenant-based" par business_id (simulé avec l'UUID par défaut)
 
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.businesses;
 CREATE POLICY "Allow access by business tenant" ON public.businesses
     FOR ALL USING (id = '00000000-0000-0000-0000-000000000000') WITH CHECK (id = '00000000-0000-0000-0000-000000000000');
 
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.products;
 CREATE POLICY "Allow access by business tenant" ON public.products
     FOR ALL USING (business_id = '00000000-0000-0000-0000-000000000000') WITH CHECK (business_id = '00000000-0000-0000-0000-000000000000');
 
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.delivery_zones;
 CREATE POLICY "Allow access by business tenant" ON public.delivery_zones
     FOR ALL USING (business_id = '00000000-0000-0000-0000-000000000000') WITH CHECK (business_id = '00000000-0000-0000-0000-000000000000');
 
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.customers;
 CREATE POLICY "Allow access by business tenant" ON public.customers
     FOR ALL USING (business_id = '00000000-0000-0000-0000-000000000000') WITH CHECK (business_id = '00000000-0000-0000-0000-000000000000');
 
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.conversations;
 CREATE POLICY "Allow access by business tenant" ON public.conversations
     FOR ALL USING (business_id = '00000000-0000-0000-0000-000000000000') WITH CHECK (business_id = '00000000-0000-0000-0000-000000000000');
 
 -- messages n'ont pas de business_id directement, on vérifie via la conversation liée
+DROP POLICY IF EXISTS "Allow access through linked conversation" ON public.messages;
 CREATE POLICY "Allow access through linked conversation" ON public.messages
     FOR ALL USING (
         conversation_id IN (
@@ -156,10 +175,12 @@ CREATE POLICY "Allow access through linked conversation" ON public.messages
         )
     );
 
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.orders;
 CREATE POLICY "Allow access by business tenant" ON public.orders
     FOR ALL USING (business_id = '00000000-0000-0000-0000-000000000000') WITH CHECK (business_id = '00000000-0000-0000-0000-000000000000');
 
 -- order_items n'ont pas de business_id directement, on vérifie via la commande liée
+DROP POLICY IF EXISTS "Allow access through linked order" ON public.order_items;
 CREATE POLICY "Allow access through linked order" ON public.order_items
     FOR ALL USING (
         order_id IN (
@@ -174,5 +195,10 @@ CREATE POLICY "Allow access through linked order" ON public.order_items
         )
     );
 
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.couriers;
 CREATE POLICY "Allow access by business tenant" ON public.couriers
+    FOR ALL USING (business_id = '00000000-0000-0000-0000-000000000000') WITH CHECK (business_id = '00000000-0000-0000-0000-000000000000');
+
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.followup_steps;
+CREATE POLICY "Allow access by business tenant" ON public.followup_steps
     FOR ALL USING (business_id = '00000000-0000-0000-0000-000000000000') WITH CHECK (business_id = '00000000-0000-0000-0000-000000000000');

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Plus, Edit2, Trash2, X, Truck, UserCheck, ShieldAlert, Award, Calendar, ChevronRight } from "lucide-react";
 import { Courier, Order } from "../../types";
 import { gsap } from "gsap";
+import { supabase } from "../../lib/supabase/client";
 
 interface CouriersViewProps {
   couriers: Courier[];
@@ -76,11 +77,22 @@ export const CouriersView: React.FC<CouriersViewProps> = ({
   };
 
   // Save Courier
-  const handleSaveCourier = (e: React.FormEvent) => {
+  const handleSaveCourier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!courierFormName.trim() || !courierFormPhone.trim()) return;
 
     if (showCourierModal?.mode === "edit" && showCourierModal.courierId) {
+      const { error } = await supabase.from("couriers").update({
+        name: courierFormName.trim(),
+        phone: courierFormPhone.trim(),
+        active: courierFormActive
+      }).eq("id", showCourierModal.courierId);
+
+      if (error) {
+        triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
       setCouriers(prev => prev.map(c => c.id === showCourierModal.courierId ? {
         ...c,
         name: courierFormName.trim(),
@@ -90,6 +102,19 @@ export const CouriersView: React.FC<CouriersViewProps> = ({
       triggerToast(`Livreur mis à jour avec succès.`, "success");
     } else {
       const newId = `COURIER-${Date.now().toString().slice(-4)}`;
+      const { error } = await supabase.from("couriers").insert({
+        id: newId,
+        name: courierFormName.trim(),
+        phone: courierFormPhone.trim(),
+        active: courierFormActive,
+        load: 0
+      });
+
+      if (error) {
+        triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
       const newCourier: Courier = {
         id: newId,
         name: courierFormName.trim(),
@@ -104,8 +129,13 @@ export const CouriersView: React.FC<CouriersViewProps> = ({
   };
 
   // Delete Courier
-  const handleDeleteCourier = (id: string) => {
+  const handleDeleteCourier = async (id: string) => {
     const c = couriers.find(cou => cou.id === id);
+    const { error } = await supabase.from("couriers").delete().eq("id", id);
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
     setCouriers(prev => prev.filter(cou => cou.id !== id));
     triggerToast(`Livreur "${c?.name}" supprimé.`, "info");
     setShowDeleteConfirm(null);

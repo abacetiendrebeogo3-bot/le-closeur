@@ -110,3 +110,17 @@ ON CONFLICT (id) DO UPDATE SET
     phone = EXCLUDED.phone, 
     active = EXCLUDED.active, 
     load = EXCLUDED.load;
+
+-- 9. Insertion des Étapes de Relance (Followup Steps)
+INSERT INTO public.followup_steps (id, delay_value, delay_unit, name, message_text, meta_template_name) VALUES
+('STEP-1', 1, 'hours', 'Rappel Panier Abandonné', 'Bonjour {{name}}, nous avons remarqué que vous n’avez pas validé votre panier de {{total_amount}} FCFA. Souhaitez-vous de l’aide ?', 'cart_recovery_fr'),
+('STEP-2', 24, 'hours', 'Offre de livraison prioritaire', 'Bonjour {{name}} ! Finalisez votre commande aujourd’hui et profitez d’une expédition rapide pour {{delivery_zone}}.', 'delivery_incentive_fr'),
+('STEP-3', 3, 'days', 'Relance Relationnelle', 'Bonjour {{name}}, nous aimerions savoir si vous êtes toujours intéressé par nos solutions.', 'nurture_followup_fr'),
+('STEP-4', 7, 'days', 'Offre Spéciale d''Accompagnement', 'Bonjour {{name}} ! Pour vous remercier de votre intérêt, nous vous offrons les frais de livraison pour votre colis vers {{delivery_zone}}.', 'special_offer_fr'),
+('STEP-5', 10, 'days', 'Dernière tentative', 'Bonjour {{name}}, ceci est notre dernière tentative pour finaliser votre commande avant son annulation automatique. À bientôt !', 'last_chance_fr')
+ON CONFLICT (id) DO UPDATE SET 
+    delay_value = EXCLUDED.delay_value,
+    delay_unit = EXCLUDED.delay_unit,
+    name = EXCLUDED.name,
+    message_text = EXCLUDED.message_text,
+    meta_template_name = EXCLUDED.meta_template_name;

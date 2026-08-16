@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Conversation, Customer } from "../../types";
 import { gsap } from "gsap";
+import { supabase } from "../../lib/supabase/client";
 
 interface ConversationsViewProps {
   conversations: Conversation[];
@@ -42,7 +43,8 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   chatInput,
   setChatInput,
   handleSendMessage,
-  toggleTakeover
+  toggleTakeover,
+  triggerToast
 }) => {
   const activeChat = conversations.find(c => c.id === activeChatId);
   const [showCustomerSidebar, setShowCustomerSidebar] = useState(false);
@@ -96,7 +98,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   }, [showCustomerSidebar, activeChatId]);
 
   // Handle client message simulation
-  const handleSimulateClient = () => {
+  const handleSimulateClient = async () => {
     if (!activeChatId || !setConversations) return;
     
     const clientQuestions = [
@@ -107,7 +109,22 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     ];
     const randomQuestion = clientQuestions[Math.floor(Math.random() * clientQuestions.length)];
     
-    // 1. Add client message
+    const customerTimeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    
+    // Insert customer message into Supabase
+    const { error: custErr } = await supabase.from("messages").insert({
+      conversation_id: activeChatId,
+      sender: "customer",
+      text: randomQuestion,
+      time: customerTimeStr
+    });
+
+    if (custErr) {
+      triggerToast(`Erreur Supabase (Client Msg): ${custErr.message}`, "warning");
+      return;
+    }
+
+    // 1. Add client message to state
     setConversations(prev => prev.map(c => {
       if (c.id === activeChatId) {
         return {
@@ -116,9 +133,10 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
           messages: [
             ...c.messages,
             {
+              id: `msg-sim-cust-${Date.now()}`,
               sender: "customer",
               text: randomQuestion,
-              time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+              time: customerTimeStr
             }
           ]
         };
@@ -130,7 +148,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     setIsTyping(true);
     
     // 3. After 1.5s, add AI response
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsTyping(false);
       const aiResponses: Record<string, string> = {
         "Bonjour, quel est le délai de livraison pour la RAM ?": "Bonjour ! Le délai de livraison pour la RAM DDR5 Corsair est de 24h à Dakar. Souhaitez-vous valider votre commande ?",
@@ -140,6 +158,24 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       };
       
       const aiReply = aiResponses[randomQuestion] || "L'agent IA de Mon Closeur est à votre service. Comment puis-je vous aider ?";
+      const aiTimeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+      // Insert AI message into Supabase
+      const { error: aiErr } = await supabase.from("messages").insert({
+        conversation_id: activeChatId,
+        sender: "ai",
+        text: aiReply,
+        time: aiTimeStr
+      });
+
+      // Also ensure status is ai_active in DB
+      await supabase.from("conversations").update({
+        status: "ai_active"
+      }).eq("id", activeChatId);
+
+      if (aiErr) {
+        console.error("Supabase error (AI response):", aiErr);
+      }
       
       setConversations(prev => prev.map(c => {
         if (c.id === activeChatId) {
@@ -149,9 +185,10 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             messages: [
               ...c.messages,
               {
+                id: `msg-sim-ai-${Date.now()}`,
                 sender: "ai",
                 text: aiReply,
-                time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                time: aiTimeStr
               }
             ]
           };

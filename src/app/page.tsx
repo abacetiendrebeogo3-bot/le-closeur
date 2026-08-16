@@ -189,9 +189,22 @@ export default function Home() {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(Math.round(value)).replace("XOF", "FCFA");
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || activeChatId === null) return;
+
+    const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: activeChatId,
+      sender: "human",
+      text: chatInput.trim(),
+      time: timeStr
+    });
+
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
 
     setConversations(prev => prev.map(c => {
       if (c.id === activeChatId) {
@@ -200,9 +213,10 @@ export default function Home() {
           messages: [
             ...c.messages,
             {
+              id: `msg-${Date.now()}`,
               sender: "human",
               text: chatInput.trim(),
-              time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+              time: timeStr
             }
           ]
         };
@@ -213,11 +227,23 @@ export default function Home() {
     setChatInput("");
   };
 
-  const toggleTakeover = () => {
+  const toggleTakeover = async () => {
     if (activeChatId === null) return;
+    const chat = conversations.find(c => c.id === activeChatId);
+    if (!chat) return;
+    const nextStatus = chat.status === "human_takeover" ? "ai_active" : "human_takeover";
+
+    const { error } = await supabase.from("conversations").update({
+      status: nextStatus
+    }).eq("id", activeChatId);
+
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
+
     setConversations(prev => prev.map(c => {
       if (c.id === activeChatId) {
-        const nextStatus = c.status === "human_takeover" ? "ai_active" : "human_takeover";
         triggerToast(
           nextStatus === "human_takeover" 
             ? "Reprise manuelle activée. L'IA est suspendue." 
@@ -265,7 +291,7 @@ export default function Home() {
     return matched ? matched.fee : 0;
   };
 
-  const handleSaveOrder = (status: "discussing" | "confirmed") => {
+  const handleSaveOrder = async (status: "discussing" | "confirmed") => {
     let clientName = "";
     let clientPhone = "";
     let clientAddress = "";
@@ -276,6 +302,22 @@ export default function Home() {
         return;
       }
       const newCustId = `CUST-0${customers.length + 1}`;
+      const { error: custErr } = await supabase.from("customers").insert({
+        id: newCustId,
+        name: orderFormInlineName.trim(),
+        phone: orderFormInlinePhone.trim(),
+        email: "",
+        address: "",
+        first_contact: new Date().toLocaleDateString('fr-FR'),
+        tags: ["Nouveau"],
+        total_spent: 0
+      });
+
+      if (custErr) {
+        triggerToast(`Erreur Supabase (Client): ${custErr.message}`, "warning");
+        return;
+      }
+
       const newCustomer: Customer = {
         id: newCustId,
         name: orderFormInlineName.trim(),
@@ -305,6 +347,34 @@ export default function Home() {
     const grandTotal = subtotal + deliveryFee;
 
     if (orderFormId) {
+      // Update order in Supabase
+      const { error: orderErr } = await supabase.from("orders").update({
+        customer: clientName,
+        customer_phone: clientPhone,
+        customer_address: clientAddress,
+        date: orderFormDate,
+        delivery_zone: orderFormZone,
+        shipping_fee: deliveryFee,
+        total: grandTotal,
+        status: status
+      }).eq("id", orderFormId);
+
+      if (orderErr) {
+        triggerToast(`Erreur Supabase (Order): ${orderErr.message}`, "warning");
+        return;
+      }
+
+      // Recreate order items
+      await supabase.from("order_items").delete().eq("order_id", orderFormId);
+      await supabase.from("order_items").insert(
+        orderFormItems.map(item => ({
+          order_id: orderFormId,
+          product: item.product,
+          quantity: item.quantity,
+          price: item.price
+        }))
+      );
+
       setOrders(prev => prev.map(o => {
         if (o.id === orderFormId) {
           return {
@@ -324,7 +394,36 @@ export default function Home() {
       }));
       triggerToast(`Commande ${orderFormId} mise à jour avec succès.`, "success");
     } else {
+      // Create new order in Supabase
       const newId = `CMD-2026-0${orders.length + 1}`;
+      const { error: orderErr } = await supabase.from("orders").insert({
+        id: newId,
+        customer: clientName,
+        customer_phone: clientPhone,
+        customer_address: clientAddress,
+        date: orderFormDate,
+        status: status,
+        payment_status: "pending",
+        delivery_zone: orderFormZone,
+        shipping_fee: deliveryFee,
+        total: grandTotal
+      });
+
+      if (orderErr) {
+        triggerToast(`Erreur Supabase (Order): ${orderErr.message}`, "warning");
+        return;
+      }
+
+      // Insert order items
+      await supabase.from("order_items").insert(
+        orderFormItems.map(item => ({
+          order_id: newId,
+          product: item.product,
+          quantity: item.quantity,
+          price: item.price
+        }))
+      );
+
       const newOrder: Order = {
         id: newId,
         customer: clientName,
@@ -346,28 +445,55 @@ export default function Home() {
   };
 
   // ORDER ACTIONS (DETAIL VIEW)
-  const handleAdvanceOrderStatus = (orderId: string) => {
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        let nextStatus: Order["status"] = o.status;
-        let nextPayment = o.paymentStatus;
-        if (o.status === "discussing") nextStatus = "confirmed";
-        else if (o.status === "confirmed") nextStatus = "sent_to_courier";
-        else if (o.status === "sent_to_courier") nextStatus = "delivered";
-        else if (o.status === "delivered") {
-          nextStatus = "paid";
-          nextPayment = "paid";
-          setCustomers(cPrev => cPrev.map(c => c.name === o.customer ? { ...c, totalSpent: c.totalSpent + o.total } : c));
-        }
-        
-        triggerToast(`Statut de la commande ${o.id} mis à jour : ${nextStatus}`, "success");
-        return { ...o, status: nextStatus, paymentStatus: nextPayment };
+  const handleAdvanceOrderStatus = async (orderId: string) => {
+    const o = orders.find(ord => ord.id === orderId);
+    if (!o) return;
+    let nextStatus: Order["status"] = o.status;
+    let nextPayment = o.paymentStatus;
+    if (o.status === "discussing") nextStatus = "confirmed";
+    else if (o.status === "confirmed") nextStatus = "sent_to_courier";
+    else if (o.status === "sent_to_courier") nextStatus = "delivered";
+    else if (o.status === "delivered") {
+      nextStatus = "paid";
+      nextPayment = "paid";
+    }
+
+    const { error } = await supabase.from("orders").update({
+      status: nextStatus,
+      payment_status: nextPayment
+    }).eq("id", orderId);
+
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
+
+    if (nextStatus === "paid") {
+      const cust = customers.find(c => c.name === o.customer);
+      if (cust) {
+        const nextSpent = cust.totalSpent + o.total;
+        await supabase.from("customers").update({
+          total_spent: nextSpent
+        }).eq("id", cust.id);
+
+        setCustomers(cPrev => cPrev.map(c => c.id === cust.id ? { ...c, totalSpent: nextSpent } : c));
       }
-      return o;
-    }));
+    }
+
+    setOrders(prev => prev.map(ord => ord.id === orderId ? { ...ord, status: nextStatus, paymentStatus: nextPayment } : ord));
+    triggerToast(`Statut de la commande ${orderId} mis à jour : ${nextStatus}`, "success");
   };
 
-  const handleCancelOrder = (orderId: string) => {
+  const handleCancelOrder = async (orderId: string) => {
+    const { error } = await supabase.from("orders").update({
+      status: "cancelled"
+    }).eq("id", orderId);
+
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
+
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         triggerToast(`Commande ${o.id} annulée.`, "info");
@@ -377,7 +503,27 @@ export default function Home() {
     }));
   };
 
-  const handleAssignCourier = (orderId: string, courierName: string) => {
+  const handleAssignCourier = async (orderId: string, courierName: string) => {
+    const { error: orderErr } = await supabase.from("orders").update({
+      courier_name: courierName,
+      status: "sent_to_courier"
+    }).eq("id", orderId);
+
+    if (orderErr) {
+      triggerToast(`Erreur Supabase: ${orderErr.message}`, "warning");
+      return;
+    }
+
+    const cour = couriers.find(c => c.name === courierName);
+    if (cour) {
+      const nextLoad = cour.load + 1;
+      await supabase.from("couriers").update({
+        load: nextLoad
+      }).eq("id", cour.id);
+
+      setCouriers(prev => prev.map(c => c.id === cour.id ? { ...c, load: nextLoad } : c));
+    }
+
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         triggerToast(`Livreur ${courierName} assigné à la commande ${o.id}.`, "success");
@@ -385,11 +531,15 @@ export default function Home() {
       }
       return o;
     }));
-
-    setCouriers(prev => prev.map(c => c.name === courierName ? { ...c, load: c.load + 1 } : c));
   };
 
-  const handleDeleteOrder = (orderId: string) => {
+  const handleDeleteOrder = async (orderId: string) => {
+    const { error } = await supabase.from("orders").delete().eq("id", orderId);
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
+
     setOrders(prev => prev.filter(o => o.id !== orderId));
     setShowDeleteConfirmOrder(null);
     setOrdersSubView("list");
@@ -397,7 +547,7 @@ export default function Home() {
   };
 
   // CUSTOMER ACTIONS
-  const handleSaveCustomer = (e: React.FormEvent) => {
+  const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!custFormName.trim() || !custFormPhone.trim()) {
       triggerToast("Le nom et le numéro WhatsApp sont requis.", "warning");
@@ -405,6 +555,18 @@ export default function Home() {
     }
 
     if (showCustomerModal?.mode === "edit" && showCustomerModal.customerId) {
+      const { error } = await supabase.from("customers").update({
+        name: custFormName.trim(),
+        phone: custFormPhone.trim(),
+        email: custFormEmail.trim(),
+        address: custFormAddress.trim()
+      }).eq("id", showCustomerModal.customerId);
+
+      if (error) {
+        triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
       setCustomers(prev => prev.map(c => {
         if (c.id === showCustomerModal.customerId) {
           return {
@@ -419,11 +581,31 @@ export default function Home() {
       }));
       const oldCust = customers.find(c => c.id === showCustomerModal.customerId);
       if (oldCust && oldCust.name !== custFormName.trim()) {
+        await supabase.from("orders").update({
+          customer: custFormName.trim()
+        }).eq("customer", oldCust.name);
+
         setOrders(prev => prev.map(o => o.customer === oldCust.name ? { ...o, customer: custFormName.trim() } : o));
       }
       triggerToast("Informations du client mises à jour.", "success");
     } else {
       const newId = `CUST-0${customers.length + 1}`;
+      const { error } = await supabase.from("customers").insert({
+        id: newId,
+        name: custFormName.trim(),
+        phone: custFormPhone.trim(),
+        email: custFormEmail.trim(),
+        address: custFormAddress.trim(),
+        first_contact: new Date().toLocaleDateString('fr-FR'),
+        tags: ["Nouveau"],
+        total_spent: 0
+      });
+
+      if (error) {
+        triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
       const newCustomer: Customer = {
         id: newId,
         name: custFormName.trim(),
@@ -445,8 +627,14 @@ export default function Home() {
     setShowCustomerModal(null);
   };
 
-  const handleDeleteCustomer = (customerId: string) => {
-    const c = customers.find(c => c.id === customerId);
+  const handleDeleteCustomer = async (customerId: string) => {
+    const c = customers.find(cust => cust.id === customerId);
+    const { error } = await supabase.from("customers").delete().eq("id", customerId);
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
+
     setCustomers(prev => prev.filter(cust => cust.id !== customerId));
     setShowDeleteConfirmCustomer(null);
     triggerToast(`Client ${c?.name} supprimé.`, "warning");

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Clock, CheckCircle, Ban, TrendingUp, Sparkles, MessageSquare, AlertCircle } from "lucide-react";
 import { FollowupStep } from "../../types";
 import { gsap } from "gsap";
+import { supabase } from "../../lib/supabase/client";
 
 interface FollowupsViewProps {
   followupsActive: boolean;
@@ -83,6 +84,27 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
   const stepsContainerRef = useRef<HTMLDivElement>(null);
   const clientsContainerRef = useRef<HTMLDivElement>(null);
 
+  // Fetch steps from Supabase
+  useEffect(() => {
+    const fetchSteps = async () => {
+      const { data, error } = await supabase
+        .from("followup_steps")
+        .select("*")
+        .order("created_at", { ascending: true });
+      if (!error && data && data.length > 0) {
+        setSteps(data.map(fs => ({
+          id: fs.id,
+          delayValue: fs.delay_value,
+          delayUnit: fs.delay_unit,
+          name: fs.name,
+          messageText: fs.message_text,
+          metaTemplateName: fs.meta_template_name
+        })));
+      }
+    };
+    fetchSteps();
+  }, []);
+
   // GSAP Entrance animations
   useEffect(() => {
     gsap.fromTo(".followup-card",
@@ -106,7 +128,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
   };
 
   // Add step
-  const handleAddStep = () => {
+  const handleAddStep = async () => {
     const newId = `STEP-${Date.now()}`;
     const newStep: FollowupStep = {
       id: newId,
@@ -116,22 +138,51 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
       messageText: "Bonjour {{name}}, ...",
       metaTemplateName: "custom_template"
     };
+
+    const { error } = await supabase.from("followup_steps").insert({
+      id: newId,
+      delay_value: newStep.delayValue,
+      delay_unit: newStep.delayUnit,
+      name: newStep.name,
+      message_text: newStep.messageText,
+      meta_template_name: newStep.metaTemplateName
+    });
+
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
+
     setSteps(prev => [...prev, newStep]);
     triggerToast("Nouvelle étape de relance ajoutée.", "success");
   };
 
   // Update step field
-  const handleUpdateStepField = (id: string, field: keyof FollowupStep, value: any) => {
+  const handleUpdateStepField = async (id: string, field: keyof FollowupStep, value: any) => {
     setSteps(prev => prev.map(step => {
       if (step.id === id) {
         return { ...step, [field]: value };
       }
       return step;
     }));
+
+    const dbField = field === "delayValue" ? "delay_value" :
+                    field === "delayUnit" ? "delay_unit" :
+                    field === "messageText" ? "message_text" :
+                    field === "metaTemplateName" ? "meta_template_name" : "name";
+
+    await supabase.from("followup_steps").update({
+      [dbField]: value
+    }).eq("id", id);
   };
 
   // Delete step
-  const handleDeleteStep = (id: string, index: number) => {
+  const handleDeleteStep = async (id: string, index: number) => {
+    const { error } = await supabase.from("followup_steps").delete().eq("id", id);
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
     setSteps(prev => prev.filter(step => step.id !== id));
     triggerToast(`Étape ${index + 1} supprimée de la séquence.`, "info");
   };

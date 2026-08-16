@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Plus, Edit2, Trash2, X, Package, MapPin, Layers, Coins, Image } from "lucide-react";
 import { Product, Zone } from "../../types";
 import { gsap } from "gsap";
+import { supabase } from "../../lib/supabase/client";
 
 interface CatalogViewProps {
   products: Product[];
@@ -104,13 +105,27 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   };
 
   // Save Product
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodFormName.trim()) return;
 
     const parsedStock = prodFormStock.trim() !== "" ? parseInt(prodFormStock) : undefined;
 
     if (showProductModal?.mode === "edit" && showProductModal.productId) {
+      const { error } = await supabase.from("products").update({
+        name: prodFormName.trim(),
+        price: prodFormPrice,
+        category: prodFormCategory.trim() || "Général",
+        active: prodFormActive,
+        stock: parsedStock,
+        image_url: prodFormImageUrl.trim() || null
+      }).eq("id", showProductModal.productId);
+
+      if (error) {
+        triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
       setProducts(prev => prev.map(p => p.id === showProductModal.productId ? {
         ...p,
         name: prodFormName.trim(),
@@ -123,6 +138,21 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       triggerToast(`Produit mis à jour avec succès.`, "success");
     } else {
       const newId = `PROD-${Date.now().toString().slice(-4)}`;
+      const { error } = await supabase.from("products").insert({
+        id: newId,
+        name: prodFormName.trim(),
+        price: prodFormPrice,
+        category: prodFormCategory.trim() || "Général",
+        active: prodFormActive,
+        stock: parsedStock,
+        image_url: prodFormImageUrl.trim() || null
+      });
+
+      if (error) {
+        triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
       const newProd: Product = {
         id: newId,
         name: prodFormName.trim(),
@@ -139,11 +169,22 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   };
 
   // Save Zone
-  const handleSaveZone = (e: React.FormEvent) => {
+  const handleSaveZone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!zoneFormName.trim()) return;
 
     if (showZoneModal?.mode === "edit" && showZoneModal.zoneId) {
+      const { error } = await supabase.from("delivery_zones").update({
+        name: zoneFormName.trim(),
+        fee: zoneFormFee,
+        delivery_time: zoneFormTime.trim()
+      }).eq("id", showZoneModal.zoneId);
+
+      if (error) {
+        triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
       setZones(prev => prev.map(z => z.id === showZoneModal.zoneId ? {
         ...z,
         name: zoneFormName.trim(),
@@ -153,6 +194,18 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       triggerToast(`Zone de livraison mise à jour.`, "success");
     } else {
       const newId = `ZONE-${Date.now().toString().slice(-4)}`;
+      const { error } = await supabase.from("delivery_zones").insert({
+        id: newId,
+        name: zoneFormName.trim(),
+        fee: zoneFormFee,
+        delivery_time: zoneFormTime.trim()
+      });
+
+      if (error) {
+        triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
       const newZone: Zone = {
         id: newId,
         name: zoneFormName.trim(),
@@ -166,16 +219,26 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   };
 
   // Delete Product
-  const handleDeleteProduct = (id: string) => {
+  const handleDeleteProduct = async (id: string) => {
     const prod = products.find(p => p.id === id);
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
     setProducts(prev => prev.filter(p => p.id !== id));
     triggerToast(`Produit "${prod?.name}" retiré du catalogue.`, "info");
     setShowDeleteConfirmProd(null);
   };
 
   // Delete Zone
-  const handleDeleteZone = (id: string) => {
+  const handleDeleteZone = async (id: string) => {
     const z = zones.find(zn => zn.id === id);
+    const { error } = await supabase.from("delivery_zones").delete().eq("id", id);
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
     setZones(prev => prev.filter(zn => zn.id !== id));
     triggerToast(`Zone de livraison "${z?.name}" supprimée.`, "info");
     setShowDeleteConfirmZone(null);

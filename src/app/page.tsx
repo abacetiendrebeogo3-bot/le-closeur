@@ -323,15 +323,40 @@ export default function Home() {
     }));
   };
 
-  // Dynamic Agent Identity update
+  // Load Agent configuration from Supabase if present
   useEffect(() => {
-    if (ownerName) {
-      setAgentConfig(prev => ({
-        ...prev,
-        identity: `Tu es l'agent IA de vente de la boutique de ${ownerName}. Accueille chaleureusement les clients avec politesse et réponds toujours en proposant les prix exacts en FCFA.`
-      }));
+    if (!businessId) return;
+    const fetchConfig = async () => {
+      const { data, error } = await supabase.from("businesses").select("agent_identity, agent_sales_rules, agent_escalation_rules, agent_tone, owner_name").eq("id", businessId).maybeSingle();
+      if (data) {
+        setAgentConfig({
+          identity: data.agent_identity || `Tu es l'agent IA de vente de la boutique de ${data.owner_name || ownerName || "notre boutique"}. Accueille chaleureusement les clients avec politesse et réponds toujours en proposant les prix exacts en FCFA.`,
+          salesRules: data.agent_sales_rules || "Nos prix sont fermes et calculés au plus juste. Pas de remise sans validation préalable. Ne promettez jamais une livraison en moins de 2h.",
+          escalationRules: data.agent_escalation_rules || "Transférer à un conseiller humain (reprise manuelle) si le client demande un remboursement, s'il a une réclamation concernant un produit défectueux, ou s'il demande un produit sur-mesure hors catalogue.",
+          tone: data.agent_tone || "Chaleureux et Respectueux"
+        });
+      }
+    };
+    fetchConfig();
+  }, [businessId, ownerName]);
+
+  const handleSaveAgentConfig = async (newConfig: typeof agentConfig) => {
+    if (!businessId) return;
+    const { error } = await supabase.from("businesses").update({
+      agent_identity: newConfig.identity,
+      agent_sales_rules: newConfig.salesRules,
+      agent_escalation_rules: newConfig.escalationRules,
+      agent_tone: newConfig.tone
+    }).eq("id", businessId);
+
+    if (error) {
+      triggerToast(`Erreur lors de la sauvegarde : ${error.message}`, "warning");
+    } else {
+      setAgentConfig(newConfig);
+      triggerToast("Instructions de l'Agent IA sauvegardées avec succès.", "success");
     }
-  }, [ownerName]);
+  };
+
 
   const triggerPDFDownload = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -1053,8 +1078,9 @@ export default function Home() {
           {activeTab === "agent-config" && (
             <AgentConfigView 
               config={agentConfig}
-              onSaveConfig={setAgentConfig}
+              onSaveConfig={handleSaveAgentConfig}
               triggerToast={triggerToast}
+              businessId={businessId || ""}
             />
           )}
 

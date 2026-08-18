@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 // Initialize Anthropic Client
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "",
+  apiKey: process.env.ANTHROPIC_API_KEY || "placeholder-anthropic-key",
 });
 
 export async function POST(req: NextRequest) {

@@ -384,7 +384,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
     // Call Anthropic
     let response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
+      model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
       system: systemPrompt,
       messages: formattedMessages,
@@ -506,7 +506,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
       // Get final reply from Claude with tool outputs
       const secondResponse = await anthropic.messages.create({
-        model: "claude-3-haiku-20240307",
+        model: "claude-3-5-sonnet-20241022",
         max_tokens: 1024,
         system: systemPrompt,
         messages: [

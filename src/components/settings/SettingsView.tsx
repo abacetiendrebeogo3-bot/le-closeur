@@ -102,7 +102,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
               body: JSON.stringify({
                 code,
                 businessId,
-                redirectUri: window.location.origin,
+                redirectUri: window.location.origin + "/",
               }),
             });
 

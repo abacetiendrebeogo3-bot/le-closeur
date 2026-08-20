@@ -9,7 +9,9 @@ export async function middleware(request: NextRequest) {
   
   const isOnboardingRoute = request.nextUrl.pathname.startsWith("/onboarding");
 
-  if (!user && !isAuthRoute) {
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api");
+
+  if (!user && !isAuthRoute && !isApiRoute) {
     // Redirect to login if user is not authenticated
     const url = request.nextUrl.clone();
     url.pathname = "/login";

@@ -126,7 +126,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
           }
         },
         {
-          scope: "whatsapp_business_management,whatsapp_business_messaging",
+          config_id: configId,
           response_type: "code",
           override_default_response_type: true,
           extras: {

@@ -45,6 +45,21 @@ export async function GET(req: NextRequest) {
     }, { status: 400 });
   }
 
+  // Fetch actual allowed models from Anthropic
+  let allowedModelsList: any = null;
+  try {
+    const modelsResponse = await fetch("https://api.anthropic.com/v1/models", {
+      method: "GET",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      }
+    });
+    allowedModelsList = await modelsResponse.json();
+  } catch (err: any) {
+    allowedModelsList = { error: err.message };
+  }
+
   const results = [];
   for (const model of models) {
     const res = await testModel(apiKey, model);
@@ -55,6 +70,7 @@ export async function GET(req: NextRequest) {
     message: "Anthropic model connectivity diagnostic results",
     apiKeyConfigured: true,
     apiKeyLength: apiKey.length,
+    allowedModelsFromAPI: allowedModelsList,
     results: results
   });
 }

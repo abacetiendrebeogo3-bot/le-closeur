@@ -12,10 +12,6 @@ const anthropic = new Anthropic({
 // Model wrapper to intercept Translated Model Name
 const originalCreate = anthropic.messages.create.bind(anthropic.messages);
 anthropic.messages.create = function (params: any, options?: any) {
-  console.log("MODELE DEMANDE:", params.model);
-  if (params.model === "claude-sonnet-5") {
-    params.model = "claude-3-5-sonnet-20241022";
-  }
   console.log("MODELE UTILISE:", params.model);
   return originalCreate(params, options);
 } as any;

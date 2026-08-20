@@ -100,6 +100,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "ignored_empty_message" });
     }
 
+    // Resolve businessId dynamically based on the receiving phone number ID
+    const phoneNumberId = value?.metadata?.phone_number_id;
+    let businessId = DEFAULT_BUSINESS_ID;
+
+    if (phoneNumberId) {
+      const { data: bus, error: busErr } = await supabaseServer
+        .from("businesses")
+        .select("id")
+        .eq("whatsapp_phone_number_id", phoneNumberId)
+        .maybeSingle();
+      
+      if (busErr) {
+        console.error("Error looking up business by phone number ID:", busErr);
+      } else if (bus) {
+        businessId = bus.id;
+        console.log(`Resolved dynamic business_id: ${businessId} for phone_number_id: ${phoneNumberId}`);
+      } else {
+        console.warn(`No business found matching phone number ID: ${phoneNumberId}. Falling back to default.`);
+      }
+    }
+
     // Ensure customer exists in Supabase
     const { data: customer, error: customerFetchErr } = await supabaseServer
       .from("customers")
@@ -120,7 +141,7 @@ export async function POST(req: NextRequest) {
         .from("customers")
         .insert({
           id: newCustId,
-          business_id: DEFAULT_BUSINESS_ID,
+          business_id: businessId,
           name: contactName,
           phone: customerPhone,
           first_contact: new Date().toLocaleDateString("fr-FR"),
@@ -143,7 +164,7 @@ export async function POST(req: NextRequest) {
       .from("conversations")
       .select("*")
       .eq("customer_phone", customerPhone)
-      .eq("business_id", DEFAULT_BUSINESS_ID)
+      .eq("business_id", businessId)
       .maybeSingle();
 
     if (convFetchErr) {
@@ -157,7 +178,7 @@ export async function POST(req: NextRequest) {
       const { data: newConv, error: createConvErr } = await supabaseServer
         .from("conversations")
         .insert({
-          business_id: DEFAULT_BUSINESS_ID,
+          business_id: businessId,
           customer_name: contactName,
           customer_phone: customerPhone,
           status: "ai_active",
@@ -205,7 +226,7 @@ export async function POST(req: NextRequest) {
     const { data: business } = await supabaseServer
       .from("businesses")
       .select("*")
-      .eq("id", DEFAULT_BUSINESS_ID)
+      .eq("id", businessId)
       .maybeSingle();
 
     const identity = business?.agent_identity || "Tu es un agent d'aide à la vente.";
@@ -217,14 +238,14 @@ export async function POST(req: NextRequest) {
     const { data: products } = await supabaseServer
       .from("products")
       .select("*")
-      .eq("business_id", DEFAULT_BUSINESS_ID)
+      .eq("business_id", businessId)
       .eq("active", true);
 
     // 3. Fetch Delivery Zones
     const { data: zones } = await supabaseServer
       .from("delivery_zones")
       .select("*")
-      .eq("business_id", DEFAULT_BUSINESS_ID);
+      .eq("business_id", businessId);
 
     // 4. Construct System Prompt
     const systemPrompt = `Tu es l'agent conversationnel IA intelligent et autonome de vente (closeur) pour l'entreprise "${business?.name || "Notre boutique"}".
@@ -435,7 +456,7 @@ ${JSON.stringify(zones || [], null, 2)}
             // Insert Order
             const { error: orderErr } = await supabaseServer.from("orders").insert({
               id: newOrderId,
-              business_id: DEFAULT_BUSINESS_ID,
+              business_id: businessId,
               customer: input.customer_name,
               customer_phone: input.customer_phone,
               customer_address: input.customer_address,
@@ -484,7 +505,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
     if (assistantMessage) {
       // Send message via Meta WhatsApp
-      await sendWhatsAppMessage(customerPhone, assistantMessage);
+      await sendWhatsAppMessage(customerPhone, assistantMessage, businessId);
 
       // Save AI reply to Supabase
       const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({ 
@@ -23,6 +24,10 @@ export default function RootLayout({
       <body className={`${plusJakarta.className} antialiased bg-neige text-encre min-h-screen`}>
         <div className="noise-overlay"></div>
         {children}
+        <Script 
+          src="https://connect.facebook.net/en_US/sdk.js" 
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

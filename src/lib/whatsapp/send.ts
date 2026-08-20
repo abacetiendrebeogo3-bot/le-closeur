@@ -1,12 +1,37 @@
+import { supabaseServer } from "@/lib/supabase/server";
+
 /**
  * Helper to send an outgoing text message to a WhatsApp number using the WhatsApp Cloud API.
  */
-export async function sendWhatsAppMessage(to: string, text: string): Promise<boolean> {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+export async function sendWhatsAppMessage(to: string, text: string, businessId?: string): Promise<boolean> {
+  let token = process.env.WHATSAPP_ACCESS_TOKEN;
+  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (businessId) {
+    try {
+      const { data: business, error } = await supabaseServer
+        .from("businesses")
+        .select("whatsapp_access_token, whatsapp_phone_number_id")
+        .eq("id", businessId)
+        .maybeSingle();
+
+      if (error) {
+        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
+      } else if (business) {
+        if (business.whatsapp_access_token) {
+          token = business.whatsapp_access_token;
+        }
+        if (business.whatsapp_phone_number_id) {
+          phoneNumberId = business.whatsapp_phone_number_id;
+        }
+      }
+    } catch (err) {
+      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
+    }
+  }
 
   if (!token || !phoneNumberId) {
-    console.error("WhatsApp credentials missing in environment variables.");
+    console.error("WhatsApp credentials missing (neither in DB for business nor in environment variables).");
     return false;
   }
 

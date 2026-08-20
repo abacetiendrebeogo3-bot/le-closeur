@@ -1086,7 +1086,7 @@ export default function Home() {
 
           {/* TAB: SETTINGS */}
           {activeTab === "settings" && (
-            <SettingsView triggerToast={triggerToast} ownerName={ownerName} />
+            <SettingsView triggerToast={triggerToast} ownerName={ownerName} businessId={businessId} />
           )}
 
         </div>

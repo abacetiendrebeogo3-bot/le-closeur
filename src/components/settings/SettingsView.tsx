@@ -162,11 +162,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
           <div className="flex flex-col gap-2">
             <button 
               onClick={handleConnectWhatsApp}
-              disabled={isConnecting || loadingConfig}
+              disabled={isConnecting || loadingConfig || !businessId}
               className={`w-full font-bold py-3 px-4 rounded-xl text-xs text-center transition-all ${
-                isConnected
-                  ? "bg-white border border-graphite/15 hover:bg-graphite/5 text-encre"
-                  : "bg-graphite text-white hover:opacity-90"
+                !businessId
+                  ? "bg-neige border border-graphite/10 text-encre/30 cursor-not-allowed"
+                  : isConnected
+                    ? "bg-white border border-graphite/15 hover:bg-graphite/5 text-encre"
+                    : "bg-graphite text-white hover:opacity-90"
               } flex items-center justify-center gap-2`}
             >
               {isConnecting ? (
@@ -174,6 +176,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                   <RefreshCw className="w-4 h-4 animate-spin" />
                   <span>Connexion en cours...</span>
                 </>
+              ) : !businessId ? (
+                "Chargement de la session..."
               ) : isConnected ? (
                 "Reconnecter ou modifier le compte WhatsApp"
               ) : (

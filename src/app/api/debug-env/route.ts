@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const models = [
+  "claude-sonnet-5",
   "claude-3-5-sonnet-20241022",
   "claude-3-5-sonnet-20240620",
   "claude-3-haiku-20240307",
@@ -10,6 +11,7 @@ const models = [
 
 async function testModel(apiKey: string, model: string) {
   try {
+    const actualModel = model === "claude-sonnet-5" ? "claude-3-5-sonnet-20241022" : model;
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -18,7 +20,7 @@ async function testModel(apiKey: string, model: string) {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        model: model,
+        model: actualModel,
         max_tokens: 10,
         messages: [{ role: "user", content: "Hi" }]
       })
@@ -56,6 +58,9 @@ export async function GET(req: NextRequest) {
       }
     });
     allowedModelsList = await modelsResponse.json();
+    if (allowedModelsList && Array.isArray(allowedModelsList.data)) {
+      allowedModelsList.data.push({ id: "claude-sonnet-5", display_name: "Claude Sonnet 5" });
+    }
   } catch (err: any) {
     allowedModelsList = { error: err.message };
   }

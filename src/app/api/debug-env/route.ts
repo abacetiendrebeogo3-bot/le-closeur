@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-  const token = process.env.WHATSAPP_VERIFY_TOKEN;
   return NextResponse.json({
-    hasToken: !!token,
-    tokenLength: token ? token.length : 0,
-    prefix: token ? token.substring(0, 3) : "",
-    suffix: token ? token.substring(token.length - 3) : "",
+    hasVerifyToken: !!process.env.WHATSAPP_VERIFY_TOKEN,
+    verifyTokenLength: process.env.WHATSAPP_VERIFY_TOKEN ? process.env.WHATSAPP_VERIFY_TOKEN.length : 0,
+    hasConfigId: !!process.env.NEXT_PUBLIC_META_CONFIG_ID,
+    configIdLength: process.env.NEXT_PUBLIC_META_CONFIG_ID ? process.env.NEXT_PUBLIC_META_CONFIG_ID.length : 0,
+    hasAppId: !!process.env.NEXT_PUBLIC_META_APP_ID,
+    appIdLength: process.env.NEXT_PUBLIC_META_APP_ID ? process.env.NEXT_PUBLIC_META_APP_ID.length : 0,
   });
 }

@@ -270,7 +270,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
           ) : (
             <form onSubmit={handleSaveManualConfig} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Token d'accès permanent</label>
+                <label className="text-[10px] uppercase font-bold text-encre/50">Token d&apos;accès permanent</label>
                 <input
                   type="password"
                   placeholder="Jeton d'accès de l'application système..."
@@ -342,7 +342,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                 </div>
                 {accessToken && (
                   <div>
-                    <span className="text-encre/40 uppercase font-bold">Jeton d'accès :</span>{" "}
+                    <span className="text-encre/40 uppercase font-bold">Jeton d&apos;accès :</span>{" "}
                     <span className="text-graphite font-mono">Détecté (Masqué)</span>
                   </div>
                 )}

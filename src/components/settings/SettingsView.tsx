@@ -48,6 +48,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   }, [businessId, fetchWhatsAppConfig]);
 
   useEffect(() => {
+    console.log("Client-side Meta Env:", {
+      appId: process.env.NEXT_PUBLIC_META_APP_ID,
+      configId: process.env.NEXT_PUBLIC_META_CONFIG_ID,
+    });
+  }, []);
+
+  useEffect(() => {
     // Initialize the Meta SDK if it exists, or schedule it
     const initFb = () => {
       if (window.FB) {

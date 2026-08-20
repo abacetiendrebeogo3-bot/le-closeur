@@ -89,50 +89,56 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
 
     setIsConnecting(true);
 
-    window.FB.login(
-      async (response: any) => {
-        if (response.authResponse) {
-          const code = response.authResponse.code;
-          try {
-            const res = await fetch("/api/whatsapp/embedded-signup", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                code,
-                businessId,
-                redirectUri: window.location.origin + "/",
-              }),
-            });
+    try {
+      window.FB.login(
+        async (response: any) => {
+          if (response.authResponse) {
+            const code = response.authResponse.code;
+            try {
+              const res = await fetch("/api/whatsapp/embedded-signup", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  code,
+                  businessId,
+                  redirectUri: window.location.origin + "/",
+                }),
+              });
 
-            const data = await res.json();
-            if (!res.ok) {
-              throw new Error(data.error || "Échec de l'intégration WhatsApp.");
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.error || "Échec de l'intégration WhatsApp.");
+              }
+
+              triggerToast(`WhatsApp connecté avec succès ! Numéro : ${data.displayPhoneNumber || ""}`, "success");
+              fetchWhatsAppConfig();
+            } catch (err: any) {
+              console.error("Error in exchange:", err);
+              triggerToast(err.message || "Erreur de connexion WhatsApp", "warning");
+            } finally {
+              setIsConnecting(false);
             }
-
-            triggerToast(`WhatsApp connecté avec succès ! Numéro : ${data.displayPhoneNumber || ""}`, "success");
-            fetchWhatsAppConfig();
-          } catch (err: any) {
-            console.error("Error in exchange:", err);
-            triggerToast(err.message || "Erreur de connexion WhatsApp", "warning");
-          } finally {
+          } else {
+            triggerToast("Le processus de connexion Meta a été annulé.", "warning");
             setIsConnecting(false);
           }
-        } else {
-          triggerToast("Le processus de connexion Meta a été annulé.", "warning");
-          setIsConnecting(false);
-        }
-      },
-      {
-        scope: "whatsapp_business_management,whatsapp_business_messaging",
-        response_type: "code",
-        override_default_response_type: true,
-        extras: {
-          setup: {},
         },
-      }
-    );
+        {
+          scope: "whatsapp_business_management,whatsapp_business_messaging",
+          response_type: "code",
+          override_default_response_type: true,
+          extras: {
+            setup: {},
+          },
+        }
+      );
+    } catch (error: any) {
+      console.error("FB.login failed:", error);
+      triggerToast("Impossible d'ouvrir la popup de connexion Meta. Vérifiez que votre navigateur autorise les fenêtres popups.", "warning");
+      setIsConnecting(false);
+    }
   };
 
   const isConnected = !!phoneNumberId && !!wabaId;

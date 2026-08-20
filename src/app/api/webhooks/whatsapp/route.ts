@@ -13,17 +13,23 @@ const DEFAULT_BUSINESS_ID = "00000000-0000-0000-0000-000000000000";
 
 // Verify Signature from Meta (X-Hub-Signature-256)
 function verifySignature(payload: string, signatureHeader: string | null): boolean {
-  if (!signatureHeader) return false;
-
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
-  if (!appSecret) {
-    console.error("WHATSAPP_APP_SECRET is not configured.");
+  console.log("verifySignature called. Header:", signatureHeader);
+  if (!signatureHeader) {
+    console.warn("verifySignature: Missing x-hub-signature-256 header");
     return false;
   }
 
-  // Signature is in the format 'sha256=signature_value'
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  if (!appSecret) {
+    console.error("verifySignature: WHATSAPP_APP_SECRET environment variable is not configured.");
+    return false;
+  }
+
   const parts = signatureHeader.split("=");
-  if (parts.length !== 2 || parts[0] !== "sha256") return false;
+  if (parts.length !== 2 || parts[0] !== "sha256") {
+    console.warn("verifySignature: Invalid signature format");
+    return false;
+  }
 
   const signature = parts[1];
   const expectedSignature = crypto
@@ -31,7 +37,9 @@ function verifySignature(payload: string, signatureHeader: string | null): boole
     .update(payload)
     .digest("hex");
 
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+  const isValid = crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+  console.log("verifySignature: Signature validation result =", isValid);
+  return isValid;
 }
 
 // GET Handler: Webhook verification
@@ -42,9 +50,13 @@ export async function GET(req: NextRequest) {
     const token = searchParams.get("hub.verify_token");
     const challenge = searchParams.get("hub.challenge");
 
+    console.log("GET Webhook Verification query params:", { mode, token, challenge });
+
     if (mode === "subscribe" && token) {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+      console.log("Expected Verify Token:", verifyToken);
       if (token === verifyToken) {
+        console.log("Webhook verified successfully!");
         return new NextResponse(challenge, {
           status: 200,
           headers: { "Content-Type": "text/plain" },
@@ -64,9 +76,12 @@ export async function GET(req: NextRequest) {
 
 // POST Handler: Process incoming WhatsApp messages
 export async function POST(req: NextRequest) {
+  console.log("POST /api/webhooks/whatsapp called");
   try {
     const rawBody = await req.text();
     const signatureHeader = req.headers.get("x-hub-signature-256");
+
+    console.log("Incoming Webhook body preview:", rawBody.substring(0, 500));
 
     // Verify signature
     if (!verifySignature(rawBody, signatureHeader)) {
@@ -75,6 +90,7 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = JSON.parse(rawBody);
+    console.log("Parsed Webhook payload:", JSON.stringify(payload, null, 2));
 
     // Meta Webhook returns messages nested inside: entry -> changes -> value -> messages
     const entry = payload.entry?.[0];

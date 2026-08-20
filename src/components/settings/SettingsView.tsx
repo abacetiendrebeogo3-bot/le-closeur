@@ -18,8 +18,16 @@ interface SettingsViewProps {
 export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerName, businessId }) => {
   const [wabaId, setWabaId] = useState<string | null>(null);
   const [phoneNumberId, setPhoneNumberId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"auto" | "manual">("manual"); // Default to manual since it's user preference
+
+  // Manual inputs form state
+  const [inputWabaId, setInputWabaId] = useState("");
+  const [inputPhoneNumberId, setInputPhoneNumberId] = useState("");
+  const [inputAccessToken, setInputAccessToken] = useState("");
+  const [isSavingManual, setIsSavingManual] = useState(false);
 
   const fetchWhatsAppConfig = useCallback(async () => {
     if (!businessId) return;
@@ -27,7 +35,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     try {
       const { data, error } = await supabase
         .from("businesses")
-        .select("whatsapp_waba_id, whatsapp_phone_number_id")
+        .select("whatsapp_waba_id, whatsapp_phone_number_id, whatsapp_access_token")
         .eq("id", businessId)
         .maybeSingle();
 
@@ -35,6 +43,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       if (data) {
         setWabaId(data.whatsapp_waba_id || null);
         setPhoneNumberId(data.whatsapp_phone_number_id || null);
+        setAccessToken(data.whatsapp_access_token || null);
+        
+        setInputWabaId(data.whatsapp_waba_id || "");
+        setInputPhoneNumberId(data.whatsapp_phone_number_id || "");
+        setInputAccessToken(data.whatsapp_access_token || "");
       }
     } catch (err) {
       console.error("Error fetching WhatsApp configuration:", err);
@@ -148,6 +161,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     }
   };
 
+  const handleSaveManualConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessId) {
+      triggerToast("Erreur : Aucun ID de commerce identifié.", "warning");
+      return;
+    }
+
+    setIsSavingManual(true);
+    try {
+      const { error } = await supabase
+        .from("businesses")
+        .update({
+          whatsapp_waba_id: inputWabaId.trim() || null,
+          whatsapp_phone_number_id: inputPhoneNumberId.trim() || null,
+          whatsapp_access_token: inputAccessToken.trim() || null,
+        })
+        .eq("id", businessId);
+
+      if (error) throw error;
+
+      triggerToast("Configuration WhatsApp enregistrée avec succès !", "success");
+      fetchWhatsAppConfig();
+    } catch (err: any) {
+      console.error("Error saving manual config:", err);
+      triggerToast(err.message || "Erreur lors de la sauvegarde", "warning");
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
+
   const isConnected = !!phoneNumberId && !!wabaId;
 
   return (
@@ -162,49 +205,123 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
               <span>Intégration API WhatsApp</span>
             </h3>
             <span className="text-[9px] uppercase px-2.5 py-0.5 rounded-full font-bold bg-menthe/10 text-menthe border border-menthe/20">
-              Embedded Signup
+              Paramètres
             </span>
           </div>
-          
-          <div className="flex flex-col gap-2">
-            <button 
-              onClick={handleConnectWhatsApp}
-              disabled={isConnecting || loadingConfig || !businessId}
-              className={`w-full font-bold py-3 px-4 rounded-xl text-xs text-center transition-all ${
-                !businessId
-                  ? "bg-neige border border-graphite/10 text-encre/30 cursor-not-allowed"
-                  : isConnected
-                    ? "bg-white border border-graphite/15 hover:bg-graphite/5 text-encre"
-                    : "bg-graphite text-white hover:opacity-90"
-              } flex items-center justify-center gap-2`}
+
+          {/* Toggle Tabs */}
+          <div className="flex bg-neige p-1 rounded-xl gap-1">
+            <button
+              onClick={() => setActiveTab("manual")}
+              className={`flex-1 text-center py-2 text-[10px] font-bold rounded-lg transition-all ${
+                activeTab === "manual" ? "bg-white text-encre shadow-xs" : "text-encre/50 hover:text-encre"
+              }`}
             >
-              {isConnecting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Connexion en cours...</span>
-                </>
-              ) : !businessId ? (
-                "Chargement de la session..."
-              ) : isConnected ? (
-                "Reconnecter ou modifier le compte WhatsApp"
-              ) : (
-                "Connecter mon WhatsApp Business"
-              )}
+              Configuration Manuelle
             </button>
-            {isConnected ? (
-              <span className="text-[10px] text-menthe font-semibold text-center block mt-1 flex items-center justify-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> WhatsApp Business connecté
-              </span>
-            ) : (
-              <span className="text-[10px] text-amber-600 font-semibold text-center block mt-1">
-                ⚠️ Non connecté — cliquez sur le bouton pour lier votre compte
-              </span>
-            )}
+            <button
+              onClick={() => setActiveTab("auto")}
+              className={`flex-1 text-center py-2 text-[10px] font-bold rounded-lg transition-all ${
+                activeTab === "auto" ? "bg-white text-encre shadow-xs" : "text-encre/50 hover:text-encre"
+              }`}
+            >
+              Connexion Automatique (Meta)
+            </button>
           </div>
+          
+          {activeTab === "auto" ? (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={handleConnectWhatsApp}
+                  disabled={isConnecting || loadingConfig || !businessId}
+                  className={`w-full font-bold py-3 px-4 rounded-xl text-xs text-center transition-all ${
+                    !businessId
+                      ? "bg-neige border border-graphite/10 text-encre/30 cursor-not-allowed"
+                      : isConnected
+                        ? "bg-white border border-graphite/15 hover:bg-graphite/5 text-encre"
+                        : "bg-graphite text-white hover:opacity-90"
+                  } flex items-center justify-center gap-2`}
+                >
+                  {isConnecting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Connexion en cours...</span>
+                    </>
+                  ) : !businessId ? (
+                    "Chargement de la session..."
+                  ) : isConnected ? (
+                    "Reconnecter ou modifier le compte WhatsApp"
+                  ) : (
+                    "Connecter mon WhatsApp Business"
+                  )}
+                </button>
+                {isConnected ? (
+                  <span className="text-[10px] text-menthe font-semibold text-center block mt-1 flex items-center justify-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> WhatsApp Business connecté
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-600 font-semibold text-center block mt-1">
+                    ⚠️ Non connecté — cliquez sur le bouton pour lier votre compte
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSaveManualConfig} className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Token d'accès permanent</label>
+                <input
+                  type="password"
+                  placeholder="Jeton d'accès de l'application système..."
+                  value={inputAccessToken}
+                  onChange={(e) => setInputAccessToken(e.target.value)}
+                  className="w-full bg-neige border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none focus:border-graphite/30"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">WhatsApp Business Account (WABA) ID</label>
+                <input
+                  type="text"
+                  placeholder="Ex: 109384729103984"
+                  value={inputWabaId}
+                  onChange={(e) => setInputWabaId(e.target.value)}
+                  className="w-full bg-neige border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none focus:border-graphite/30"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Phone Number ID</label>
+                <input
+                  type="text"
+                  placeholder="Ex: 109284719283749"
+                  value={inputPhoneNumberId}
+                  onChange={(e) => setInputPhoneNumberId(e.target.value)}
+                  className="w-full bg-neige border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none focus:border-graphite/30"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingManual || loadingConfig || !businessId}
+                className="w-full bg-graphite hover:opacity-90 text-white font-bold py-2.5 px-4 rounded-xl text-xs text-center transition-all flex items-center justify-center gap-2 mt-1"
+              >
+                {isSavingManual ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Sauvegarde en cours...</span>
+                  </>
+                ) : (
+                  "Enregistrer la configuration"
+                )}
+              </button>
+            </form>
+          )}
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] uppercase font-bold text-encre/50">Statut de la connexion Meta</label>
+              <label className="text-[10px] uppercase font-bold text-encre/50">Statut de la connexion</label>
               <div className={`flex items-center gap-2 border px-3 py-2 rounded-xl text-xs font-bold ${
                 isConnected ? "bg-menthe/5 border-menthe/15 text-menthe" : "bg-neige text-encre/50 border-graphite/10"
               }`}>
@@ -223,6 +340,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                   <span className="text-encre/40 uppercase font-bold">Phone Number ID :</span>{" "}
                   <code className="bg-white px-1 py-0.5 rounded border border-graphite/10 font-mono text-[10px]">{phoneNumberId}</code>
                 </div>
+                {accessToken && (
+                  <div>
+                    <span className="text-encre/40 uppercase font-bold">Jeton d'accès :</span>{" "}
+                    <span className="text-graphite font-mono">Détecté (Masqué)</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

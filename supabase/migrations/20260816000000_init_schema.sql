@@ -347,3 +347,40 @@ CREATE POLICY "Allow anonymous updates to product-images" ON storage.objects
 DROP POLICY IF EXISTS "Allow anonymous deletes from product-images" ON storage.objects;
 CREATE POLICY "Allow anonymous deletes from product-images" ON storage.objects
     FOR DELETE USING (bucket_id = 'product-images');
+
+-- Add agent_media_library JSONB column to businesses table to support send_product_visual tool URLs
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS agent_media_library JSONB DEFAULT '{}'::jsonb;
+
+-- Add location and contact_phone to businesses table
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+
+-- Create followup_runs table to log automated relances
+CREATE TABLE IF NOT EXISTS public.followup_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id INTEGER REFERENCES public.conversations(id) ON DELETE CASCADE,
+    type TEXT NOT NULL, -- 'silence', 'evening_order', 'next_morning'
+    target_date DATE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS policies for followup_runs (allow all for business members)
+ALTER TABLE public.followup_runs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow access by business tenant" ON public.followup_runs;
+CREATE POLICY "Allow access by business tenant" ON public.followup_runs
+    FOR ALL USING (
+        conversation_id IN (
+            SELECT id FROM public.conversations
+            WHERE business_id IN (
+                SELECT business_id FROM public.business_members WHERE user_id = auth.uid()
+            )
+        )
+    ) WITH CHECK (
+        conversation_id IN (
+            SELECT id FROM public.conversations
+            WHERE business_id IN (
+                SELECT business_id FROM public.business_members WHERE user_id = auth.uid()
+            )
+        )
+    );

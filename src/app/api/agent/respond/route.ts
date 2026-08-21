@@ -52,8 +52,21 @@ export async function POST(req: NextRequest) {
       .eq("business_id", businessId);
 
     // 4. Construct System Prompt
-    const systemPrompt = `Tu es l'agent conversationnel IA intelligent et autonome de vente (closeur) pour l'entreprise "${business?.name || "Notre boutique"}".
+    const systemPrompt = `[IDENTITÉ - RÈGLE ABSOLUE]
+Tu es un membre de l'équipe commerciale, JAMAIS une IA ou un robot. Ne révèle JAMAIS, sous aucun prétexte, que tu es une intelligence artificielle, même si le client te le demande directement. Si un client insiste ou demande explicitement 'es-tu un robot/une IA ?', réponds avec légèreté sans confirmer ni nier frontalement (ex: 'Je suis là pour vous aider du mieux possible 😊, que puis-je faire pour vous ?') et redirige la conversation. Si l'escalade vers un humain est nécessaire, fais-le de manière fluide et naturelle, sans jamais dire des phrases comme 'je vais transférer votre demande à un humain' qui sous-entendent que tu n'en étais pas un.
+
+Tu es l'agent conversationnel intelligent et autonome de vente (closeur) pour l'entreprise "${business?.name || "Notre boutique"}".
 Ton but est de conseiller les prospects, de les aider à choisir des produits, de calculer les frais de livraison, et de conclure des ventes (closing) en enregistrant leur commande.
+
+[COORDONNÉES DE L'ENTREPRISE]
+- Ville/Quartier de localisation : ${business?.location || "Non précisé"}
+- Téléphone de contact direct : ${business?.contact_phone || "Non précisé"}
+
+[STYLE DE CONVERSATION]
+- Écris des messages courts, comme sur WhatsApp (2-4 phrases maximum par message, jamais de pavé de texte).
+- Pose UNE SEULE question à la fois, jamais plusieurs questions dans le même message.
+- Utilise un ton naturel et chaleureux, pas robotique.
+- Utilise des emojis avec modération pour rester engageant.
 
 [IDENTITÉ ET RÔLE]
 ${identity}
@@ -77,6 +90,7 @@ Tu as accès à des outils. Utilise-les dès que nécessaire :
 - Pour enregistrer la commande finale du client, utilise 'create_order'.
 - Pour vérifier le statut d'une commande existante, utilise 'get_order_status'.
 - Pour transférer à un humain, utilise 'escalate_to_human'.
+- Pour envoyer une photo/témoignage, utilise 'send_product_visual'.
 
 [CATALOGUE PRODUITS ACTUEL]
 ${JSON.stringify(products || [], null, 2)}
@@ -96,6 +110,38 @@ ${JSON.stringify(zones || [], null, 2)}
       role: "user",
       content: text,
     });
+
+    // Helper to update tags dynamically
+    const updateCustomerTag = async (newTag: string) => {
+      try {
+        const { data: conv } = await supabaseServer
+          .from("conversations")
+          .select("customer_phone")
+          .eq("id", conversationId)
+          .maybeSingle();
+
+        if (conv) {
+          const { data: cust } = await supabaseServer
+            .from("customers")
+            .select("id, tags")
+            .eq("phone", conv.customer_phone)
+            .eq("business_id", businessId)
+            .maybeSingle();
+
+          if (cust) {
+            const tagsList = cust.tags || [];
+            if (!tagsList.includes(newTag)) {
+              await supabaseServer
+                .from("customers")
+                .update({ tags: [...tagsList, newTag] })
+                .eq("id", cust.id);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error updating customer tag:", err);
+      }
+    };
 
     // 6. Define Tools for Anthropic
     const tools: Anthropic.Messages.Tool[] = [
@@ -168,11 +214,29 @@ ${JSON.stringify(zones || [], null, 2)}
           required: ["reason"],
         },
       },
+      {
+        name: "send_product_visual",
+        description: "Envoie un visuel produit ou un témoignage client au format image sur le WhatsApp du client.",
+        input_schema: {
+          type: "object",
+          properties: {
+            image_type: { 
+              type: "string", 
+              description: "Le type de visuel à envoyer (ex: 'produit', 'temoignage_1', 'temoignage_2', etc. selon la bibliothèque de médias)." 
+            },
+            caption: {
+              type: "string",
+              description: "Une légende explicative courte à joindre avec l'image."
+            }
+          },
+          required: ["image_type"],
+        },
+      },
     ];
 
     // Call Anthropic
     let response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-5",
       max_tokens: 1024,
       system: systemPrompt,
       messages: formattedMessages,
@@ -192,6 +256,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
         try {
           if (name === "search_products") {
+            await updateCustomerTag("intéressé");
             const queryStr = (input.query || "").toLowerCase();
             const filteredProducts = (products || []).filter(
               (p) =>
@@ -200,6 +265,7 @@ ${JSON.stringify(zones || [], null, 2)}
             );
             resultData = { products: filteredProducts };
           } else if (name === "check_delivery_zone") {
+            await updateCustomerTag("intéressé");
             const zName = (input.zone_name || "").toLowerCase();
             const matchedZone = (zones || []).find((z) =>
               z.name.toLowerCase().includes(zName)
@@ -229,6 +295,16 @@ ${JSON.stringify(zones || [], null, 2)}
               .eq("id", conversationId);
 
             resultData = { success: true, message: "Contrôle transféré à un conseiller humain." };
+          } else if (name === "send_product_visual") {
+            const imgType = input.image_type;
+            const captionStr = input.caption || "";
+            const mediaLib = business?.agent_media_library as Record<string, string> || {};
+            const imageUrl = mediaLib[imgType];
+            if (imageUrl) {
+              resultData = { success: true, message: `Image '${imgType}' envoyée (simulation). URL: ${imageUrl}` };
+            } else {
+              resultData = { success: false, error: `Type de visuel '${imgType}' non configuré dans la bibliothèque de médias.` };
+            }
           } else if (name === "create_order") {
             // Find zone to get delivery fee
             const targetZone = (zones || []).find(
@@ -278,6 +354,7 @@ ${JSON.stringify(zones || [], null, 2)}
             } else {
               // Insert Order Items
               await supabaseServer.from("order_items").insert(itemsToInsert);
+              await updateCustomerTag("commande_passée");
               resultData = { success: true, order_id: newOrderId, total: total, shipping_fee: shippingFee };
             }
           }

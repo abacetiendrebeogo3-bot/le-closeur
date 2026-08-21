@@ -509,7 +509,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                       <DollarSign className="w-3.5 h-3.5 text-menthe shrink-0 mt-0.5" />
                       <div className="flex flex-col">
                         <span className="text-[8px] text-menthe font-bold uppercase font-black">Total Dépensé</span>
-                        <span className="font-extrabold text-[11px] text-menthe">{customerInfo.totalSpent === 0 ? "0 FCFA" : `${customerInfo.totalSpent.toLocaleString()} FCFA`}</span>
+                        <span className="font-extrabold text-[11px] text-menthe">{(!customerInfo.totalSpent || customerInfo.totalSpent === 0) ? "0 FCFA" : `${Number(customerInfo.totalSpent).toLocaleString()} FCFA`}</span>
                       </div>
                     </div>
                   </div>

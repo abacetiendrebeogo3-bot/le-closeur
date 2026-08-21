@@ -14,8 +14,7 @@ import {
   UserCheck, 
   Info, 
   ChevronLeft, 
-  ChevronRight, 
-  Play
+  ChevronRight
 } from "lucide-react";
 import { Conversation, Customer } from "../../types";
 import { gsap } from "gsap";
@@ -104,106 +103,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     }
   }, [showCustomerSidebar, activeChatId]);
 
-  // Handle client message simulation
-  const handleSimulateClient = async () => {
-    if (!activeChatId || !setConversations) return;
-    
-    const clientQuestions = [
-      "Bonjour, quel est le délai de livraison pour la RAM ?",
-      "Est-ce que le SSD est compatible avec un serveur Dell ?",
-      "Je voudrais commander le processeur Ryzen 9, c'est possible ?",
-      "Bonjour, proposez-vous des facilités de paiement ?"
-    ];
-    const randomQuestion = clientQuestions[Math.floor(Math.random() * clientQuestions.length)];
-    
-    const customerTimeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    
-    // Insert customer message into Supabase
-    const { error: custErr } = await supabase.from("messages").insert({
-      conversation_id: activeChatId,
-      sender: "customer",
-      text: randomQuestion,
-      time: customerTimeStr
-    });
-
-    if (custErr) {
-      triggerToast(`Erreur Supabase (Client Msg): ${custErr.message}`, "warning");
-      return;
-    }
-
-    // 1. Add client message to state
-    setConversations(prev => prev.map(c => {
-      if (c.id === activeChatId) {
-        return {
-          ...c,
-          unread: false,
-          messages: [
-            ...c.messages,
-            {
-              id: `msg-sim-cust-${Date.now()}`,
-              sender: "customer",
-              text: randomQuestion,
-              time: customerTimeStr
-            }
-          ]
-        };
-      }
-      return c;
-    }));
-    
-    // 2. Trigger typing indicator
-    setIsTyping(true);
-    
-    // 3. After 1.5s, add AI response
-    setTimeout(async () => {
-      setIsTyping(false);
-      const aiResponses: Record<string, string> = {
-        "Bonjour, quel est le délai de livraison pour la RAM ?": "Bonjour ! Le délai de livraison pour la RAM DDR5 Corsair est de 24h à Dakar. Souhaitez-vous valider votre commande ?",
-        "Est-ce que le SSD est compatible avec un serveur Dell ?": "Oui, le Disque SSD 1TB Enterprise est parfaitement compatible avec les serveurs Dell PowerEdge. Nous pouvons l'expédier dès aujourd'hui !",
-        "Je voudrais commander le processeur Ryzen 9, c'est possible ?": "Tout à fait ! Le Ryzen 9 est disponible en stock au prix de 250 000 FCFA. Souhaitez-vous une livraison aux Almadies ou Plateau ?",
-        "Bonjour, proposez-vous des facilités de paiement ?": "Bonjour ! Nous acceptons les règlements par Wave, Orange Money ou en espèces à la livraison. Souhaitez-vous passer commande ?"
-      };
-      
-      const aiReply = aiResponses[randomQuestion] || "L'agent IA de Mon Closeur est à votre service. Comment puis-je vous aider ?";
-      const aiTimeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-
-      // Insert AI message into Supabase
-      const { error: aiErr } = await supabase.from("messages").insert({
-        conversation_id: activeChatId,
-        sender: "ai",
-        text: aiReply,
-        time: aiTimeStr
-      });
-
-      // Also ensure status is ai_active in DB
-      await supabase.from("conversations").update({
-        status: "ai_active"
-      }).eq("id", activeChatId);
-
-      if (aiErr) {
-        console.error("Supabase error (AI response):", aiErr);
-      }
-      
-      setConversations(prev => prev.map(c => {
-        if (c.id === activeChatId) {
-          return {
-            ...c,
-            status: "ai_active",
-            messages: [
-              ...c.messages,
-              {
-                id: `msg-sim-ai-${Date.now()}`,
-                sender: "ai",
-                text: aiReply,
-                time: aiTimeStr
-              }
-            ]
-          };
-        }
-        return c;
-      }));
-    }, 1500);
-  };
+  // Simulation client removed
 
   // Filter conversations list by search query
   const filteredConversations = conversations.filter(conv =>
@@ -231,12 +131,12 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
               const lastMsg = conv.messages[conv.messages.length - 1];
               const badgeStyles = {
                 ai_active: "bg-menthe/10 text-menthe border border-menthe/20",
-                human_takeover: "bg-orange-500/10 text-orange-600 border border-orange-500/20",
+                human_takeover: "bg-red-500/10 text-red-600 border border-red-500/20 animate-pulse",
                 closed: "bg-graphite/10 text-graphite-light border border-graphite/20"
               };
               const badgeLabels = {
                 ai_active: "IA active",
-                human_takeover: "Reprise",
+                human_takeover: "Action requise",
                 closed: "Clôturée"
               };
 
@@ -316,22 +216,21 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  {/* Simulate Client Button */}
-                  <button 
-                    onClick={handleSimulateClient}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-menthe/10 hover:bg-menthe/20 text-menthe text-[10px] font-bold border border-menthe/20 transition-all shadow-sm"
-                    title="Simuler un message entrant du client"
-                  >
-                    <Play className="w-3 h-3 fill-menthe" />
-                    <span>Simuler Client</span>
-                  </button>
-
-                  <button 
-                    onClick={toggleTakeover} 
-                    className="magnetic-btn px-4 py-1.5 rounded-xl bg-white border border-graphite/20 hover:border-menthe text-[10px] font-bold shadow-sm transition-all"
-                  >
-                    {activeChat.status === "human_takeover" ? "Laisser l’IA répondre" : "Prendre la main"}
-                  </button>
+                  {activeChat.status === "human_takeover" ? (
+                    <button 
+                      onClick={toggleTakeover} 
+                      className="magnetic-btn px-4 py-1.5 rounded-xl bg-menthe/10 hover:bg-menthe/20 text-menthe text-[10px] font-bold border border-menthe/20 shadow-sm transition-all"
+                    >
+                      Repasser en mode IA
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={toggleTakeover} 
+                      className="magnetic-btn px-4 py-1.5 rounded-xl bg-white border border-graphite/20 hover:border-menthe text-[10px] font-bold shadow-sm transition-all"
+                    >
+                      Prendre la main
+                    </button>
+                  )}
                 </div>
               </div>
 

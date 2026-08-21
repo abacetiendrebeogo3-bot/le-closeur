@@ -266,7 +266,31 @@ export default function Home() {
     e.preventDefault();
     if (!chatInput.trim() || activeChatId === null) return;
 
+    const chat = conversations.find(c => c.id === activeChatId);
     const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+    // If in human takeover mode, send the message to WhatsApp first
+    if (chat && chat.status === "human_takeover") {
+      try {
+        const res = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: chat.customerPhone,
+            text: chatInput.trim()
+          })
+        });
+        if (!res.ok) {
+          console.error("Failed to deliver WhatsApp message via API");
+          triggerToast("Erreur lors de l'envoi du message WhatsApp via l'API", "warning");
+        }
+      } catch (err) {
+        console.error("Error sending manual WhatsApp message:", err);
+      }
+    }
+
     const { error } = await supabase.from("messages").insert({
       conversation_id: activeChatId,
       sender: "human",

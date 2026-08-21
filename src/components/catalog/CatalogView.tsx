@@ -47,6 +47,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [prodFormImageUrl, setProdFormImageUrl] = useState("");
   const [prodFormDescription, setProdFormDescription] = useState("");
   const [prodFormTestimonials, setProdFormTestimonials] = useState("");
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const [tempTextTestimonial, setTempTextTestimonial] = useState("");
 
   // Zone Form States
   const [showZoneModal, setShowZoneModal] = useState<{ mode: "create" | "edit"; zoneId?: string } | null>(null);
@@ -136,6 +138,66 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           const updatedList = [...currentList, ...newImages];
           setProdFormImageUrl(JSON.stringify(updatedList));
           triggerToast(`${newImages.length} image(s) chargée(s).`, "success");
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const generateAIDescription = async () => {
+    if (!prodFormName.trim()) {
+      triggerToast("Veuillez d'abord saisir la désignation du produit.", "warning");
+      return;
+    }
+    setIsGeneratingDesc(true);
+    try {
+      const res = await fetch("/api/agent/generate-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: prodFormName, category: prodFormCategory }),
+      });
+      const data = await res.json();
+      if (data.description) {
+        setProdFormDescription(data.description);
+        triggerToast("Description générée avec succès par l'IA !", "success");
+      } else {
+        triggerToast(data.error || "Impossible de générer la description.", "warning");
+      }
+    } catch (e) {
+      triggerToast("Erreur lors de la génération de la description.", "warning");
+    } finally {
+      setIsGeneratingDesc(false);
+    }
+  };
+
+  const handleTestimonialMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileList = Array.from(files);
+    let loadedCount = 0;
+    const newMedia: { type: "image" | "video"; content: string }[] = [];
+
+    fileList.forEach(file => {
+      const reader = new FileReader();
+      const type = file.type.startsWith("video/") ? "video" : "image";
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          newMedia.push({ type, content: reader.result });
+        }
+        loadedCount++;
+        if (loadedCount === fileList.length) {
+          let currentList: any[] = [];
+          if (prodFormTestimonials.trim().startsWith("[")) {
+            try {
+              currentList = JSON.parse(prodFormTestimonials);
+            } catch (e) {}
+          } else if (prodFormTestimonials.trim()) {
+            currentList = [{ type: "text", content: prodFormTestimonials.trim() }];
+          }
+          const updatedList = [...currentList, ...newMedia];
+          setProdFormTestimonials(JSON.stringify(updatedList));
+          triggerToast(`${newMedia.length} média(s) de témoignage ajouté(s).`, "success");
         }
       };
       reader.readAsDataURL(file);
@@ -617,178 +679,299 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       {/* EDIT/CREATE PRODUCT MODAL */}
       {showProductModal && (
         <div ref={overlayRef} className="fixed inset-0 bg-encre/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div ref={modalRef} className="bg-white w-full max-w-md rounded-[2rem] border border-graphite/10 p-6 flex flex-col gap-5 shadow-lg my-8">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-encre">
-                {showProductModal.mode === "create" ? "Ajouter un produit" : "Modifier le produit"}
-              </h3>
-              <button onClick={() => setShowProductModal(null)} className="text-encre/50 hover:text-menthe p-1 hover:bg-neige rounded-lg transition-colors">
+          <div ref={modalRef} className="bg-white w-full max-w-4xl rounded-[2.5rem] border border-graphite/10 p-8 flex flex-col gap-6 shadow-xl my-8">
+            <div className="flex items-center justify-between border-b border-graphite/5 pb-4">
+              <div className="flex flex-col">
+                <h3 className="text-base font-extrabold text-encre">
+                  {showProductModal.mode === "create" ? "Ajouter un nouveau produit" : "Modifier la fiche produit"}
+                </h3>
+                <span className="text-[10px] text-encre/40 font-semibold mt-0.5">Renseignez les détails, visuels et témoignages pour l&apos;Agent IA.</span>
+              </div>
+              <button onClick={() => setShowProductModal(null)} className="text-encre/50 hover:text-menthe p-2 hover:bg-neige rounded-xl transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Désignation du produit *</label>
-                <input
-                  type="text"
-                  required
-                  value={prodFormName}
-                  onChange={(e) => setProdFormName(e.target.value)}
-                  placeholder="Ex: T-shirt noir, Panier garni..."
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase font-bold text-encre/50">Prix (FCFA) *</label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={prodFormPrice}
-                    onChange={(e) => setProdFormPrice(parseInt(e.target.value) || 0)}
-                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold text-encre text-right"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase font-bold text-encre/50">Stock (optionnel)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={prodFormStock}
-                    onChange={(e) => setProdFormStock(e.target.value)}
-                    placeholder="Illimité"
-                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold text-encre text-right"
-                  />
-                </div>
-              </div>
-
-              {/* Free Text Category with suggestions pills */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Catégorie *</label>
-                <input
-                  type="text"
-                  required
-                  value={prodFormCategory}
-                  onChange={(e) => setProdFormCategory(e.target.value)}
-                  placeholder="Ex: Vêtements, Électronique, Alimentaire..."
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
-                />
+            <form onSubmit={handleSaveProduct} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              {/* LEFT COLUMN: Visuels & Témoignages */}
+              <div className="flex flex-col gap-5">
                 
-                {/* Categories suggestions pills */}
-                {existingCategories.length > 0 && (
-                  <div className="mt-1">
-                    <span className="text-[9px] text-encre/30 font-semibold block mb-1">Suggestions de catégories :</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {existingCategories.map(cat => (
+                {/* Images Section */}
+                <div className="bg-neige/50 p-5 rounded-[2rem] border border-graphite/5 flex flex-col gap-3.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase font-black tracking-wider text-encre/65">Galerie Visuels Produit</label>
+                    <span className="text-[9px] text-encre/30 font-bold">Sélection multiple possible</span>
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageFileChange}
+                    className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre cursor-pointer file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-black file:bg-menthe/10 file:text-menthe hover:file:bg-menthe/20 w-full"
+                  />
+                  <div className="text-[9px] text-encre/35 font-semibold">Ou collez une URL d&apos;image externe :</div>
+                  <input
+                    type="text"
+                    value={prodFormImageUrl.startsWith("[") ? "" : prodFormImageUrl}
+                    onChange={(e) => setProdFormImageUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    className="bg-white border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
+                  />
+                  
+                  {/* Images Grid */}
+                  {(() => {
+                    let images: string[] = [];
+                    if (prodFormImageUrl.trim().startsWith("[")) {
+                      try {
+                        images = JSON.parse(prodFormImageUrl);
+                      } catch (e) {}
+                    } else if (prodFormImageUrl.trim()) {
+                      images = [prodFormImageUrl.trim()];
+                    }
+                    
+                    if (images.length === 0) return null;
+                    
+                    return (
+                      <div className="grid grid-cols-4 gap-2 mt-2 max-h-40 overflow-y-auto p-1">
+                        {images.map((imgSrc, index) => (
+                          <div key={index} className="relative aspect-square rounded-xl overflow-hidden border border-graphite/10 shadow-xs group">
+                            <img src={imgSrc} alt={`Aperçu ${index + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newList = images.filter((_, i) => i !== index);
+                                setProdFormImageUrl(newList.length > 0 ? JSON.stringify(newList) : "");
+                              }}
+                              className="absolute inset-0 bg-red-600/80 text-white rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Testimonials Section */}
+                <div className="bg-neige/50 p-5 rounded-[2rem] border border-graphite/5 flex flex-col gap-4">
+                  <label className="text-[10px] uppercase font-black tracking-wider text-encre/65">Témoignages & Preuves Sociales</label>
+                  
+                  {/* Text testimonial addition */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Saisir un avis client..."
+                      value={tempTextTestimonial}
+                      onChange={(e) => setTempTextTestimonial(e.target.value)}
+                      className="flex-1 bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!tempTextTestimonial.trim()) return;
+                        let currentList: any[] = [];
+                        if (prodFormTestimonials.trim().startsWith("[")) {
+                          try {
+                            currentList = JSON.parse(prodFormTestimonials);
+                          } catch (e) {}
+                        } else if (prodFormTestimonials.trim()) {
+                          currentList = [{ type: "text", content: prodFormTestimonials.trim() }];
+                        }
+                        const updatedList = [...currentList, { type: "text", content: tempTextTestimonial.trim() }];
+                        setProdFormTestimonials(JSON.stringify(updatedList));
+                        setTempTextTestimonial("");
+                        triggerToast("Témoignage texte ajouté.", "success");
+                      }}
+                      className="bg-menthe/10 hover:bg-menthe/20 text-menthe px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+
+                  {/* Media uploads (photos / videos) */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[9px] text-encre/40 font-bold">Importer captures d&apos;écran d&apos;avis ou vidéos :</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,video/*"
+                      onChange={handleTestimonialMediaChange}
+                      className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none cursor-pointer file:mr-3 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:text-[9px] file:font-black file:bg-menthe/10 file:text-menthe w-full"
+                    />
+                  </div>
+
+                  {/* Testimonial Items List */}
+                  {(() => {
+                    let items: any[] = [];
+                    if (prodFormTestimonials.trim().startsWith("[")) {
+                      try {
+                        items = JSON.parse(prodFormTestimonials);
+                      } catch (e) {}
+                    } else if (prodFormTestimonials.trim()) {
+                      items = [{ type: "text", content: prodFormTestimonials.trim() }];
+                    }
+
+                    if (items.length === 0) return <div className="text-[10px] text-encre/30 font-semibold italic text-center py-2">Aucun témoignage enregistré.</div>;
+
+                    return (
+                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                        {items.map((item, idx) => (
+                          <div key={idx} className="bg-white p-3 rounded-xl border border-graphite/5 shadow-xs flex items-center justify-between gap-3 text-xs">
+                            <div className="flex-1 min-w-0">
+                              {item.type === "text" && (
+                                <p className="italic text-encre font-medium truncate">&ldquo;{item.content}&rdquo;</p>
+                              )}
+                              {item.type === "image" && (
+                                <div className="flex items-center gap-2">
+                                  <img src={item.content} className="w-10 h-10 object-cover rounded-lg border" alt="Aperçu capture" />
+                                  <span className="text-[10px] text-encre/40 font-semibold">Capture d&apos;écran</span>
+                                </div>
+                              )}
+                              {item.type === "video" && (
+                                <div className="flex items-center gap-2">
+                                  <video src={item.content} className="w-10 h-10 object-cover rounded-lg border bg-black" />
+                                  <span className="text-[10px] text-encre/40 font-semibold">Vidéo Témoignage</span>
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newList = items.filter((_, i) => i !== idx);
+                                setProdFormTestimonials(newList.length > 0 ? JSON.stringify(newList) : "");
+                              }}
+                              className="text-red-500 hover:text-red-700 transition-colors p-1"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN: Détails & IA */}
+              <div className="flex flex-col justify-between gap-5">
+                <div className="flex flex-col gap-4">
+                  {/* Name field */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase font-bold text-encre/50">Désignation du produit *</label>
+                    <input
+                      type="text"
+                      required
+                      value={prodFormName}
+                      onChange={(e) => setProdFormName(e.target.value)}
+                      placeholder="Ex: T-shirt noir, Kit Minceur..."
+                      className="bg-neige border border-graphite/10 rounded-xl px-3.5 py-3 text-xs focus:outline-none focus:border-menthe font-bold text-encre"
+                    />
+                  </div>
+
+                  {/* Price & Stock Grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] uppercase font-bold text-encre/50">Prix (FCFA) *</label>
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        value={prodFormPrice}
+                        onChange={(e) => setProdFormPrice(parseInt(e.target.value) || 0)}
+                        className="bg-neige border border-graphite/10 rounded-xl px-3.5 py-3 text-xs focus:outline-none focus:border-menthe font-black text-encre text-right"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] uppercase font-bold text-encre/50">Stock (optionnel)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={prodFormStock}
+                        onChange={(e) => setProdFormStock(e.target.value)}
+                        placeholder="Illimité"
+                        className="bg-neige border border-graphite/10 rounded-xl px-3.5 py-3 text-xs focus:outline-none focus:border-menthe font-bold text-encre text-right"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Category Selection Carousel */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase font-bold text-encre/50">Catégorie du produit *</label>
+                    <input
+                      type="text"
+                      required
+                      value={prodFormCategory}
+                      onChange={(e) => setProdFormCategory(e.target.value)}
+                      placeholder="Catégorie..."
+                      className="bg-neige border border-graphite/10 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-menthe font-bold text-encre"
+                    />
+                    {/* Predefined Carousel/Grid of pills */}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                      {["Santé", "Cosmétique & Beauté", "Vêtements & Mode", "Alimentation", "Électronique", "Maison & Déco"].map(cat => (
                         <button
                           key={cat}
                           type="button"
                           onClick={() => setProdFormCategory(cat)}
-                          className="text-[9px] bg-neige hover:bg-menthe/10 hover:text-menthe px-2 py-0.5 rounded-md border border-graphite/5 font-bold transition-all text-encre/60"
+                          className={`text-[9px] px-2.5 py-1 rounded-md border font-black transition-all ${
+                            prodFormCategory === cat
+                              ? "bg-menthe text-white border-menthe shadow-xs"
+                              : "bg-neige hover:bg-menthe/10 hover:text-menthe border-graphite/5 text-encre/60"
+                          }`}
                         >
                           {cat}
                         </button>
                       ))}
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Image URL and File Upload field */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Images du produit</label>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageFileChange}
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre cursor-pointer file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-black file:bg-menthe/10 file:text-menthe hover:file:bg-menthe/20"
-                />
-                <span className="text-[9px] text-encre/30 font-semibold block">Ou renseignez une URL d&apos;image :</span>
-                <input
-                  type="text"
-                  value={prodFormImageUrl}
-                  onChange={(e) => setProdFormImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/photo-..."
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
-                />
-                {(() => {
-                  let images: string[] = [];
-                  if (prodFormImageUrl.trim().startsWith("[")) {
-                    try {
-                      images = JSON.parse(prodFormImageUrl);
-                    } catch (e) {}
-                  } else if (prodFormImageUrl.trim()) {
-                    images = [prodFormImageUrl.trim()];
-                  }
-                  
-                  if (images.length === 0) return null;
-                  
-                  return (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {images.map((imgSrc, index) => (
-                        <div key={index} className="relative w-16 h-16 rounded-xl overflow-hidden border border-graphite/10 shadow-sm shrink-0">
-                          <img src={imgSrc} alt={`Aperçu ${index + 1}`} className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newList = images.filter((_, i) => i !== index);
-                              setProdFormImageUrl(newList.length > 0 ? JSON.stringify(newList) : "");
-                            }}
-                            className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 hover:bg-black text-white rounded-md transition-colors"
-                            title="Supprimer cette image"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
+                  {/* Description Section with AI Prompt button */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] uppercase font-bold text-encre/50">Description commerciale *</label>
+                      <button
+                        type="button"
+                        onClick={generateAIDescription}
+                        disabled={isGeneratingDesc}
+                        className="text-[9px] font-black text-menthe bg-menthe/10 hover:bg-menthe/20 border border-menthe/20 px-2.5 py-1 rounded-md transition-all flex items-center gap-1"
+                      >
+                        {isGeneratingDesc ? "Génération..." : "✨ Rédiger avec l'IA"}
+                      </button>
                     </div>
-                  );
-                })()}
+                    <textarea
+                      value={prodFormDescription}
+                      onChange={(e) => setProdFormDescription(e.target.value)}
+                      placeholder="Saisissez ou générez une description persuasive pour aider l'Agent IA à argumenter et closer la vente..."
+                      rows={5}
+                      required
+                      className="bg-neige border border-graphite/10 rounded-xl px-3.5 py-3 text-xs focus:outline-none focus:border-menthe font-semibold text-encre resize-none leading-relaxed"
+                    />
+                  </div>
+                </div>
+
+                {/* Footer Controls within Right Column */}
+                <div className="flex flex-col gap-4 mt-auto pt-4 border-t border-graphite/5">
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="prodActive"
+                      type="checkbox"
+                      checked={prodFormActive}
+                      onChange={(e) => setProdFormActive(e.target.checked)}
+                      className="w-4 h-4 text-menthe border-graphite/20 rounded focus:ring-menthe cursor-pointer"
+                    />
+                    <label htmlFor="prodActive" className="text-xs font-bold text-encre/70 cursor-pointer select-none">Activer ce produit dans le catalogue de vente</label>
+                  </div>
+
+                  <button type="submit" className="magnetic-btn bg-menthe text-neige font-extrabold py-3.5 rounded-xl text-center text-xs transition-all shadow-md shadow-menthe/20 w-full hover:brightness-105 active:scale-98">
+                    Enregistrer la fiche produit
+                  </button>
+                </div>
+
               </div>
 
-              {/* Description field */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Description du produit</label>
-                <textarea
-                  value={prodFormDescription}
-                  onChange={(e) => setProdFormDescription(e.target.value)}
-                  placeholder="Caractéristiques, tailles, couleurs, bénéfices du produit..."
-                  rows={3}
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre resize-none"
-                />
-              </div>
-
-              {/* Testimonials field */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Témoignages clients (un par ligne ou bloc)</label>
-                <textarea
-                  value={prodFormTestimonials}
-                  onChange={(e) => setProdFormTestimonials(e.target.value)}
-                  placeholder="Ex: 'Excellent produit !' - Sarah&#10;'Je recommande vivement.' - Marc"
-                  rows={2}
-                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre resize-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-3 py-1">
-                <input
-                  id="prodActive"
-                  type="checkbox"
-                  checked={prodFormActive}
-                  onChange={(e) => setProdFormActive(e.target.checked)}
-                  className="w-4 h-4 text-menthe border-graphite/20 rounded focus:ring-menthe"
-                />
-                <label htmlFor="prodActive" className="text-xs font-bold text-encre/70 cursor-pointer">Activer ce produit dans le catalogue de vente</label>
-              </div>
-
-              <button type="submit" className="magnetic-btn bg-menthe text-neige font-bold py-3 rounded-xl text-center text-xs transition-all mt-2 shadow-md shadow-menthe/20">
-                Enregistrer le produit
-              </button>
             </form>
           </div>
         </div>

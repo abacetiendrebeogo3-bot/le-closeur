@@ -81,7 +81,13 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
   businessId
 }) => {
   const [steps, setSteps] = useState<FollowupStep[]>(defaultSteps);
-  const [clientsList, setClientsList] = useState<FollowupClient[]>(mockFollowupClients);
+  const [clientsList, setClientsList] = useState<FollowupClient[]>([]);
+  const [stats, setStats] = useState({
+    active: 0,
+    stopped: 0,
+    conversion: 0
+  });
+  const [loading, setLoading] = useState(true);
 
   const stepsContainerRef = useRef<HTMLDivElement>(null);
   const clientsContainerRef = useRef<HTMLDivElement>(null);
@@ -108,6 +114,127 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
     };
     fetchSteps();
   }, [businessId]);
+
+  // Fetch metrics & dynamic clients list from Supabase
+  useEffect(() => {
+    if (!businessId) return;
+
+    const loadFollowupData = async () => {
+      setLoading(true);
+      try {
+        // 1. Fetch conversations
+        const { data: convs, error: convsErr } = await supabase
+          .from("conversations")
+          .select("*")
+          .eq("business_id", businessId);
+
+        if (convsErr || !convs) {
+          console.error("Error loading conversations:", convsErr);
+          setLoading(false);
+          return;
+        }
+
+        const convIds = convs.map(c => c.id);
+
+        // 2. Fetch followup runs
+        let runs: any[] = [];
+        if (convIds.length > 0) {
+          const { data: runsData } = await supabase
+            .from("followup_runs")
+            .select("*")
+            .in("conversation_id", convIds);
+          runs = runsData || [];
+        }
+
+        // 3. Fetch orders
+        let orders: any[] = [];
+        if (convIds.length > 0) {
+          const { data: ordersData } = await supabase
+            .from("orders")
+            .select("*")
+            .in("chat_id", convIds);
+          orders = ordersData || [];
+        }
+
+        // Compute metrics
+        // Active: Count total followups sent (rows in followup_runs)
+        const activeCount = runs.length;
+
+        // Stopped: Conversations where status is human_takeover or closed
+        const stoppedCount = convs.filter(c => c.status === "human_takeover" || c.status === "closed").length;
+
+        // Conversion: % of conversations that have an order
+        const totalConvs = convs.length;
+        const convertedCount = orders.length;
+        const conversionRate = totalConvs > 0 ? parseFloat(((convertedCount / totalConvs) * 100).toFixed(1)) : 0;
+
+        setStats({
+          active: activeCount,
+          stopped: stoppedCount,
+          conversion: conversionRate
+        });
+
+        // Construct client list
+        const clientListFormatted: FollowupClient[] = convs
+          .filter(c => {
+            // Only list clients that have at least one followup run
+            const hasRuns = runs.some(r => r.conversation_id === c.id);
+            return hasRuns;
+          })
+          .map(c => {
+            const convRuns = runs.filter(r => r.conversation_id === c.id);
+            const hasOrder = orders.some(o => o.chat_id === c.id);
+            const currentStepIdx = Math.max(0, convRuns.length - 1);
+
+            let status: FollowupClient["status"] = "active";
+            if (hasOrder) {
+              status = "stopped_ordered";
+            } else if (c.status === "human_takeover") {
+              status = "stopped_replied";
+            } else if (convRuns.length >= steps.length) {
+              status = "completed_no_reply";
+            }
+
+            const lastRun = convRuns[convRuns.length - 1];
+            let nextTime = "-";
+            if (status === "active") {
+              if (lastRun) {
+                nextTime = new Date(new Date(lastRun.created_at).getTime() + 24 * 60 * 60 * 1000).toLocaleDateString("fr-FR", {
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                });
+              } else {
+                nextTime = "En attente";
+              }
+            } else if (status === "stopped_replied") {
+              nextTime = "- (Reprise)";
+            } else if (status === "stopped_ordered") {
+              nextTime = "- (Achat)";
+            } else {
+              nextTime = "- (Terminée)";
+            }
+
+            return {
+              id: String(c.id),
+              name: c.customer_name,
+              currentStepIndex: currentStepIdx,
+              nextFollowupTime: nextTime,
+              status
+            };
+          });
+
+        setClientsList(clientListFormatted);
+      } catch (err) {
+        console.error("Error loading followup data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFollowupData();
+  }, [businessId, steps.length]);
 
   // GSAP Entrance animations
   useEffect(() => {
@@ -218,7 +345,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
         <div className="followup-card bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex items-center justify-between">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] uppercase font-bold text-encre/40">Relances Actives</span>
-            <span className="text-2xl font-black text-encre tabular-nums">1,248</span>
+            <span className="text-2xl font-black text-encre tabular-nums">{stats.active.toLocaleString()}</span>
           </div>
           <div className="w-10 h-10 rounded-full bg-menthe/10 flex items-center justify-center text-menthe animate-pulse">
             <Clock className="w-5 h-5" />
@@ -229,7 +356,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
         <div className="followup-card bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex items-center justify-between">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] uppercase font-bold text-encre/40">Arrêtées (Réponse / Achat)</span>
-            <span className="text-2xl font-black text-encre tabular-nums">4,380</span>
+            <span className="text-2xl font-black text-encre tabular-nums">{stats.stopped.toLocaleString()}</span>
           </div>
           <div className="w-10 h-10 rounded-full bg-encre/5 flex items-center justify-center text-encre">
             <CheckCircle className="w-5 h-5" />
@@ -240,7 +367,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
         <div className="followup-card bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex items-center justify-between">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] uppercase font-bold text-encre/40 font-bold">Conversion Relances</span>
-            <span className="text-2xl font-black text-menthe tabular-nums">24.8%</span>
+            <span className="text-2xl font-black text-menthe tabular-nums">{stats.conversion}%</span>
           </div>
           <div className="w-10 h-10 rounded-full bg-menthe text-white flex items-center justify-center shadow-xs">
             <TrendingUp className="w-5 h-5" />
@@ -399,63 +526,77 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
               </tr>
             </thead>
             <tbody className="text-xs">
-              {clientsList.map(client => (
-                <tr 
-                  key={client.id} 
-                  onClick={() => onNavigateToChat(client.name)}
-                  className="border-b border-graphite/5 hover:bg-neige/40 transition-colors cursor-pointer"
-                >
-                  <td className="py-3.5 px-4 font-bold text-encre">{client.name}</td>
-                  <td className="py-3.5 px-4">
-                    <span className="bg-neige px-2.5 py-0.5 rounded-full border border-graphite/5 font-semibold text-[10px] text-encre/70">
-                      Étape {client.currentStepIndex + 1}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-encre/65 font-medium">{steps[client.currentStepIndex]?.name || `Étape ${client.currentStepIndex + 1}`}</td>
-                  <td className="py-3.5 px-4 font-mono text-encre/60 font-semibold">{client.nextFollowupTime}</td>
-                  <td className="py-3.5 px-4 text-center">{renderClientStatusBadge(client.status)}</td>
-                  <td className="py-3.5 px-4 text-right">
-                    <span className="text-[10px] font-bold text-menthe hover:underline">Ouvrir Chat →</span>
+              {clientsList.length > 0 ? (
+                clientsList.map(client => (
+                  <tr 
+                    key={client.id} 
+                    onClick={() => onNavigateToChat(client.name)}
+                    className="border-b border-graphite/5 hover:bg-neige/40 transition-colors cursor-pointer"
+                  >
+                    <td className="py-3.5 px-4 font-bold text-encre">{client.name}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="bg-neige px-2.5 py-0.5 rounded-full border border-graphite/5 font-semibold text-[10px] text-encre/70">
+                        Étape {client.currentStepIndex + 1}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-encre/65 font-medium">{steps[client.currentStepIndex]?.name || `Étape ${client.currentStepIndex + 1}`}</td>
+                    <td className="py-3.5 px-4 font-mono text-encre/60 font-semibold">{client.nextFollowupTime}</td>
+                    <td className="py-3.5 px-4 text-center">{renderClientStatusBadge(client.status)}</td>
+                    <td className="py-3.5 px-4 text-right">
+                      <span className="text-[10px] font-bold text-menthe hover:underline">Ouvrir Chat →</span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-encre/40 italic">
+                    Aucun client en cours de relance pour le moment.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
 
         {/* LIST FOR MOBILE (< 768px) */}
         <div className="md:hidden flex flex-col gap-4">
-          {clientsList.map(client => (
-            <div 
-              key={client.id}
-              onClick={() => onNavigateToChat(client.name)}
-              className="bg-neige/20 p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col gap-3 cursor-pointer hover:bg-neige/40 transition-colors"
-            >
-              <div className="flex justify-between items-start">
-                <span className="font-bold text-xs text-encre">{client.name}</span>
-                {renderClientStatusBadge(client.status)}
-              </div>
+          {clientsList.length > 0 ? (
+            clientsList.map(client => (
+              <div 
+                key={client.id}
+                onClick={() => onNavigateToChat(client.name)}
+                className="bg-neige/20 p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col gap-3 cursor-pointer hover:bg-neige/40 transition-colors"
+              >
+                <div className="flex justify-between items-start">
+                  <span className="font-bold text-xs text-encre">{client.name}</span>
+                  {renderClientStatusBadge(client.status)}
+                </div>
 
-              <div className="flex flex-col gap-1 text-[10px] text-encre/60 border-t border-graphite/5 pt-3">
-                <div>
-                  <span className="text-encre/40 font-semibold">Action : </span>
-                  <span className="text-encre font-bold">{steps[client.currentStepIndex]?.name || `Étape ${client.currentStepIndex + 1}`}</span>
+                <div className="flex flex-col gap-1 text-[10px] text-encre/60 border-t border-graphite/5 pt-3">
+                  <div>
+                    <span className="text-encre/40 font-semibold">Action : </span>
+                    <span className="text-encre font-bold">{steps[client.currentStepIndex]?.name || `Étape ${client.currentStepIndex + 1}`}</span>
+                  </div>
+                  <div>
+                    <span className="text-encre/40 font-semibold">Étape : </span>
+                    <span className="bg-neige px-2 py-0.5 rounded-md border border-graphite/5 text-[9px] font-bold text-encre">Étape {client.currentStepIndex + 1}</span>
+                  </div>
+                  <div>
+                    <span className="text-encre/40 font-semibold">Prochaine : </span>
+                    <span className="font-mono text-encre font-semibold">{client.nextFollowupTime}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-encre/40 font-semibold">Étape : </span>
-                  <span className="bg-neige px-2 py-0.5 rounded-md border border-graphite/5 text-[9px] font-bold text-encre">Étape {client.currentStepIndex + 1}</span>
-                </div>
-                <div>
-                  <span className="text-encre/40 font-semibold">Prochaine : </span>
-                  <span className="font-mono text-encre font-semibold">{client.nextFollowupTime}</span>
-                </div>
-              </div>
 
-              <div className="text-[10px] text-menthe font-bold text-right border-t border-graphite/5 pt-3 mt-1">
-                Ouvrir discussion WhatsApp →
+                <div className="text-[10px] text-menthe font-bold text-right border-t border-graphite/5 pt-3 mt-1">
+                  Ouvrir discussion WhatsApp →
+                </div>
               </div>
+            ))
+          ) : (
+            <div className="p-8 text-center text-xs text-encre/40 bg-neige/10 border border-dashed border-graphite/10 rounded-[2rem] italic">
+              Aucun client en cours de relance.
             </div>
-          ))}
+          )}
         </div>
 
       </div>

@@ -95,7 +95,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       setProdFormCategory(prod.category);
       setProdFormActive(prod.active);
       setProdFormStock(prod.stock !== undefined ? prod.stock.toString() : "");
-      setProdFormImageUrl(prod.imageUrl || "");
+      setProdFormImageUrl(prod.imageUrls && prod.imageUrls.length > 0 ? JSON.stringify(prod.imageUrls) : (prod.imageUrl || ""));
       setProdFormDescription(prod.description || "");
       setProdFormTestimonials(prod.testimonials || "");
     } else {
@@ -111,37 +111,59 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     }
   };
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const fileList = Array.from(files);
-    let loadedCount = 0;
-    const newImages: string[] = [];
+    triggerToast("Téléchargement des images en cours...", "info");
 
-    fileList.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") {
-          newImages.push(reader.result);
+    const newUploadedUrls: string[] = [];
+
+    for (const file of fileList) {
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const filePath = `${businessId}/${fileName}`;
+
+        const { data, error } = await supabase.storage
+          .from("product-images")
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) {
+          console.error("Storage upload error:", error);
+          triggerToast(`Erreur d'envoi image : ${error.message}`, "warning");
+          continue;
         }
-        loadedCount++;
-        if (loadedCount === fileList.length) {
-          let currentList: string[] = [];
-          if (prodFormImageUrl.trim().startsWith("[")) {
-            try {
-              currentList = JSON.parse(prodFormImageUrl);
-            } catch (e) {}
-          } else if (prodFormImageUrl.trim()) {
-            currentList = [prodFormImageUrl.trim()];
-          }
-          const updatedList = [...currentList, ...newImages];
-          setProdFormImageUrl(JSON.stringify(updatedList));
-          triggerToast(`${newImages.length} image(s) chargée(s).`, "success");
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("product-images")
+          .getPublicUrl(filePath);
+
+        if (publicUrl) {
+          newUploadedUrls.push(publicUrl);
         }
-      };
-      reader.readAsDataURL(file);
-    });
+      } catch (err: any) {
+        console.error("Upload handler error:", err);
+      }
+    }
+
+    if (newUploadedUrls.length > 0) {
+      let currentList: string[] = [];
+      if (prodFormImageUrl.trim().startsWith("[")) {
+        try {
+          currentList = JSON.parse(prodFormImageUrl);
+        } catch (e) {}
+      } else if (prodFormImageUrl.trim()) {
+        currentList = [prodFormImageUrl.trim()];
+      }
+      const updatedList = [...currentList, ...newUploadedUrls];
+      setProdFormImageUrl(JSON.stringify(updatedList));
+      triggerToast(`${newUploadedUrls.length} image(s) envoyée(s) avec succès.`, "success");
+    }
   };
 
   const generateAIDescription = async () => {
@@ -170,38 +192,60 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     }
   };
 
-  const handleTestimonialMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTestimonialMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const fileList = Array.from(files);
-    let loadedCount = 0;
-    const newMedia: { type: "image" | "video"; content: string }[] = [];
+    triggerToast("Téléchargement des témoignages...", "info");
 
-    fileList.forEach(file => {
-      const reader = new FileReader();
-      const type = file.type.startsWith("video/") ? "video" : "image";
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") {
-          newMedia.push({ type, content: reader.result });
+    const newUploadedMedia: { type: "image" | "video"; content: string }[] = [];
+
+    for (const file of fileList) {
+      try {
+        const fileExt = file.name.split('.').pop();
+        const type = file.type.startsWith("video/") ? "video" : "image";
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const filePath = `testimonials/${businessId}/${fileName}`;
+
+        const { data, error } = await supabase.storage
+          .from("product-images")
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) {
+          console.error("Storage upload error:", error);
+          triggerToast(`Erreur d'envoi média : ${error.message}`, "warning");
+          continue;
         }
-        loadedCount++;
-        if (loadedCount === fileList.length) {
-          let currentList: any[] = [];
-          if (prodFormTestimonials.trim().startsWith("[")) {
-            try {
-              currentList = JSON.parse(prodFormTestimonials);
-            } catch (e) {}
-          } else if (prodFormTestimonials.trim()) {
-            currentList = [{ type: "text", content: prodFormTestimonials.trim() }];
-          }
-          const updatedList = [...currentList, ...newMedia];
-          setProdFormTestimonials(JSON.stringify(updatedList));
-          triggerToast(`${newMedia.length} média(s) de témoignage ajouté(s).`, "success");
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("product-images")
+          .getPublicUrl(filePath);
+
+        if (publicUrl) {
+          newUploadedMedia.push({ type, content: publicUrl });
         }
-      };
-      reader.readAsDataURL(file);
-    });
+      } catch (err: any) {
+        console.error("Upload handler error:", err);
+      }
+    }
+
+    if (newUploadedMedia.length > 0) {
+      let currentList: any[] = [];
+      if (prodFormTestimonials.trim().startsWith("[")) {
+        try {
+          currentList = JSON.parse(prodFormTestimonials);
+        } catch (e) {}
+      } else if (prodFormTestimonials.trim()) {
+        currentList = [{ type: "text", content: prodFormTestimonials.trim() }];
+      }
+      const updatedList = [...currentList, ...newUploadedMedia];
+      setProdFormTestimonials(JSON.stringify(updatedList));
+      triggerToast(`${newUploadedMedia.length} média(s) de témoignage ajouté(s) avec succès.`, "success");
+    }
   };
 
   // Open Zone Modal
@@ -226,6 +270,15 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
     const parsedStock = prodFormStock.trim() !== "" ? parseInt(prodFormStock) : undefined;
 
+    let imageUrlsArray: string[] = [];
+    if (prodFormImageUrl.trim().startsWith("[")) {
+      try {
+        imageUrlsArray = JSON.parse(prodFormImageUrl);
+      } catch (err) {}
+    } else if (prodFormImageUrl.trim()) {
+      imageUrlsArray = [prodFormImageUrl.trim()];
+    }
+
     if (showProductModal?.mode === "edit" && showProductModal.productId) {
       const { error } = await supabase.from("products").update({
         name: prodFormName.trim(),
@@ -233,7 +286,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
-        image_url: prodFormImageUrl.trim() || null,
+        image_url: imageUrlsArray[0] || null,
+        image_urls: imageUrlsArray,
         description: prodFormDescription.trim() || null,
         testimonials: prodFormTestimonials.trim() || null
       }).eq("id", showProductModal.productId);
@@ -250,7 +304,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
-        imageUrl: prodFormImageUrl.trim() || undefined,
+        imageUrl: imageUrlsArray[0] || undefined,
+        imageUrls: imageUrlsArray,
         description: prodFormDescription.trim() || undefined,
         testimonials: prodFormTestimonials.trim() || undefined
       } : p));
@@ -265,7 +320,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
-        image_url: prodFormImageUrl.trim() || null,
+        image_url: imageUrlsArray[0] || null,
+        image_urls: imageUrlsArray,
         description: prodFormDescription.trim() || null,
         testimonials: prodFormTestimonials.trim() || null
       });
@@ -282,7 +338,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
-        imageUrl: prodFormImageUrl.trim() || undefined,
+        imageUrl: imageUrlsArray[0] || undefined,
+        imageUrls: imageUrlsArray,
         description: prodFormDescription.trim() || undefined,
         testimonials: prodFormTestimonials.trim() || undefined
       };

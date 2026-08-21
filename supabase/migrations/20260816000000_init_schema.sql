@@ -319,3 +319,31 @@ CREATE POLICY "Allow access by business tenant" ON public.followup_steps
             SELECT business_id FROM public.business_members WHERE user_id = auth.uid()
         )
     );
+
+-- Add support for image_urls array column in products table
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS image_urls TEXT[];
+
+-- Create storage bucket for product images if it doesn't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-images', 'product-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Allow public read access to product-images bucket
+DROP POLICY IF EXISTS "Allow public select on product-images" ON storage.objects;
+CREATE POLICY "Allow public select on product-images" ON storage.objects
+    FOR SELECT USING (bucket_id = 'product-images');
+
+-- Allow anonymous inserts to product-images bucket
+DROP POLICY IF EXISTS "Allow anonymous inserts to product-images" ON storage.objects;
+CREATE POLICY "Allow anonymous inserts to product-images" ON storage.objects
+    FOR INSERT WITH CHECK (bucket_id = 'product-images');
+
+-- Allow anonymous updates to product-images bucket
+DROP POLICY IF EXISTS "Allow anonymous updates to product-images" ON storage.objects;
+CREATE POLICY "Allow anonymous updates to product-images" ON storage.objects
+    FOR UPDATE USING (bucket_id = 'product-images');
+
+-- Allow anonymous deletes from product-images bucket
+DROP POLICY IF EXISTS "Allow anonymous deletes from product-images" ON storage.objects;
+CREATE POLICY "Allow anonymous deletes from product-images" ON storage.objects
+    FOR DELETE USING (bucket_id = 'product-images');

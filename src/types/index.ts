@@ -63,6 +63,7 @@ export interface Product {
   active: boolean;
   stock?: number;
   imageUrl?: string;
+  imageUrls?: string[];
   description?: string;
   testimonials?: string;
 }

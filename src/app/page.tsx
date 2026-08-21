@@ -127,7 +127,11 @@ export default function Home() {
         if (pErr) {
           console.error("Error fetching products from Supabase:", pErr);
         } else {
-          setProducts((pData || []) as Product[]);
+          setProducts((pData || []).map((p: any) => ({
+            ...p,
+            imageUrl: p.image_url,
+            imageUrls: p.image_urls
+          })) as Product[]);
         }
 
         // Fetch delivery zones

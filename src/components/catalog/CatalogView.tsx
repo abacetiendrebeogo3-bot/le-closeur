@@ -91,6 +91,20 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     }
   };
 
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        setProdFormImageUrl(reader.result);
+        triggerToast("Image chargée avec succès.", "success");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Open Zone Modal
   const openZoneForm = (z?: Zone) => {
     if (z) {
@@ -639,9 +653,16 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 )}
               </div>
 
-              {/* Image URL field */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">URL de l&apos;image (optionnelle)</label>
+              {/* Image URL and File Upload field */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Image du produit</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageFileChange}
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre cursor-pointer file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-black file:bg-menthe/10 file:text-menthe hover:file:bg-menthe/20"
+                />
+                <span className="text-[9px] text-encre/30 font-semibold block">Ou renseignez une URL d&apos;image :</span>
                 <input
                   type="text"
                   value={prodFormImageUrl}
@@ -649,6 +670,19 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   placeholder="https://images.unsplash.com/photo-..."
                   className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
                 />
+                {prodFormImageUrl && (
+                  <div className="mt-2 relative w-16 h-16 rounded-xl overflow-hidden border border-graphite/10 shadow-sm self-start">
+                    <img src={prodFormImageUrl} alt="Aperçu" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setProdFormImageUrl("")}
+                      className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 hover:bg-black text-white rounded-md transition-colors"
+                      title="Supprimer l'image"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3 py-1">

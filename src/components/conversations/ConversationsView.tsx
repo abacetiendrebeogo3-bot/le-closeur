@@ -64,9 +64,14 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   // Find customer associated with the active chat
   const customerInfo = activeChat
     ? customers.find(
-        c =>
-          c.phone.replace(/\s+/g, "") === activeChat.customerPhone.replace(/\s+/g, "") ||
-          c.name.toLowerCase() === activeChat.customerName.toLowerCase()
+        c => {
+          const cPhone = c?.phone ? c.phone.replace(/\s+/g, "") : "";
+          const activePhone = activeChat?.customerPhone ? activeChat.customerPhone.replace(/\s+/g, "") : "";
+          const cName = c?.name ? c.name.toLowerCase() : "";
+          const activeName = activeChat?.customerName ? activeChat.customerName.toLowerCase() : "";
+          
+          return (activePhone && cPhone === activePhone) || (activeName && cName === activeName);
+        }
       )
     : null;
 

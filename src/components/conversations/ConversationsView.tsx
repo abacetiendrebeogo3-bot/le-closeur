@@ -325,7 +325,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             <div className="h-full flex flex-col items-center justify-center text-encre/30 text-xs gap-3">
               <MessageSquare className="w-10 h-10 text-menthe/60" />
               <span className="font-semibold text-center max-w-xs leading-relaxed">
-                Choisissez une discussion dans la liste de gauche pour interagir et simuler des réponses.
+                Choisissez une discussion dans la liste de gauche pour interagir et consulter l&apos;historique.
               </span>
             </div>
           )}

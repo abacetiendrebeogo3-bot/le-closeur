@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS public.products (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Assurer la présence des nouvelles colonnes si la table existait déjà
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS testimonials TEXT;
+
 -- 4. Table des Zones de livraison (Delivery Zones)
 CREATE TABLE IF NOT EXISTS public.delivery_zones (
     id TEXT PRIMARY KEY,

@@ -63,6 +63,8 @@ export interface Product {
   active: boolean;
   stock?: number;
   imageUrl?: string;
+  description?: string;
+  testimonials?: string;
 }
 
 export interface Zone {

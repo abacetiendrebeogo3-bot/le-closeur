@@ -23,6 +23,18 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   triggerToast,
   businessId
 }) => {
+  const getFirstImage = (urlField: string | undefined): string => {
+    if (!urlField) return "";
+    const trimmed = urlField.trim();
+    if (trimmed.startsWith("[")) {
+      try {
+        const arr = JSON.parse(trimmed);
+        if (Array.isArray(arr) && arr.length > 0) return arr[0];
+      } catch (e) {}
+    }
+    return trimmed;
+  };
+
   const [activeTab, setActiveTab] = useState<"products" | "zones">("products");
   
   // Product Form States
@@ -33,6 +45,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [prodFormActive, setProdFormActive] = useState(true);
   const [prodFormStock, setProdFormStock] = useState<string>("");
   const [prodFormImageUrl, setProdFormImageUrl] = useState("");
+  const [prodFormDescription, setProdFormDescription] = useState("");
+  const [prodFormTestimonials, setProdFormTestimonials] = useState("");
 
   // Zone Form States
   const [showZoneModal, setShowZoneModal] = useState<{ mode: "create" | "edit"; zoneId?: string } | null>(null);
@@ -80,6 +94,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       setProdFormActive(prod.active);
       setProdFormStock(prod.stock !== undefined ? prod.stock.toString() : "");
       setProdFormImageUrl(prod.imageUrl || "");
+      setProdFormDescription(prod.description || "");
+      setProdFormTestimonials(prod.testimonials || "");
     } else {
       setShowProductModal({ mode: "create" });
       setProdFormName("");
@@ -88,21 +104,42 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       setProdFormActive(true);
       setProdFormStock("");
       setProdFormImageUrl("");
+      setProdFormDescription("");
+      setProdFormTestimonials("");
     }
   };
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") {
-        setProdFormImageUrl(reader.result);
-        triggerToast("Image chargée avec succès.", "success");
-      }
-    };
-    reader.readAsDataURL(file);
+    const fileList = Array.from(files);
+    let loadedCount = 0;
+    const newImages: string[] = [];
+
+    fileList.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          newImages.push(reader.result);
+        }
+        loadedCount++;
+        if (loadedCount === fileList.length) {
+          let currentList: string[] = [];
+          if (prodFormImageUrl.trim().startsWith("[")) {
+            try {
+              currentList = JSON.parse(prodFormImageUrl);
+            } catch (e) {}
+          } else if (prodFormImageUrl.trim()) {
+            currentList = [prodFormImageUrl.trim()];
+          }
+          const updatedList = [...currentList, ...newImages];
+          setProdFormImageUrl(JSON.stringify(updatedList));
+          triggerToast(`${newImages.length} image(s) chargée(s).`, "success");
+        }
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   // Open Zone Modal
@@ -134,7 +171,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
-        image_url: prodFormImageUrl.trim() || null
+        image_url: prodFormImageUrl.trim() || null,
+        description: prodFormDescription.trim() || null,
+        testimonials: prodFormTestimonials.trim() || null
       }).eq("id", showProductModal.productId);
 
       if (error) {
@@ -149,7 +188,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
-        imageUrl: prodFormImageUrl.trim() || undefined
+        imageUrl: prodFormImageUrl.trim() || undefined,
+        description: prodFormDescription.trim() || undefined,
+        testimonials: prodFormTestimonials.trim() || undefined
       } : p));
       triggerToast(`Produit mis à jour avec succès.`, "success");
     } else {
@@ -162,7 +203,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
-        image_url: prodFormImageUrl.trim() || null
+        image_url: prodFormImageUrl.trim() || null,
+        description: prodFormDescription.trim() || null,
+        testimonials: prodFormTestimonials.trim() || null
       });
 
       if (error) {
@@ -177,7 +220,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
-        imageUrl: prodFormImageUrl.trim() || undefined
+        imageUrl: prodFormImageUrl.trim() || undefined,
+        description: prodFormDescription.trim() || undefined,
+        testimonials: prodFormTestimonials.trim() || undefined
       };
       setProducts(prev => [...prev, newProd]);
       triggerToast(`Produit "${prodFormName}" ajouté au catalogue.`, "success");
@@ -359,8 +404,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   {products.map(prod => (
                     <tr key={prod.id} className="catalog-row border-b border-graphite/5 hover:bg-neige/40 transition-colors">
                       <td className="py-2 px-4">
-                        {prod.imageUrl ? (
-                          <img src={prod.imageUrl} alt={prod.name} className="w-8 h-8 rounded-lg object-cover border border-graphite/10 shadow-xs" />
+                        {getFirstImage(prod.imageUrl) ? (
+                          <img src={getFirstImage(prod.imageUrl)} alt={prod.name} className="w-8 h-8 rounded-lg object-cover border border-graphite/10 shadow-xs" />
                         ) : (
                           <div className="w-8 h-8 rounded-lg bg-neige border border-graphite/10 flex items-center justify-center text-encre/40">
                             <Package className="w-3.5 h-3.5" />
@@ -419,8 +464,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             {products.map(prod => (
               <div key={prod.id} className="catalog-row bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col gap-3.5">
                 <div className="flex items-center gap-3">
-                  {prod.imageUrl ? (
-                    <img src={prod.imageUrl} alt={prod.name} className="w-12 h-12 rounded-xl object-cover border border-graphite/10 shrink-0" />
+                  {getFirstImage(prod.imageUrl) ? (
+                    <img src={getFirstImage(prod.imageUrl)} alt={prod.name} className="w-12 h-12 rounded-xl object-cover border border-graphite/10 shrink-0" />
                   ) : (
                     <div className="w-12 h-12 rounded-xl bg-neige border border-graphite/10 flex items-center justify-center text-encre/40 shrink-0">
                       <Package className="w-5 h-5" />
@@ -655,9 +700,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
               {/* Image URL and File Upload field */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Image du produit</label>
+                <label className="text-[10px] uppercase font-bold text-encre/50">Images du produit</label>
                 <input
                   type="file"
+                  multiple
                   accept="image/*"
                   onChange={handleImageFileChange}
                   className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre cursor-pointer file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-black file:bg-menthe/10 file:text-menthe hover:file:bg-menthe/20"
@@ -670,19 +716,63 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   placeholder="https://images.unsplash.com/photo-..."
                   className="bg-neige border border-graphite/10 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
                 />
-                {prodFormImageUrl && (
-                  <div className="mt-2 relative w-16 h-16 rounded-xl overflow-hidden border border-graphite/10 shadow-sm self-start">
-                    <img src={prodFormImageUrl} alt="Aperçu" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setProdFormImageUrl("")}
-                      className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 hover:bg-black text-white rounded-md transition-colors"
-                      title="Supprimer l'image"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                {(() => {
+                  let images: string[] = [];
+                  if (prodFormImageUrl.trim().startsWith("[")) {
+                    try {
+                      images = JSON.parse(prodFormImageUrl);
+                    } catch (e) {}
+                  } else if (prodFormImageUrl.trim()) {
+                    images = [prodFormImageUrl.trim()];
+                  }
+                  
+                  if (images.length === 0) return null;
+                  
+                  return (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {images.map((imgSrc, index) => (
+                        <div key={index} className="relative w-16 h-16 rounded-xl overflow-hidden border border-graphite/10 shadow-sm shrink-0">
+                          <img src={imgSrc} alt={`Aperçu ${index + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newList = images.filter((_, i) => i !== index);
+                              setProdFormImageUrl(newList.length > 0 ? JSON.stringify(newList) : "");
+                            }}
+                            className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 hover:bg-black text-white rounded-md transition-colors"
+                            title="Supprimer cette image"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Description field */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Description du produit</label>
+                <textarea
+                  value={prodFormDescription}
+                  onChange={(e) => setProdFormDescription(e.target.value)}
+                  placeholder="Caractéristiques, tailles, couleurs, bénéfices du produit..."
+                  rows={3}
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre resize-none"
+                />
+              </div>
+
+              {/* Testimonials field */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Témoignages clients (un par ligne ou bloc)</label>
+                <textarea
+                  value={prodFormTestimonials}
+                  onChange={(e) => setProdFormTestimonials(e.target.value)}
+                  placeholder="Ex: 'Excellent produit !' - Sarah&#10;'Je recommande vivement.' - Marc"
+                  rows={2}
+                  className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre resize-none"
+                />
               </div>
 
               <div className="flex items-center gap-3 py-1">

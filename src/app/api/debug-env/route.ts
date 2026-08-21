@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabaseServer } from "@/lib/supabase/server";
 
 const models = [
   "claude-sonnet-5",
@@ -61,6 +62,23 @@ export async function GET(req: NextRequest) {
     allowedModelsList = { error: err.message };
   }
 
+  // Fetch last 10 messages from Supabase
+  let lastMessages: any = null;
+  try {
+    const { data, error } = await supabaseServer
+      .from("messages")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (error) {
+      lastMessages = { error: error.message };
+    } else {
+      lastMessages = data;
+    }
+  } catch (err: any) {
+    lastMessages = { error: err.message };
+  }
+
   const results = [];
   for (const model of models) {
     const res = await testModel(apiKey, model);
@@ -72,6 +90,7 @@ export async function GET(req: NextRequest) {
     apiKeyConfigured: true,
     apiKeyLength: apiKey.length,
     allowedModelsFromAPI: allowedModelsList,
-    results: results
+    results: results,
+    supabaseLastMessages: lastMessages
   });
 }

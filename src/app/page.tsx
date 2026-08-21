@@ -122,6 +122,130 @@ export default function Home() {
 
     const fetchSupabaseData = async () => {
       try {
+        // Check if the business needs seeding (e.g. no products exist)
+        const { data: checkProducts } = await supabase.from("products").select("id").eq("business_id", businessId).limit(1);
+        if (!checkProducts || checkProducts.length === 0) {
+          console.log("No products found for this business. Starting auto-seeding...");
+          
+          // Seed Products
+          const productsToInsert = initialCatalog.map(p => ({
+            id: p.id,
+            business_id: businessId,
+            name: p.name,
+            price: p.price,
+            category: p.category,
+            active: p.active,
+            stock: p.stock
+          }));
+          await supabase.from("products").insert(productsToInsert);
+
+          // Seed Delivery Zones
+          const zonesToInsert = initialZones.map(z => ({
+            id: z.id,
+            business_id: businessId,
+            name: z.name,
+            fee: z.fee,
+            delivery_time: z.deliveryTime
+          }));
+          await supabase.from("delivery_zones").insert(zonesToInsert);
+
+          // Seed Customers
+          const customersToInsert = initialCustomers.map(c => ({
+            id: c.id,
+            business_id: businessId,
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            address: c.address,
+            first_contact: c.firstContact,
+            tags: c.tags,
+            total_spent: c.totalSpent
+          }));
+          await supabase.from("customers").insert(customersToInsert);
+
+          // Seed Couriers
+          const couriersToInsert = initialCouriers.map(co => ({
+            id: co.id,
+            business_id: businessId,
+            name: co.name,
+            phone: co.phone,
+            active: co.active,
+            load: co.load
+          }));
+          await supabase.from("couriers").insert(couriersToInsert);
+
+          // Seed Conversations & Messages
+          for (const conv of initialConversations) {
+            const { data: newConv, error: newConvErr } = await supabase
+              .from("conversations")
+              .insert({
+                business_id: businessId,
+                customer_name: conv.customerName,
+                customer_phone: conv.customerPhone,
+                status: conv.status,
+                avatar: conv.avatar,
+                unread: conv.unread
+              })
+              .select("id")
+              .single();
+
+            if (newConv && !newConvErr) {
+              const messagesToInsert = conv.messages.map(m => ({
+                conversation_id: newConv.id,
+                sender: m.sender,
+                text: m.text,
+                time: m.time
+              }));
+              await supabase.from("messages").insert(messagesToInsert);
+            }
+          }
+
+          // Seed Orders & Order Items
+          for (const order of initialOrders) {
+            // Find corresponding conversation by name
+            const matchingConv = initialConversations.find(c => c.customerName === order.customer);
+            let finalChatId = null;
+            if (matchingConv) {
+              // Retrieve the conversation we just created for the user
+              const { data: dbConv } = await supabase
+                .from("conversations")
+                .select("id")
+                .eq("business_id", businessId)
+                .eq("customer_name", order.customer)
+                .maybeSingle();
+              if (dbConv) {
+                finalChatId = dbConv.id;
+              }
+            }
+
+            const { error: orderErr } = await supabase.from("orders").insert({
+              id: order.id,
+              business_id: businessId,
+              customer: order.customer,
+              customer_phone: order.customerPhone,
+              customer_address: order.customerAddress,
+              date: order.date,
+              status: order.status,
+              payment_status: order.paymentStatus,
+              delivery_zone: order.deliveryZone,
+              shipping_fee: order.shippingFee,
+              total: order.total,
+              chat_id: finalChatId
+            });
+
+            if (!orderErr) {
+              const itemsToInsert = order.items.map(item => ({
+                order_id: order.id,
+                product: item.product,
+                quantity: item.quantity,
+                price: item.price
+              }));
+              await supabase.from("order_items").insert(itemsToInsert);
+            }
+          }
+          console.log("Auto-seeding completed successfully!");
+        }
+
         // Fetch products
         const { data: pData, error: pErr } = await supabase.from("products").select("*").eq("business_id", businessId);
         if (pErr) {

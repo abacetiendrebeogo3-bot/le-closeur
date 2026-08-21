@@ -166,6 +166,7 @@ export default function Home() {
           console.error("Error fetching conversations from Supabase:", convErr);
           triggerToast(`Erreur chargement discussions : ${convErr.message}`, "warning");
         } else {
+          console.log("LOADED CONVERSATIONS for business:", businessId, convData);
           const mappedConvs = (convData || []).map((c: any) => ({
             id: c.id,
             customerName: c.customer_name,

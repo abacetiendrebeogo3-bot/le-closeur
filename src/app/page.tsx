@@ -288,6 +288,7 @@ export default function Home() {
           .eq("business_id", businessId);
         if (convErr) {
           console.error("Error fetching conversations from Supabase:", convErr);
+          triggerToast(`Erreur chargement discussions : ${convErr.message}`, "warning");
         } else {
           const mappedConvs = (convData || []).map((c: any) => ({
             id: c.id,
@@ -1007,6 +1008,9 @@ export default function Home() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <div className="flex flex-col text-right text-[10px] text-encre/40 font-mono">
+              <span>Tenant ID: {businessId || "aucun"}</span>
+            </div>
             <div className="flex items-center gap-2 bg-neige px-3.5 py-1.5 rounded-lg border border-graphite/10 text-xs font-semibold">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
               <span>Websocket connecté</span>

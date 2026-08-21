@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
+import { sendWhatsAppMessage, sendWhatsAppImage } from "@/lib/whatsapp/send";
 import Anthropic from "@anthropic-ai/sdk";
 import crypto from "crypto";
 
@@ -110,18 +110,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "ignored_non_message_payload" });
     }
 
-    // Only process text messages for now
-    if (messageObject.type !== "text") {
-      return NextResponse.json({ status: "ignored_non_text_message" });
-    }
-
     const customerPhone = messageObject.from; // e.g. "221776543210" or formatted phone
-    const messageText = messageObject.text?.body;
     const contactName = value?.contacts?.[0]?.profile?.name || customerPhone;
-
-    if (!messageText) {
-      return NextResponse.json({ status: "ignored_empty_message" });
-    }
 
     // Resolve businessId dynamically based on the receiving phone number ID
     const phoneNumberId = value?.metadata?.phone_number_id;
@@ -144,7 +134,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Ensure customer exists in Supabase
+    // Fetch Business Config
+    const { data: business } = await supabaseServer
+      .from("businesses")
+      .select("*")
+      .eq("id", businessId)
+      .maybeSingle();
+
+    const identity = business?.agent_identity || "Tu es un agent d'aide à la vente.";
+    const salesRules = business?.agent_sales_rules || "";
+    const escalationRules = business?.agent_escalation_rules || "";
+    const tone = business?.agent_tone || "Chaleureux et Respectueux";
+    const token = business?.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN || "";
+
+    // 1. Ensure customer exists in Supabase
     const { data: customer, error: customerFetchErr } = await supabaseServer
       .from("customers")
       .select("*")
@@ -168,21 +171,44 @@ export async function POST(req: NextRequest) {
           name: contactName,
           phone: customerPhone,
           first_contact: new Date().toLocaleDateString("fr-FR"),
-          tags: ["WhatsApp"],
+          tags: ["prospect"],
         })
         .select()
         .single();
 
       if (createCustErr) {
         console.error("Error creating customer in Supabase:", createCustErr);
-        // Fallback to the generated ID even if insert failed (maybe RLS issue or conflict)
         customerId = newCustId;
       } else {
         customerId = newCust?.id;
       }
     }
 
-    // Find or create conversation
+    // Helper to update tags dynamically
+    const updateCustomerTag = async (newTag: string) => {
+      try {
+        if (!customerId) return;
+        const { data: cust } = await supabaseServer
+          .from("customers")
+          .select("tags")
+          .eq("id", customerId)
+          .maybeSingle();
+
+        if (cust) {
+          const tagsList = cust.tags || [];
+          if (!tagsList.includes(newTag)) {
+            await supabaseServer
+              .from("customers")
+              .update({ tags: [...tagsList, newTag] })
+              .eq("id", customerId);
+          }
+        }
+      } catch (err) {
+        console.error("Error updating customer tag:", err);
+      }
+    };
+
+    // 2. Find or create conversation
     let { data: conversation, error: convFetchErr } = await supabaseServer
       .from("conversations")
       .select("*")
@@ -226,53 +252,132 @@ export async function POST(req: NextRequest) {
         .eq("id", conversationId);
     }
 
-    // Save incoming message
+    // 3. Process Multimedia incoming messages
+    let messageText = "";
+    let base64Data = "";
+    let imageMimeType = "image/jpeg";
+
+    if (messageObject.type === "audio") {
+      const audioReply = "Je ne peux pas encore lire les messages vocaux. Pouvez-vous m'écrire par texte s'il vous plaît ?";
+      await sendWhatsAppMessage(customerPhone, audioReply, businessId);
+      
+      const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      await supabaseServer.from("messages").insert({
+        conversation_id: conversationId,
+        sender: "customer",
+        text: "[Message vocal reçu]",
+        time: timeStr,
+      });
+
+      return NextResponse.json({ status: "success", message: "Audio message processed." });
+    } else if (messageObject.type === "image") {
+      const imageId = messageObject.image?.id;
+      if (imageId && token) {
+        try {
+          // Fetch media object from Meta API to get download URL
+          const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${imageId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const mediaMetadata = await mediaRes.json();
+          const downloadUrl = mediaMetadata.url;
+
+          if (downloadUrl) {
+            // Fetch raw image bytes from Meta
+            const imgBlobRes = await fetch(downloadUrl, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const arrayBuffer = await imgBlobRes.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            base64Data = buffer.toString("base64");
+            imageMimeType = messageObject.image.mime_type || "image/jpeg";
+
+            // Upload image file to Supabase Storage
+            const uploadPath = `received/${customerPhone}/${Date.now()}.jpg`;
+            const { error: uploadErr } = await supabaseServer.storage
+              .from("product-images")
+              .upload(uploadPath, buffer, {
+                contentType: imageMimeType,
+                upsert: true
+              });
+
+            if (uploadErr) {
+              console.error("Supabase storage upload error:", uploadErr);
+            }
+
+            // Get public URL
+            const { data: { publicUrl } } = supabaseServer.storage
+              .from("product-images")
+              .getPublicUrl(uploadPath);
+
+            messageText = `[Image reçue : ${publicUrl}]`;
+            if (messageObject.image.caption) {
+              messageText += ` Caption: ${messageObject.image.caption}`;
+            }
+          }
+        } catch (err) {
+          console.error("Error processing incoming WhatsApp image:", err);
+          messageText = "[Image reçue (Erreur de traitement)]";
+        }
+      } else {
+        messageText = "[Image reçue (Crédentiels manquants)]";
+      }
+    } else if (messageObject.type !== "text") {
+      const fallbackReply = "Je ne peux pas encore traiter ce type de message, pouvez-vous m'écrire en texte ?";
+      await sendWhatsAppMessage(customerPhone, fallbackReply, businessId);
+
+      const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      await supabaseServer.from("messages").insert({
+        conversation_id: conversationId,
+        sender: "customer",
+        text: `[Fichier reçu non pris en charge: ${messageObject.type}]`,
+        time: timeStr,
+      });
+
+      return NextResponse.json({ status: "success", message: "Unsupported message type fallback processed." });
+    } else {
+      messageText = messageObject.text?.body || "";
+    }
+
+    if (!messageText) {
+      return NextResponse.json({ status: "ignored_empty_message" });
+    }
+
+    // Save incoming message in messages history
     const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    const { error: msgInsertErr } = await supabaseServer.from("messages").insert({
+    await supabaseServer.from("messages").insert({
       conversation_id: conversationId,
       sender: "customer",
       text: messageText,
       time: timeStr,
     });
 
-    if (msgInsertErr) {
-      console.error("Error inserting message in Supabase:", msgInsertErr);
-    }
-
     // If human takeover is active, stop here (do not call Claude / send AI reply)
     if (conversation.status === "human_takeover") {
       return NextResponse.json({ status: "success", message: "Conversation in human_takeover mode. AI response skipped." });
     }
 
-    // Generate AI response (using exact same logic as in /api/agent/respond)
-    // 1. Fetch Business Config
-    const { data: business } = await supabaseServer
-      .from("businesses")
-      .select("*")
-      .eq("id", businessId)
-      .maybeSingle();
-
-    const identity = business?.agent_identity || "Tu es un agent d'aide à la vente.";
-    const salesRules = business?.agent_sales_rules || "";
-    const escalationRules = business?.agent_escalation_rules || "";
-    const tone = business?.agent_tone || "Chaleureux et Respectueux";
-
-    // 2. Fetch Products
+    // Fetch Products
     const { data: products } = await supabaseServer
       .from("products")
       .select("*")
       .eq("business_id", businessId)
       .eq("active", true);
 
-    // 3. Fetch Delivery Zones
+    // Fetch Delivery Zones
     const { data: zones } = await supabaseServer
       .from("delivery_zones")
       .select("*")
       .eq("business_id", businessId);
 
-    // 4. Construct System Prompt
+    // Construct System Prompt
     const systemPrompt = `Tu es l'agent conversationnel IA intelligent et autonome de vente (closeur) pour l'entreprise "${business?.name || "Notre boutique"}".
 Ton but est de conseiller les prospects, de les aider à choisir des produits, de calculer les frais de livraison, et de conclure des ventes (closing) en enregistrant leur commande.
+
+[STYLE DE CONVERSATION]
+- Écris des messages courts, comme sur WhatsApp (2-4 phrases maximum par message, jamais de pavé de texte).
+- Pose UNE SEULE question à la fois, jamais plusieurs questions dans le même message.
+- Utilise un ton naturel et chaleureux, pas robotique.
+- Utilise des emojis avec modération pour rester engageant.
 
 [IDENTITÉ ET RÔLE]
 ${identity}
@@ -296,6 +401,7 @@ Tu as accès à des outils. Utilise-les dès que nécessaire :
 - Pour enregistrer la commande finale du client, utilise 'create_order'.
 - Pour vérifier le statut d'une commande existante, utilise 'get_order_status'.
 - Pour transférer à un humain, utilise 'escalate_to_human'.
+- Pour envoyer une photo/témoignage, utilise 'send_product_visual'.
 
 [CATALOGUE PRODUITS ACTUEL]
 ${JSON.stringify(products || [], null, 2)}
@@ -304,19 +410,51 @@ ${JSON.stringify(products || [], null, 2)}
 ${JSON.stringify(zones || [], null, 2)}
 `;
 
-    // 5. Fetch full conversation history from Supabase (to construct prompt)
+    // Fetch full conversation history from Supabase (to construct prompt)
     const { data: historyMessages } = await supabaseServer
       .from("messages")
       .select("*")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
 
-    const formattedMessages: { role: "user" | "assistant"; content: string }[] = (historyMessages || []).map((m: any) => ({
+    let historyToMap = historyMessages || [];
+    if (historyToMap.length > 0) {
+      // Exclude last message (which we just inserted) to construct visually with the image block if needed
+      historyToMap = historyToMap.slice(0, -1);
+    }
+
+    const formattedMessages: any[] = historyToMap.map((m: any) => ({
       role: m.sender === "customer" ? ("user" as const) : ("assistant" as const),
       content: m.text,
     }));
 
-    // 6. Define Tools
+    // Append current incoming message (with image visual content if applicable)
+    if (messageObject.type === "image" && base64Data) {
+      formattedMessages.push({
+        role: "user" as const,
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: imageMimeType,
+              data: base64Data
+            }
+          },
+          {
+            type: "text",
+            text: messageObject.image.caption || "[L'utilisateur a envoyé cette image/capture d'écran]"
+          }
+        ]
+      });
+    } else {
+      formattedMessages.push({
+        role: "user" as const,
+        content: messageText || ""
+      });
+    }
+
+    // Define Tools
     const tools: Anthropic.Messages.Tool[] = [
       {
         name: "search_products",
@@ -387,11 +525,29 @@ ${JSON.stringify(zones || [], null, 2)}
           required: ["reason"],
         },
       },
+      {
+        name: "send_product_visual",
+        description: "Envoie un visuel produit ou un témoignage client au format image sur le WhatsApp du client.",
+        input_schema: {
+          type: "object",
+          properties: {
+            image_type: { 
+              type: "string", 
+              description: "Le type de visuel à envoyer (ex: 'produit', 'temoignage_1', 'temoignage_2', etc. selon la bibliothèque de médias)." 
+            },
+            caption: {
+              type: "string",
+              description: "Une légende explicative courte à joindre avec l'image."
+            }
+          },
+          required: ["image_type"],
+        },
+      },
     ];
 
     // Call Anthropic
     let response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-5",
       max_tokens: 1024,
       system: systemPrompt,
       messages: formattedMessages,
@@ -411,6 +567,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
         try {
           if (name === "search_products") {
+            await updateCustomerTag("intéressé");
             const queryStr = (input.query || "").toLowerCase();
             const filteredProducts = (products || []).filter(
               (p) =>
@@ -419,6 +576,7 @@ ${JSON.stringify(zones || [], null, 2)}
             );
             resultData = { products: filteredProducts };
           } else if (name === "check_delivery_zone") {
+            await updateCustomerTag("intéressé");
             const zName = (input.zone_name || "").toLowerCase();
             const matchedZone = (zones || []).find((z) =>
               z.name.toLowerCase().includes(zName)
@@ -448,6 +606,28 @@ ${JSON.stringify(zones || [], null, 2)}
               .eq("id", conversationId);
 
             resultData = { success: true, message: "Contrôle transféré à un conseiller humain." };
+          } else if (name === "send_product_visual") {
+            const imgType = input.image_type;
+            const captionStr = input.caption || "";
+            const mediaLib = business?.agent_media_library as Record<string, string> || {};
+            const imageUrl = mediaLib[imgType];
+
+            if (imageUrl) {
+              const success = await sendWhatsAppImage(customerPhone, imageUrl, captionStr, businessId);
+              
+              // Save visually sent image message in history
+              const msgTime = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+              await supabaseServer.from("messages").insert({
+                conversation_id: conversationId,
+                sender: "ai",
+                text: `[Image envoyée : ${imgType}] ${imageUrl}`,
+                time: msgTime
+              });
+
+              resultData = { success, message: `Image '${imgType}' envoyée avec succès.` };
+            } else {
+              resultData = { success: false, error: `Type d'image '${imgType}' non configuré dans la bibliothèque de médias.` };
+            }
           } else if (name === "create_order") {
             // Find zone to get delivery fee
             const targetZone = (zones || []).find(
@@ -497,6 +677,7 @@ ${JSON.stringify(zones || [], null, 2)}
             } else {
               // Insert Order Items
               await supabaseServer.from("order_items").insert(itemsToInsert);
+              await updateCustomerTag("commande_passée");
               resultData = { success: true, order_id: newOrderId, total: total, shipping_fee: shippingFee };
             }
           }

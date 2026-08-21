@@ -79,6 +79,22 @@ export async function GET(req: NextRequest) {
     lastMessages = { error: err.message };
   }
 
+  // Check if followup_runs exists
+  let followupRuns: any = null;
+  try {
+    const { data, error } = await supabaseServer
+      .from("followup_runs")
+      .select("*")
+      .limit(5);
+    if (error) {
+      followupRuns = { error: error.message };
+    } else {
+      followupRuns = data;
+    }
+  } catch (err: any) {
+    followupRuns = { error: err.message };
+  }
+
   const results = [];
   for (const model of models) {
     const res = await testModel(apiKey, model);
@@ -91,6 +107,7 @@ export async function GET(req: NextRequest) {
     apiKeyLength: apiKey.length,
     allowedModelsFromAPI: allowedModelsList,
     results: results,
-    supabaseLastMessages: lastMessages
+    supabaseLastMessages: lastMessages,
+    supabaseFollowupRuns: followupRuns
   });
 }

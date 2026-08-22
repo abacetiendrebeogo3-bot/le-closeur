@@ -357,11 +357,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch Products
-    const { data: products } = await supabaseServer
+    const { data: rawProducts } = await supabaseServer
       .from("products")
       .select("*")
       .eq("business_id", businessId)
       .eq("active", true);
+
+    const products = (rawProducts || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      description: p.description,
+      stock: p.stock,
+      active: p.active,
+      category: p.category
+    }));
 
     // Fetch Delivery Zones
     const { data: zones } = await supabaseServer

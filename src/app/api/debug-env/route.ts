@@ -140,6 +140,26 @@ export async function GET(req: NextRequest) {
     allMembers = { error: err.message };
   }
 
+  // Fetch all auth users
+  let allUsers: any = null;
+  try {
+    const authClient = require("@supabase/supabase-js").createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { db: { schema: 'auth' } }
+    );
+    const { data, error } = await authClient
+      .from("users")
+      .select("id, email, created_at");
+    if (error) {
+      allUsers = { error: error.message };
+    } else {
+      allUsers = data;
+    }
+  } catch (err: any) {
+    allUsers = { error: err.message };
+  }
+
   const results = [];
   for (const model of models) {
     const res = await testModel(apiKey, model);
@@ -156,6 +176,7 @@ export async function GET(req: NextRequest) {
     supabaseFollowupRuns: followupRuns,
     supabaseConversations: allConversations,
     supabaseBusinesses: allBusinesses,
-    supabaseMembers: allMembers
+    supabaseMembers: allMembers,
+    supabaseUsers: allUsers
   });
 }

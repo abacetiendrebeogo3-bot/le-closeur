@@ -95,6 +95,36 @@ export async function GET(req: NextRequest) {
     followupRuns = { error: err.message };
   }
 
+  // Fetch all conversations
+  let allConversations: any = null;
+  try {
+    const { data, error } = await supabaseServer
+      .from("conversations")
+      .select("*");
+    if (error) {
+      allConversations = { error: error.message };
+    } else {
+      allConversations = data;
+    }
+  } catch (err: any) {
+    allConversations = { error: err.message };
+  }
+
+  // Fetch all businesses
+  let allBusinesses: any = null;
+  try {
+    const { data, error } = await supabaseServer
+      .from("businesses")
+      .select("*");
+    if (error) {
+      allBusinesses = { error: error.message };
+    } else {
+      allBusinesses = data;
+    }
+  } catch (err: any) {
+    allBusinesses = { error: err.message };
+  }
+
   const results = [];
   for (const model of models) {
     const res = await testModel(apiKey, model);
@@ -108,6 +138,8 @@ export async function GET(req: NextRequest) {
     allowedModelsFromAPI: allowedModelsList,
     results: results,
     supabaseLastMessages: lastMessages,
-    supabaseFollowupRuns: followupRuns
+    supabaseFollowupRuns: followupRuns,
+    supabaseConversations: allConversations,
+    supabaseBusinesses: allBusinesses
   });
 }

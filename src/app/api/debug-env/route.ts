@@ -125,6 +125,21 @@ export async function GET(req: NextRequest) {
     allBusinesses = { error: err.message };
   }
 
+  // Fetch all business members
+  let allMembers: any = null;
+  try {
+    const { data, error } = await supabaseServer
+      .from("business_members")
+      .select("*");
+    if (error) {
+      allMembers = { error: error.message };
+    } else {
+      allMembers = data;
+    }
+  } catch (err: any) {
+    allMembers = { error: err.message };
+  }
+
   const results = [];
   for (const model of models) {
     const res = await testModel(apiKey, model);
@@ -140,6 +155,7 @@ export async function GET(req: NextRequest) {
     supabaseLastMessages: lastMessages,
     supabaseFollowupRuns: followupRuns,
     supabaseConversations: allConversations,
-    supabaseBusinesses: allBusinesses
+    supabaseBusinesses: allBusinesses,
+    supabaseMembers: allMembers
   });
 }

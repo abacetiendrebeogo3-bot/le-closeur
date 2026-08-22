@@ -154,6 +154,25 @@ export async function POST(req: NextRequest) {
       .eq("phone", customerPhone)
       .maybeSingle();
 
+    let lastOrderAddress = "";
+    let lastOrderCustomerName = "";
+    let isReturningCustomer = false;
+
+    if (customer) {
+      const { data: lastOrders } = await supabaseServer
+        .from("orders")
+        .select("customer, customer_address")
+        .eq("customer_phone", customerPhone)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (lastOrders && lastOrders.length > 0) {
+        lastOrderAddress = lastOrders[0].customer_address;
+        lastOrderCustomerName = lastOrders[0].customer;
+        isReturningCustomer = true;
+      }
+    }
+
     if (customerFetchErr) {
       console.error("Error checking customer in Supabase:", customerFetchErr);
     }
@@ -380,6 +399,14 @@ export async function POST(req: NextRequest) {
       .eq("business_id", businessId);
 
     // Construct System Prompt
+    let returningCustomerContext = "";
+    if (isReturningCustomer) {
+      returningCustomerContext = `
+[RECONNAISSANCE CLIENT - TRÈS IMPORTANT]
+Ce client a déjà commandé chez nous sous le nom "${lastOrderCustomerName}" avec l'adresse de livraison suivante : "${lastOrderAddress}".
+RÈGLE : Salue-le chaleureusement en utilisant son prénom (déduit de son nom "${lastOrderCustomerName}") ou son nom complet, et confirme simplement s'il souhaite être livré à la même adresse que la dernière fois ("${lastOrderAddress}"). Ne lui redemande pas son nom ou son adresse s'il confirme vouloir réutiliser ces informations !`;
+    }
+
     const systemPrompt = `[IDENTITÉ - RÈGLE ABSOLUE]
 Tu es un membre de l'équipe commerciale, JAMAIS une IA ou un robot. Ne révèle JAMAIS, sous aucun prétexte, que tu es une intelligence artificielle, même si le client te le demande directement. Si un client insiste ou demande explicitement 'es-tu un robot/une IA ?', réponds avec légèreté sans confirmer ni nier frontalement (ex: 'Je suis là pour vous aider du mieux possible 😊, que puis-je faire pour vous ?') et redirige la conversation. Si l'escalade vers un humain est nécessaire, fais-le de manière fluide et naturelle, sans jamais dire des phrases comme 'je vais transférer votre demande à un humain' qui sous-entendent que tu n'en étais pas un.
 
@@ -406,6 +433,8 @@ ${tone}
 ${salesRules}
 - IMPORTANT : Ne jamais négocier les prix à la baisse ou offrir des remises non autorisées.
 - Ne propose que les produits disponibles dans le catalogue ci-dessous.
+- RÈGLE ABSOLUE : Ne demande JAMAIS son numéro de téléphone au client. Le système le connaît automatiquement depuis son numéro WhatsApp et l'outil create_order l'obtiendra automatiquement.
+${returningCustomerContext}
 
 [RÈGLES D'ESCALADE / REPRISE HUMAINE]
 ${escalationRules}
@@ -502,7 +531,6 @@ ${JSON.stringify(zones || [], null, 2)}
           type: "object",
           properties: {
             customer_name: { type: "string", description: "Nom complet du client." },
-            customer_phone: { type: "string", description: "Numéro de téléphone WhatsApp du client." },
             customer_address: { type: "string", description: "Adresse physique exacte pour la livraison." },
             delivery_zone: { type: "string", description: "Nom de la zone de livraison validée." },
             items: {
@@ -517,7 +545,7 @@ ${JSON.stringify(zones || [], null, 2)}
               },
             },
           },
-          required: ["customer_name", "customer_phone", "delivery_zone", "items"],
+          required: ["customer_name", "delivery_zone", "items"],
         },
       },
       {
@@ -678,7 +706,7 @@ ${JSON.stringify(zones || [], null, 2)}
               id: newOrderId,
               business_id: businessId,
               customer: input.customer_name,
-              customer_phone: input.customer_phone,
+              customer_phone: customerPhone,
               customer_address: input.customer_address,
               date: new Date().toISOString().substring(0, 10),
               status: "confirmed",

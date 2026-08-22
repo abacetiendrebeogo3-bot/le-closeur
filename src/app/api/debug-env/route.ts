@@ -143,18 +143,11 @@ export async function GET(req: NextRequest) {
   // Fetch all auth users
   let allUsers: any = null;
   try {
-    const authClient = require("@supabase/supabase-js").createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      { db: { schema: 'auth' } }
-    );
-    const { data, error } = await authClient
-      .from("users")
-      .select("id, email, created_at");
+    const { data: { users }, error } = await supabaseServer.auth.admin.listUsers();
     if (error) {
       allUsers = { error: error.message };
     } else {
-      allUsers = data;
+      allUsers = users.map(u => ({ id: u.id, email: u.email, created_at: u.created_at }));
     }
   } catch (err: any) {
     allUsers = { error: err.message };

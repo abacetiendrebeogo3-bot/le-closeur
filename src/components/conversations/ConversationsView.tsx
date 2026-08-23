@@ -249,16 +249,36 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
         // 3. Determine media type from file type
         let mediaType = "document";
         let prefix = "Fichier";
-        if (file.type.startsWith("image/")) {
+
+        const fileTypeLower = (file.type || "").toLowerCase();
+        const fileNameLower = (file.name || "").toLowerCase();
+
+        if (fileTypeLower.startsWith("image/")) {
           mediaType = "image";
           prefix = "Image";
-        } else if (file.type.startsWith("video/")) {
+        } else if (fileTypeLower.startsWith("video/")) {
           mediaType = "video";
           prefix = "Video";
-        } else if (file.type.startsWith("audio/")) {
+        } else if (fileTypeLower.startsWith("audio/")) {
           mediaType = "audio";
           prefix = "Audio";
+        } else {
+          // Fallback check based on extension
+          const isAudioExt = fileNameLower.endsWith(".mp3") ||
+                             fileNameLower.endsWith(".m4a") ||
+                             fileNameLower.endsWith(".ogg") ||
+                             fileNameLower.endsWith(".wav") ||
+                             fileNameLower.endsWith(".aac") ||
+                             fileNameLower.endsWith(".webm") ||
+                             fileNameLower.endsWith(".amr") ||
+                             fileNameLower.endsWith(".opus");
+          if (isAudioExt) {
+            mediaType = "audio";
+            prefix = "Audio";
+          }
         }
+
+        console.log(`Detected file details - Name: ${file.name}, MIME Type: ${file.type}, Resolved Type: ${mediaType}`);
 
         // 4. Send to WhatsApp and insert into messages table
         const messageText = `[${prefix}: ${publicUrl}]`;

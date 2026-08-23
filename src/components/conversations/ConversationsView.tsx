@@ -79,7 +79,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/ogg" });
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         await uploadAndSendAudioBlob(audioBlob);
         stream.getTracks().forEach(track => track.stop());
       };
@@ -140,7 +140,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     triggerToast("Envoi de la note vocale...", "info");
 
     try {
-      const fileName = `${Date.now()}.ogg`;
+      const fileName = `${Date.now()}.webm`;
       const filePath = `manual-uploads/${activeChat.customerPhone}/${fileName}`;
 
       const formData = new FormData();

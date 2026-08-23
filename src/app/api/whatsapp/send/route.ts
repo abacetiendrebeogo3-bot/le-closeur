@@ -41,7 +41,8 @@ export async function POST(req: NextRequest) {
         success = await sendWhatsAppAudio(to, mediaUrl, resolvedBusinessId);
         if (!success) {
           console.warn("Failed to send audio natively via Meta API. Falling back to document presentation...");
-          success = await sendWhatsAppDocument(to, mediaUrl, "note-vocale.ogg", "Note vocale", resolvedBusinessId);
+          const extension = mediaUrl.split('.').pop() || 'ogg';
+          success = await sendWhatsAppDocument(to, mediaUrl, `note-vocale.${extension}`, "Note vocale", resolvedBusinessId);
         }
       } else {
         // Fallback to sending mediaUrl as text

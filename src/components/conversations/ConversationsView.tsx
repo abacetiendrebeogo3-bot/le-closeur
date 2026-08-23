@@ -143,21 +143,21 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       const fileName = `${Date.now()}.ogg`;
       const filePath = `manual-uploads/${activeChat.customerPhone}/${fileName}`;
 
-      const { data, error: uploadErr } = await supabase.storage
-        .from("product-images")
-        .upload(filePath, blob, {
-          contentType: "audio/ogg",
-          cacheControl: "3600",
-          upsert: true
-        });
+      const formData = new FormData();
+      formData.append("file", blob, fileName);
+      formData.append("path", filePath);
 
-      if (uploadErr) {
-        throw uploadErr;
+      const uploadRes = await fetch("/api/media/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!uploadRes.ok) {
+        const errData = await uploadRes.json();
+        throw new Error(errData.error || "Failed to upload audio to server");
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("product-images")
-        .getPublicUrl(filePath);
+      const { publicUrl } = await uploadRes.json();
 
       const messageText = `[Audio: ${publicUrl}]`;
       const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -230,21 +230,21 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
         const filePath = `manual-uploads/${activeChat.customerPhone}/${fileName}`;
 
-        const { data, error: uploadErr } = await supabase.storage
-          .from("product-images")
-          .upload(filePath, file, {
-            cacheControl: "3600",
-            upsert: true
-          });
+        const formData = new FormData();
+        formData.append("file", file, fileName);
+        formData.append("path", filePath);
 
-        if (uploadErr) {
-          throw uploadErr;
+        const uploadRes = await fetch("/api/media/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json();
+          throw new Error(errData.error || "Failed to upload file to server");
         }
 
-        // 2. Get Public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from("product-images")
-          .getPublicUrl(filePath);
+        const { publicUrl } = await uploadRes.json();
 
         // 3. Determine media type from file type
         let mediaType = "document";

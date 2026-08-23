@@ -319,7 +319,7 @@ export async function POST(req: NextRequest) {
                 const whisperData = await whisperRes.json();
                 if (whisperData.text) {
                   transcribedText = whisperData.text;
-                  messageText = `[Message vocal transcrit : "${transcribedText}"]`;
+                  messageText = transcribedText;
                 }
               } else {
                 const errData = await whisperRes.json().catch(() => ({}));
@@ -445,6 +445,8 @@ export async function POST(req: NextRequest) {
       name: p.name,
       price: p.price,
       description: p.description,
+      image_url: p.image_url,
+      image_urls: p.image_urls,
       stock: p.stock,
       active: p.active,
       category: p.category
@@ -505,7 +507,7 @@ Tu as accès à des outils. Utilise-les dès que nécessaire :
 - Pour enregistrer la commande finale du client, utilise 'create_order'.
 - Pour vérifier le statut d'une commande existante, utilise 'get_order_status'.
 - Pour transférer à un humain, utilise 'escalate_to_human'.
-- Pour envoyer une photo/témoignage, utilise 'send_product_visual'.
+- Pour envoyer une photo d'un produit du catalogue (ou un témoignage), utilise 'send_product_visual'. Si le client demande à voir ou recevoir une image/photo/visuel d'un produit du catalogue, appelle TOUJOURS 'send_product_visual' avec le paramètre 'product_name' égal au nom du produit (les URLs d'images de chaque produit sont définies dans le catalogue ci-dessous). Ne lui écris pas l'URL en texte brut dans ton message, utilise l'outil.
 
 [CATALOGUE PRODUITS ACTUEL]
 ${JSON.stringify(products || [], null, 2)}
@@ -630,20 +632,23 @@ ${JSON.stringify(zones || [], null, 2)}
       },
       {
         name: "send_product_visual",
-        description: "Envoie un visuel produit ou un témoignage client au format image sur le WhatsApp du client.",
+        description: "Envoie un visuel produit ou un témoignage client au format image sur le WhatsApp du client. Tu peux spécifier soit le type de visuel de la bibliothèque de médias (image_type) soit le nom du produit (product_name) pour envoyer directement sa photo de catalogue.",
         input_schema: {
           type: "object",
           properties: {
             image_type: { 
               type: "string", 
-              description: "Le type de visuel à envoyer (ex: 'produit', 'temoignage_1', 'temoignage_2', etc. selon la bibliothèque de médias)." 
+              description: "Le type de visuel à envoyer de la bibliothèque de médias (ex: 'temoignage_1', 'temoignage_2', etc.)." 
+            },
+            product_name: {
+              type: "string",
+              description: "Le nom précis ou partiel du produit dont tu souhaites envoyer la photo depuis le catalogue (ex: 'Kit Minceur')."
             },
             caption: {
               type: "string",
               description: "Une légende explicative courte à joindre avec l'image."
             }
-          },
-          required: ["image_type"],
+          }
         },
       },
     ];
@@ -711,9 +716,25 @@ ${JSON.stringify(zones || [], null, 2)}
             resultData = { success: true, message: "Contrôle transféré à un conseiller humain." };
           } else if (name === "send_product_visual") {
             const imgType = input.image_type;
+            const productName = input.product_name;
             const captionStr = input.caption || "";
-            const mediaLib = business?.agent_media_library as Record<string, string> || {};
-            const imageUrl = mediaLib[imgType];
+            let imageUrl = "";
+
+            if (productName) {
+              // Find the product in the products list
+              const matchedProduct = (rawProducts || []).find(
+                (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
+              );
+              if (matchedProduct) {
+                imageUrl = matchedProduct.image_url || (matchedProduct.image_urls && matchedProduct.image_urls[0]) || "";
+              }
+            }
+
+            // Fallback to agent_media_library if product image not found
+            if (!imageUrl && imgType) {
+              const mediaLib = business?.agent_media_library as Record<string, string> || {};
+              imageUrl = mediaLib[imgType];
+            }
 
             if (imageUrl) {
               const success = await sendWhatsAppImage(customerPhone, imageUrl, captionStr, businessId);
@@ -723,13 +744,13 @@ ${JSON.stringify(zones || [], null, 2)}
               await supabaseServer.from("messages").insert({
                 conversation_id: conversationId,
                 sender: "ai",
-                text: `[Image envoyée : ${imgType}] ${imageUrl}`,
+                text: `[Image envoyée : ${productName || imgType}] ${imageUrl}`,
                 time: msgTime
               });
 
-              resultData = { success, message: `Image '${imgType}' envoyée avec succès.` };
+              resultData = { success, message: `Image envoyée avec succès.` };
             } else {
-              resultData = { success: false, error: `Type d'image '${imgType}' non configuré dans la bibliothèque de médias.` };
+              resultData = { success: false, error: `Impossible de trouver l'image pour le produit '${productName}' ou le type '${imgType}'.` };
             }
           } else if (name === "create_order") {
             // Find zone to get delivery fee

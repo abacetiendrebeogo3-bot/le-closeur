@@ -172,26 +172,18 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
           to: activeChat.customerPhone,
           text: "",
           mediaUrl: publicUrl,
-          mediaType: "audio"
+          mediaType: "audio",
+          conversationId: activeChatId
         })
       });
 
       if (!res.ok) {
         triggerToast("Erreur lors de l'envoi de la note vocale via WhatsApp", "warning");
-      }
-
-      // Save to Supabase Messages
-      const { error: msgErr } = await supabase.from("messages").insert({
-        conversation_id: activeChatId,
-        sender: "human",
-        text: messageText,
-        time: timeStr
-      });
-
-      if (msgErr) {
-        triggerToast(`Erreur Supabase: ${msgErr.message}`, "warning");
         return;
       }
+
+      const resData = await res.json();
+      const dbMessage = resData.message;
 
       if (setConversations) {
         setConversations(prev => prev.map(c => {
@@ -200,7 +192,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
               ...c,
               messages: [
                 ...c.messages,
-                {
+                dbMessage || {
                   id: `msg-${Date.now()}`,
                   sender: "human",
                   text: messageText,
@@ -272,7 +264,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
         const messageText = `[${prefix}: ${publicUrl}]`;
         const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
-        // Send to WhatsApp API
+        // Send to WhatsApp API and save to DB
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
           headers: {
@@ -282,26 +274,18 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             to: activeChat.customerPhone,
             text: "",
             mediaUrl: publicUrl,
-            mediaType: mediaType
+            mediaType: mediaType,
+            conversationId: activeChatId
           })
         });
 
         if (!res.ok) {
           triggerToast(`Erreur lors de l'envoi du fichier ${file.name} via WhatsApp`, "warning");
-        }
-
-        // Save to Supabase Messages
-        const { error: msgErr } = await supabase.from("messages").insert({
-          conversation_id: activeChatId,
-          sender: "human",
-          text: messageText,
-          time: timeStr
-        });
-
-        if (msgErr) {
-          triggerToast(`Erreur Supabase: ${msgErr.message}`, "warning");
           continue;
         }
+
+        const resData = await res.json();
+        const dbMessage = resData.message;
 
         // Add to local state
         if (setConversations) {
@@ -311,7 +295,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                 ...c,
                 messages: [
                   ...c.messages,
-                  {
+                  dbMessage || {
                     id: `msg-${Date.now()}-${i}`,
                     sender: "human",
                     text: messageText,

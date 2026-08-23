@@ -268,38 +268,33 @@ export default function Home() {
 
     const chat = conversations.find(c => c.id === activeChatId);
     const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const textToSend = chatInput.trim();
+    let dbMessage = null;
 
-    // If in human takeover mode, send the message to WhatsApp first
-    if (chat && chat.status === "human_takeover") {
-      try {
-        const res = await fetch("/api/whatsapp/send", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            to: chat.customerPhone,
-            text: chatInput.trim()
-          })
-        });
-        if (!res.ok) {
-          console.error("Failed to deliver WhatsApp message via API");
-          triggerToast("Erreur lors de l'envoi du message WhatsApp via l'API", "warning");
-        }
-      } catch (err) {
-        console.error("Error sending manual WhatsApp message:", err);
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: chat?.customerPhone,
+          text: textToSend,
+          conversationId: activeChatId
+        })
+      });
+
+      if (!res.ok) {
+        console.error("Failed to deliver WhatsApp message via API");
+        triggerToast("Erreur lors de l'envoi du message WhatsApp via l'API", "warning");
+        return;
       }
-    }
 
-    const { error } = await supabase.from("messages").insert({
-      conversation_id: activeChatId,
-      sender: "human",
-      text: chatInput.trim(),
-      time: timeStr
-    });
-
-    if (error) {
-      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      const data = await res.json();
+      dbMessage = data.message;
+    } catch (err) {
+      console.error("Error sending manual WhatsApp message:", err);
+      triggerToast("Erreur de connexion lors de l'envoi", "warning");
       return;
     }
 
@@ -309,10 +304,10 @@ export default function Home() {
           ...c,
           messages: [
             ...c.messages,
-            {
+            dbMessage || {
               id: `msg-${Date.now()}`,
               sender: "human",
-              text: chatInput.trim(),
+              text: textToSend,
               time: timeStr
             }
           ]

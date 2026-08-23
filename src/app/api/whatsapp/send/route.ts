@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppAudio } from "@/lib/whatsapp/send";
+import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppAudio, sendWhatsAppDocument } from "@/lib/whatsapp/send";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +39,10 @@ export async function POST(req: NextRequest) {
         success = await sendWhatsAppVideo(to, mediaUrl, text || "", resolvedBusinessId);
       } else if (mediaType === "audio") {
         success = await sendWhatsAppAudio(to, mediaUrl, resolvedBusinessId);
+        if (!success) {
+          console.warn("Failed to send audio natively via Meta API. Falling back to document presentation...");
+          success = await sendWhatsAppDocument(to, mediaUrl, "note-vocale.ogg", "Note vocale", resolvedBusinessId);
+        }
       } else {
         // Fallback to sending mediaUrl as text
         success = await sendWhatsAppMessage(to, `[Fichier] ${mediaUrl}\n${text || ""}`.trim(), resolvedBusinessId);

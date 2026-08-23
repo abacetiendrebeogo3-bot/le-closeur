@@ -277,18 +277,76 @@ export async function POST(req: NextRequest) {
     let imageMimeType = "image/jpeg";
 
     if (messageObject.type === "audio") {
-      const audioReply = "Je ne peux pas encore lire les messages vocaux. Pouvez-vous m'écrire par texte s'il vous plaît ?";
-      await sendWhatsAppMessage(customerPhone, audioReply, businessId);
-      
-      const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-      await supabaseServer.from("messages").insert({
-        conversation_id: conversationId,
-        sender: "customer",
-        text: "[Message vocal reçu]",
-        time: timeStr,
-      });
+      const audioId = messageObject.audio?.id;
+      let transcribedText = "";
 
-      return NextResponse.json({ status: "success", message: "Audio message processed." });
+      if (audioId && token) {
+        try {
+          // Fetch media URL from Meta API
+          const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const mediaMetadata = await mediaRes.json();
+          const downloadUrl = mediaMetadata.url;
+
+          if (downloadUrl) {
+            // Download audio file from Meta
+            const audioFileRes = await fetch(downloadUrl, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const arrayBuffer = await audioFileRes.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            // Check if OpenAI API Key is configured
+            if (process.env.OPENAI_API_KEY) {
+              const formData = new FormData();
+              // Create a Blob from the audio buffer
+              const blob = new Blob([buffer], { type: messageObject.audio.mime_type || "audio/ogg" });
+              // Append the file with a generic filename that Whisper accepts
+              formData.append("file", blob, "audio.ogg");
+              formData.append("model", "whisper-1");
+              formData.append("language", "fr");
+
+              const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+                },
+                body: formData
+              });
+
+              if (whisperRes.ok) {
+                const whisperData = await whisperRes.json();
+                if (whisperData.text) {
+                  transcribedText = whisperData.text;
+                  messageText = `[Message vocal transcrit : "${transcribedText}"]`;
+                }
+              } else {
+                const errData = await whisperRes.json().catch(() => ({}));
+                console.error("Whisper API transcription error status:", whisperRes.status, errData);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error transcribing audio via Whisper:", err);
+        }
+      }
+
+      // If transcription failed or OpenAI key is not configured, fall back to the old behavior
+      if (!transcribedText) {
+        const audioReply = "Je ne peux pas encore lire les messages vocaux. Pouvez-vous m'écrire par texte s'il vous plaît ?";
+        await sendWhatsAppMessage(customerPhone, audioReply, businessId);
+        
+        const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        await supabaseServer.from("messages").insert({
+          conversation_id: conversationId,
+          sender: "customer",
+          text: "[Message vocal reçu (Non lu)]",
+          time: timeStr,
+        });
+
+        return NextResponse.json({ status: "success", message: "Audio message fallback processed." });
+      }
     } else if (messageObject.type === "image") {
       const imageId = messageObject.image?.id;
       if (imageId && token) {

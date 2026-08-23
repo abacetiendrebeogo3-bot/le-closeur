@@ -16,7 +16,10 @@ import {
   ChevronLeft, 
   ChevronRight,
   Paperclip,
-  Loader2
+  Loader2,
+  Mic,
+  Square,
+  Trash2
 } from "lucide-react";
 import { Conversation, Customer } from "../../types";
 import { gsap } from "gsap";
@@ -56,22 +59,94 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || activeChatId === null || !activeChat) return;
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/ogg" });
+        await uploadAndSendAudioBlob(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+
+      triggerToast("Enregistrement démarré", "info");
+    } catch (err: any) {
+      console.error("Error accessing microphone:", err);
+      triggerToast("Impossible d'accéder au microphone", "warning");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.onstop = () => {
+        if (mediaRecorderRef.current) {
+          const stream = mediaRecorderRef.current.stream;
+          stream.getTracks().forEach(track => track.stop());
+        }
+      };
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      triggerToast("Enregistrement annulé", "info");
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const uploadAndSendAudioBlob = async (blob: Blob) => {
+    if (activeChatId === null || !activeChat) return;
     setIsUploading(true);
-    triggerToast("Uploader le fichier...", "info");
+    triggerToast("Envoi de la note vocale...", "info");
 
     try {
-      // 1. Upload to Supabase Storage in 'product-images' bucket
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Date.now()}.${fileExt}`;
+      const fileName = `${Date.now()}.ogg`;
       const filePath = `manual-uploads/${activeChat.customerPhone}/${fileName}`;
 
       const { data, error: uploadErr } = await supabase.storage
         .from("product-images")
-        .upload(filePath, file, {
+        .upload(filePath, blob, {
+          contentType: "audio/ogg",
           cacheControl: "3600",
           upsert: true
         });
@@ -80,27 +155,11 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
         throw uploadErr;
       }
 
-      // 2. Get Public URL
       const { data: { publicUrl } } = supabase.storage
         .from("product-images")
         .getPublicUrl(filePath);
 
-      // 3. Determine media type from file type
-      let mediaType = "document";
-      let prefix = "Fichier";
-      if (file.type.startsWith("image/")) {
-        mediaType = "image";
-        prefix = "Image";
-      } else if (file.type.startsWith("video/")) {
-        mediaType = "video";
-        prefix = "Video";
-      } else if (file.type.startsWith("audio/")) {
-        mediaType = "audio";
-        prefix = "Audio";
-      }
-
-      // 4. Send to WhatsApp and insert into messages table
-      const messageText = `[${prefix}: ${publicUrl}]`;
+      const messageText = `[Audio: ${publicUrl}]`;
       const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
       // Send to WhatsApp API
@@ -113,12 +172,12 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
           to: activeChat.customerPhone,
           text: "",
           mediaUrl: publicUrl,
-          mediaType: mediaType
+          mediaType: "audio"
         })
       });
 
       if (!res.ok) {
-        triggerToast("Erreur lors de l'envoi du message WhatsApp via l'API", "warning");
+        triggerToast("Erreur lors de l'envoi de la note vocale via WhatsApp", "warning");
       }
 
       // Save to Supabase Messages
@@ -134,7 +193,6 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
         return;
       }
 
-      // Add to local state
       if (setConversations) {
         setConversations(prev => prev.map(c => {
           if (c.id === activeChatId) {
@@ -155,9 +213,121 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
         }));
       }
 
-      triggerToast("Fichier envoyé avec succès !", "success");
+      triggerToast("Note vocale envoyée !", "success");
     } catch (err: any) {
-      console.error("Error uploading / sending file:", err);
+      console.error("Error sending voice note:", err);
+      triggerToast(`Erreur d'envoi audio: ${err.message || err}`, "warning");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || activeChatId === null || !activeChat) return;
+
+    setIsUploading(true);
+    triggerToast(`Uploader ${files.length} fichier(s)...`, "info");
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // 1. Upload to Supabase Storage in 'product-images' bucket
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const filePath = `manual-uploads/${activeChat.customerPhone}/${fileName}`;
+
+        const { data, error: uploadErr } = await supabase.storage
+          .from("product-images")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: true
+          });
+
+        if (uploadErr) {
+          throw uploadErr;
+        }
+
+        // 2. Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from("product-images")
+          .getPublicUrl(filePath);
+
+        // 3. Determine media type from file type
+        let mediaType = "document";
+        let prefix = "Fichier";
+        if (file.type.startsWith("image/")) {
+          mediaType = "image";
+          prefix = "Image";
+        } else if (file.type.startsWith("video/")) {
+          mediaType = "video";
+          prefix = "Video";
+        } else if (file.type.startsWith("audio/")) {
+          mediaType = "audio";
+          prefix = "Audio";
+        }
+
+        // 4. Send to WhatsApp and insert into messages table
+        const messageText = `[${prefix}: ${publicUrl}]`;
+        const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+        // Send to WhatsApp API
+        const res = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: activeChat.customerPhone,
+            text: "",
+            mediaUrl: publicUrl,
+            mediaType: mediaType
+          })
+        });
+
+        if (!res.ok) {
+          triggerToast(`Erreur lors de l'envoi du fichier ${file.name} via WhatsApp`, "warning");
+        }
+
+        // Save to Supabase Messages
+        const { error: msgErr } = await supabase.from("messages").insert({
+          conversation_id: activeChatId,
+          sender: "human",
+          text: messageText,
+          time: timeStr
+        });
+
+        if (msgErr) {
+          triggerToast(`Erreur Supabase: ${msgErr.message}`, "warning");
+          continue;
+        }
+
+        // Add to local state
+        if (setConversations) {
+          setConversations(prev => prev.map(c => {
+            if (c.id === activeChatId) {
+              return {
+                ...c,
+                messages: [
+                  ...c.messages,
+                  {
+                    id: `msg-${Date.now()}-${i}`,
+                    sender: "human",
+                    text: messageText,
+                    time: timeStr
+                  }
+                ]
+              };
+            }
+            return c;
+          }));
+        }
+      }
+
+      triggerToast("Tous les fichiers ont été envoyés avec succès !", "success");
+    } catch (err: any) {
+      console.error("Error uploading / sending files:", err);
       triggerToast(`Erreur d'envoi de fichier: ${err.message || err}`, "warning");
     } finally {
       setIsUploading(false);
@@ -513,36 +683,82 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                   ref={fileInputRef} 
                   onChange={handleFileChange} 
                   className="hidden" 
+                  multiple
                   accept="image/*,video/*,audio/*,application/pdf"
                 />
-                <button 
-                  type="button" 
-                  disabled={isUploading}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-3 bg-neige border border-graphite/10 text-encre/60 hover:text-menthe hover:border-menthe transition-colors rounded-xl flex items-center justify-center disabled:opacity-50"
-                  title="Joindre un fichier (Image, Vidéo, Audio, Document)"
-                >
-                  {isUploading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Paperclip className="w-3.5 h-3.5" />
-                  )}
-                </button>
-                <input 
-                  value={chatInput} 
-                  onChange={(e) => setChatInput(e.target.value)} 
-                  type="text" 
-                  disabled={isUploading}
-                  placeholder={isUploading ? "Uploader..." : "Écrire une réponse..."} 
-                  className="flex-1 bg-neige border border-graphite/10 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-menthe transition-all font-semibold disabled:opacity-50" 
-                />
-                <button 
-                  type="submit" 
-                  disabled={isUploading}
-                  className="magnetic-btn bg-encre text-neige px-4 py-3 rounded-xl font-bold text-xs flex items-center justify-center hover:bg-menthe hover:text-white transition-all shadow-sm disabled:opacity-50"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
+                
+                {isRecording ? (
+                  // Active voice note recording interface
+                  <div className="flex-1 flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-4 py-2 animate-pulse">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                      <span className="text-xs font-bold text-red-600">Enregistrement audio...</span>
+                      <span className="text-xs font-mono text-encre/60 ml-2">{formatDuration(recordingDuration)}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        type="button" 
+                        onClick={cancelRecording}
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                        title="Annuler l'enregistrement"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={stopRecording}
+                        className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1.5 px-3"
+                        title="Envoyer la note vocale"
+                      >
+                        <Square className="w-3.5 h-3.5 fill-current" />
+                        <span className="text-[10px] font-bold">Envoyer</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Standard chat & media send interface
+                  <>
+                    <button 
+                      type="button" 
+                      disabled={isUploading}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-3 bg-neige border border-graphite/10 text-encre/60 hover:text-menthe hover:border-menthe transition-colors rounded-xl flex items-center justify-center disabled:opacity-50"
+                      title="Joindre des fichiers (Images, Vidéos, Audios, Documents)"
+                    >
+                      {isUploading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Paperclip className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+
+                    <button 
+                      type="button" 
+                      disabled={isUploading}
+                      onClick={startRecording}
+                      className="p-3 bg-neige border border-graphite/10 text-encre/60 hover:text-red-500 hover:border-red-500/30 transition-colors rounded-xl flex items-center justify-center disabled:opacity-50"
+                      title="Faire un audio (Enregistrer un message vocal)"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                    </button>
+
+                    <input 
+                      value={chatInput} 
+                      onChange={(e) => setChatInput(e.target.value)} 
+                      type="text" 
+                      disabled={isUploading}
+                      placeholder={isUploading ? "Uploader..." : "Écrire une réponse..."} 
+                      className="flex-1 bg-neige border border-graphite/10 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-menthe transition-all font-semibold disabled:opacity-50" 
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={isUploading}
+                      className="magnetic-btn bg-encre text-neige px-4 py-3 rounded-xl font-bold text-xs flex items-center justify-center hover:bg-menthe hover:text-white transition-all shadow-sm disabled:opacity-50"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
               </form>
             </>
           ) : (

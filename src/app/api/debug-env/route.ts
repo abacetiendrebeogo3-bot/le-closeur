@@ -153,6 +153,21 @@ export async function GET(req: NextRequest) {
     allUsers = { error: err.message };
   }
 
+  // Fetch all products
+  let allProducts: any = null;
+  try {
+    const { data, error } = await supabaseServer
+      .from("products")
+      .select("*");
+    if (error) {
+      allProducts = { error: error.message };
+    } else {
+      allProducts = data;
+    }
+  } catch (err: any) {
+    allProducts = { error: err.message };
+  }
+
   const results = [];
   for (const model of models) {
     const res = await testModel(apiKey, model);
@@ -172,6 +187,7 @@ export async function GET(req: NextRequest) {
     supabaseConversations: allConversations,
     supabaseBusinesses: allBusinesses,
     supabaseMembers: allMembers,
-    supabaseUsers: allUsers
+    supabaseUsers: allUsers,
+    supabaseProducts: allProducts
   });
 }

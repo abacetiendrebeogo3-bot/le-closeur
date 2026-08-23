@@ -297,6 +297,29 @@ export async function POST(req: NextRequest) {
             const arrayBuffer = await audioFileRes.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
 
+            // Upload audio file to Supabase Storage
+            let audioPublicUrl = "";
+            try {
+              const audioUploadPath = `received-audio/${customerPhone}/${Date.now()}.ogg`;
+              const { error: uploadAudioErr } = await supabaseServer.storage
+                .from("product-images")
+                .upload(audioUploadPath, buffer, {
+                  contentType: messageObject.audio.mime_type || "audio/ogg",
+                  upsert: true
+                });
+
+              if (uploadAudioErr) {
+                console.error("Supabase storage upload audio error:", uploadAudioErr);
+              } else {
+                const { data: { publicUrl } } = supabaseServer.storage
+                  .from("product-images")
+                  .getPublicUrl(audioUploadPath);
+                audioPublicUrl = publicUrl;
+              }
+            } catch (storageErr) {
+              console.error("Error uploading audio to Supabase Storage:", storageErr);
+            }
+
             // Check if OpenAI API Key is configured
             if (process.env.OPENAI_API_KEY) {
               const formData = new FormData();
@@ -319,7 +342,9 @@ export async function POST(req: NextRequest) {
                 const whisperData = await whisperRes.json();
                 if (whisperData.text) {
                   transcribedText = whisperData.text;
-                  messageText = transcribedText;
+                  messageText = audioPublicUrl 
+                    ? `[Audio: ${audioPublicUrl}] ${transcribedText}` 
+                    : transcribedText;
                 }
               } else {
                 const errData = await whisperRes.json().catch(() => ({}));
@@ -529,10 +554,19 @@ ${JSON.stringify(zones || [], null, 2)}
           historyToMap = historyToMap.slice(0, -1);
         }
 
-        const formattedMessages: any[] = historyToMap.map((m: any) => ({
-          role: m.sender === "customer" ? ("user" as const) : ("assistant" as const),
-          content: m.text,
-        }));
+        const formattedMessages: any[] = historyToMap.map((m: any) => {
+          let textContent = m.text;
+          // Clean dynamic media formatting tags so Anthropic focuses only on text transcriptions/conversations
+          textContent = textContent.replace(/\[Audio:\s*[^\]]+\]/gi, "");
+          textContent = textContent.replace(/\[Image\s*(?:reçue|envoyée)?\s*:\s*[^\]]+\]/gi, "");
+          textContent = textContent.replace(/\[Image\s*envoyée\s*:\s*[^\]]+\]\s*(https?:\/\/[^\s]+)/gi, "");
+          textContent = textContent.replace(/\[Video\s*(?:reçue|envoyée)?\s*:\s*[^\]]+\]/gi, "");
+          textContent = textContent.replace(/\[Fichier\s*(?:reçu|envoyé)?\s*:\s*[^\]]+\]/gi, "");
+          return {
+            role: m.sender === "customer" ? ("user" as const) : ("assistant" as const),
+            content: textContent.trim() || "[Message média]"
+          };
+        });
 
         // Append current incoming message (with image visual content if applicable)
         if (messageObject.type === "image" && base64Data) {
@@ -554,9 +588,11 @@ ${JSON.stringify(zones || [], null, 2)}
             ]
           });
         } else {
+          let currentText = messageText || "";
+          currentText = currentText.replace(/\[Audio:\s*[^\]]+\]/gi, "");
           formattedMessages.push({
             role: "user" as const,
-            content: messageText || ""
+            content: currentText.trim() || "[Message vocal]"
           });
         }
 

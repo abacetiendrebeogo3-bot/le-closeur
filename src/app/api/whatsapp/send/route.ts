@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
+import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppAudio } from "@/lib/whatsapp/send";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const { to, text } = await req.json();
+    const { to, text, mediaUrl, mediaType } = await req.json();
 
-    if (!to || !text) {
-      return NextResponse.json({ error: "Missing to or text parameter" }, { status: 400 });
+    if (!to) {
+      return NextResponse.json({ error: "Missing destination 'to' parameter" }, { status: 400 });
+    }
+
+    if (!text && !mediaUrl) {
+      return NextResponse.json({ error: "Missing 'text' or 'mediaUrl' parameter" }, { status: 400 });
     }
 
     // Resolve business_id from supabase based on the destination phone number
@@ -25,7 +29,22 @@ export async function POST(req: NextRequest) {
     }
 
     const resolvedBusinessId = conv?.business_id;
-    const success = await sendWhatsAppMessage(to, text, resolvedBusinessId);
+    let success = false;
+
+    if (mediaUrl) {
+      if (mediaType === "image") {
+        success = await sendWhatsAppImage(to, mediaUrl, text || "", resolvedBusinessId);
+      } else if (mediaType === "video") {
+        success = await sendWhatsAppVideo(to, mediaUrl, text || "", resolvedBusinessId);
+      } else if (mediaType === "audio") {
+        success = await sendWhatsAppAudio(to, mediaUrl, resolvedBusinessId);
+      } else {
+        // Fallback to sending mediaUrl as text
+        success = await sendWhatsAppMessage(to, `[Fichier] ${mediaUrl}\n${text || ""}`.trim(), resolvedBusinessId);
+      }
+    } else if (text) {
+      success = await sendWhatsAppMessage(to, text, resolvedBusinessId);
+    }
 
     if (success) {
       return NextResponse.json({ success: true });

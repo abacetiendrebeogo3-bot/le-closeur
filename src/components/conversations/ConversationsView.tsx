@@ -14,7 +14,9 @@ import {
   UserCheck, 
   Info, 
   ChevronLeft, 
-  ChevronRight
+  ChevronRight,
+  Paperclip,
+  Loader2
 } from "lucide-react";
 import { Conversation, Customer } from "../../types";
 import { gsap } from "gsap";
@@ -51,6 +53,206 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   const [showCustomerSidebar, setShowCustomerSidebar] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || activeChatId === null || !activeChat) return;
+
+    setIsUploading(true);
+    triggerToast("Uploader le fichier...", "info");
+
+    try {
+      // 1. Upload to Supabase Storage in 'product-images' bucket
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `manual-uploads/${activeChat.customerPhone}/${fileName}`;
+
+      const { data, error: uploadErr } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true
+        });
+
+      if (uploadErr) {
+        throw uploadErr;
+      }
+
+      // 2. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("product-images")
+        .getPublicUrl(filePath);
+
+      // 3. Determine media type from file type
+      let mediaType = "document";
+      let prefix = "Fichier";
+      if (file.type.startsWith("image/")) {
+        mediaType = "image";
+        prefix = "Image";
+      } else if (file.type.startsWith("video/")) {
+        mediaType = "video";
+        prefix = "Video";
+      } else if (file.type.startsWith("audio/")) {
+        mediaType = "audio";
+        prefix = "Audio";
+      }
+
+      // 4. Send to WhatsApp and insert into messages table
+      const messageText = `[${prefix}: ${publicUrl}]`;
+      const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+      // Send to WhatsApp API
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: activeChat.customerPhone,
+          text: "",
+          mediaUrl: publicUrl,
+          mediaType: mediaType
+        })
+      });
+
+      if (!res.ok) {
+        triggerToast("Erreur lors de l'envoi du message WhatsApp via l'API", "warning");
+      }
+
+      // Save to Supabase Messages
+      const { error: msgErr } = await supabase.from("messages").insert({
+        conversation_id: activeChatId,
+        sender: "human",
+        text: messageText,
+        time: timeStr
+      });
+
+      if (msgErr) {
+        triggerToast(`Erreur Supabase: ${msgErr.message}`, "warning");
+        return;
+      }
+
+      // Add to local state
+      if (setConversations) {
+        setConversations(prev => prev.map(c => {
+          if (c.id === activeChatId) {
+            return {
+              ...c,
+              messages: [
+                ...c.messages,
+                {
+                  id: `msg-${Date.now()}`,
+                  sender: "human",
+                  text: messageText,
+                  time: timeStr
+                }
+              ]
+            };
+          }
+          return c;
+        }));
+      }
+
+      triggerToast("Fichier envoyé avec succès !", "success");
+    } catch (err: any) {
+      console.error("Error uploading / sending file:", err);
+      triggerToast(`Erreur d'envoi de fichier: ${err.message || err}`, "warning");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const renderMessageContent = (text: string) => {
+    // Detect media formats
+    const imageRegex = /\[Image\s*(?:reçue|envoyée)?\s*:\s*([^\]\s]+)\]/i;
+    const audioRegex = /\[Audio\s*(?:reçu|envoyé)?\s*:\s*([^\]\s]+)\]/i;
+    const videoRegex = /\[Video\s*(?:reçue|envoyée)?\s*:\s*([^\]\s]+)\]/i;
+    const documentRegex = /\[Fichier\s*(?:reçu|envoyé)?\s*:\s*([^\]\s]+)\]/i;
+
+    // Check generic URLs in bracket fallback (from the webhook format `[Image envoyée : Kit Minceur] URL`)
+    const webhookImageRegex = /\[Image\s*envoyée\s*:\s*[^\]]+\]\s*(https?:\/\/[^\s\]]+)/i;
+
+    let match: RegExpMatchArray | null;
+
+    if ((match = text.match(webhookImageRegex))) {
+      const url = match[1].trim();
+      const restText = text.replace(match[0], "").trim();
+      return (
+        <div className="flex flex-col gap-2">
+          <img src={url} alt="Visuel" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />
+          {restText && <p className="mt-1">{restText}</p>}
+        </div>
+      );
+    }
+
+    if ((match = text.match(imageRegex))) {
+      const url = match[1].trim();
+      const restText = text.replace(match[0], "").trim();
+      return (
+        <div className="flex flex-col gap-2">
+          <img src={url} alt="Visuel" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />
+          {restText && <p className="mt-1">{restText}</p>}
+        </div>
+      );
+    }
+
+    if ((match = text.match(audioRegex))) {
+      const url = match[1].trim();
+      const restText = text.replace(match[0], "").trim();
+      return (
+        <div className="flex flex-col gap-2 min-w-[200px] md:min-w-[260px]">
+          <audio src={url} controls className="w-full h-10 rounded-lg bg-neige" />
+          {restText && <p className="mt-1">{restText}</p>}
+        </div>
+      );
+    }
+
+    if ((match = text.match(videoRegex))) {
+      const url = match[1].trim();
+      const restText = text.replace(match[0], "").trim();
+      return (
+        <div className="flex flex-col gap-2">
+          <video src={url} controls className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />
+          {restText && <p className="mt-1">{restText}</p>}
+        </div>
+      );
+    }
+
+    if ((match = text.match(documentRegex))) {
+      const url = match[1].trim();
+      const restText = text.replace(match[0], "").trim();
+      return (
+        <div className="flex flex-col gap-2">
+          <a href={url} target="_blank" rel="noopener noreferrer" className="underline font-bold text-xs flex items-center gap-1">
+            📄 Télécharger le document / fichier
+          </a>
+          {restText && <p className="mt-1">{restText}</p>}
+        </div>
+      );
+    }
+
+    // Direct url checking
+    const cleanText = text.trim();
+    if (cleanText.startsWith("http://") || cleanText.startsWith("https://")) {
+      const lower = cleanText.toLowerCase();
+      if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".gif") || lower.endsWith(".webp")) {
+        return <img src={cleanText} alt="Image" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
+      }
+      if (lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".ogg") || lower.endsWith(".m4a") || lower.endsWith(".oga") || lower.includes("audio")) {
+        return <audio src={cleanText} controls className="w-full h-10 rounded-lg bg-neige" />;
+      }
+      if (lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mov")) {
+        return <video src={cleanText} controls className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
+      }
+    }
+
+    return <span>{text}</span>;
+  };
   
   const sidebarRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -272,7 +474,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                                 ? 'bg-encre text-neige shadow-sm rounded-tr-none border border-graphite'
                                 : 'bg-menthe text-white shadow-sm rounded-tr-none border border-menthe/20'
                           }`}>
-                            {msg.text}
+                            {renderMessageContent(msg.text)}
                           </div>
                           <span className="text-[8px] text-encre/30 px-1 text-right mt-0.5">{msg.time}</span>
                         </div>
@@ -305,17 +507,39 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
               </div>
 
               {/* Chat Input form */}
-              <form onSubmit={handleSendMessage} className="p-4 border-t border-graphite/10 flex gap-3 bg-white">
+              <form onSubmit={handleSendMessage} className="p-4 border-t border-graphite/10 flex gap-3 bg-white items-center">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                  accept="image/*,video/*,audio/*,application/pdf"
+                />
+                <button 
+                  type="button" 
+                  disabled={isUploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-3 bg-neige border border-graphite/10 text-encre/60 hover:text-menthe hover:border-menthe transition-colors rounded-xl flex items-center justify-center disabled:opacity-50"
+                  title="Joindre un fichier (Image, Vidéo, Audio, Document)"
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Paperclip className="w-3.5 h-3.5" />
+                  )}
+                </button>
                 <input 
                   value={chatInput} 
                   onChange={(e) => setChatInput(e.target.value)} 
                   type="text" 
-                  placeholder="Écrire une réponse..." 
-                  className="flex-1 bg-neige border border-graphite/10 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-menthe transition-all font-semibold" 
+                  disabled={isUploading}
+                  placeholder={isUploading ? "Uploader..." : "Écrire une réponse..."} 
+                  className="flex-1 bg-neige border border-graphite/10 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-menthe transition-all font-semibold disabled:opacity-50" 
                 />
                 <button 
                   type="submit" 
-                  className="magnetic-btn bg-encre text-neige px-4 rounded-xl font-bold text-xs flex items-center justify-center hover:bg-menthe hover:text-white transition-all shadow-sm"
+                  disabled={isUploading}
+                  className="magnetic-btn bg-encre text-neige px-4 py-3 rounded-xl font-bold text-xs flex items-center justify-center hover:bg-menthe hover:text-white transition-all shadow-sm disabled:opacity-50"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>

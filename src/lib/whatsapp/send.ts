@@ -199,3 +199,130 @@ export async function sendWhatsAppTypingIndicator(to: string, businessId?: strin
     return false;
   }
 }
+
+/**
+ * Helper to send an outgoing video message to a WhatsApp number using the WhatsApp Cloud API.
+ */
+export async function sendWhatsAppVideo(to: string, videoUrl: string, caption?: string, businessId?: string): Promise<boolean> {
+  let token = process.env.WHATSAPP_ACCESS_TOKEN;
+  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (businessId) {
+    try {
+      const { data: business, error } = await supabaseServer
+        .from("businesses")
+        .select("whatsapp_access_token, whatsapp_phone_number_id")
+        .eq("id", businessId)
+        .maybeSingle();
+
+      if (error) {
+        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
+      } else if (business) {
+        if (business.whatsapp_access_token) {
+          token = business.whatsapp_access_token;
+        }
+        if (business.whatsapp_phone_number_id) {
+          phoneNumberId = business.whatsapp_phone_number_id;
+        }
+      }
+    } catch (err) {
+      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
+    }
+  }
+
+  if (!token || !phoneNumberId) {
+    console.error("WhatsApp credentials missing.");
+    return false;
+  }
+
+  const cleanTo = to.replace(/[^0-9]/g, "");
+
+  try {
+    const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: cleanTo,
+        type: "video",
+        video: {
+          link: videoUrl,
+          caption: caption || "",
+        },
+      }),
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error("Error in sendWhatsAppVideo:", error);
+    return false;
+  }
+}
+
+/**
+ * Helper to send an outgoing audio message to a WhatsApp number using the WhatsApp Cloud API.
+ */
+export async function sendWhatsAppAudio(to: string, audioUrl: string, businessId?: string): Promise<boolean> {
+  let token = process.env.WHATSAPP_ACCESS_TOKEN;
+  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (businessId) {
+    try {
+      const { data: business, error } = await supabaseServer
+        .from("businesses")
+        .select("whatsapp_access_token, whatsapp_phone_number_id")
+        .eq("id", businessId)
+        .maybeSingle();
+
+      if (error) {
+        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
+      } else if (business) {
+        if (business.whatsapp_access_token) {
+          token = business.whatsapp_access_token;
+        }
+        if (business.whatsapp_phone_number_id) {
+          phoneNumberId = business.whatsapp_phone_number_id;
+        }
+      }
+    } catch (err) {
+      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
+    }
+  }
+
+  if (!token || !phoneNumberId) {
+    console.error("WhatsApp credentials missing.");
+    return false;
+  }
+
+  const cleanTo = to.replace(/[^0-9]/g, "");
+
+  try {
+    const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: cleanTo,
+        type: "audio",
+        audio: {
+          link: audioUrl,
+        },
+      }),
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error("Error in sendWhatsAppAudio:", error);
+    return false;
+  }
+}

@@ -163,6 +163,8 @@ export async function GET(req: NextRequest) {
     message: "Anthropic model connectivity diagnostic results",
     apiKeyConfigured: true,
     apiKeyLength: apiKey.length,
+    openaiKeyConfigured: !!process.env.OPENAI_API_KEY,
+    openaiKeyLength: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
     allowedModelsFromAPI: allowedModelsList,
     results: results,
     supabaseLastMessages: lastMessages,

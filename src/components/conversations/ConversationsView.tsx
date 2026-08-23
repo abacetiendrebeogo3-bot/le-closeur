@@ -61,30 +61,24 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recorderRef = useRef<any>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    import("mic-recorder-to-mp3").then(({ default: MicRecorder }) => {
+      recorderRef.current = new MicRecorder({ bitRate: 128 });
+    }).catch(err => {
+      console.error("Error initializing mic-recorder-to-mp3:", err);
+    });
+  }, []);
+
   const startRecording = async () => {
+    if (!recorderRef.current) {
+      triggerToast("Le micro-enregistreur n'est pas initialisé", "warning");
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        await uploadAndSendAudioBlob(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
+      await recorderRef.current.start();
       setIsRecording(true);
       setRecordingDuration(0);
       
@@ -94,37 +88,45 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
       triggerToast("Enregistrement démarré", "info");
     } catch (err: any) {
-      console.error("Error accessing microphone:", err);
+      console.error("Error starting microphone recording:", err);
       triggerToast("Impossible d'accéder au microphone", "warning");
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
+    if (recorderRef.current && isRecording) {
+      recorderRef.current.stop().getMp3().then(async ([buffer, blob]: any) => {
+        setIsRecording(false);
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+
+        const file = new File(buffer, `${Date.now()}.mp3`, {
+          type: blob.type,
+          lastModified: Date.now()
+        });
+
+        await uploadAndSendAudioBlob(file);
+      }).catch((e: any) => {
+        console.error("Error stopping recording:", e);
+        triggerToast("Erreur lors de l'enregistrement", "warning");
+      });
     }
   };
 
   const cancelRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.onstop = () => {
-        if (mediaRecorderRef.current) {
-          const stream = mediaRecorderRef.current.stream;
-          stream.getTracks().forEach(track => track.stop());
+    if (recorderRef.current && isRecording) {
+      recorderRef.current.stop().getMp3().then(() => {
+        setIsRecording(false);
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
         }
-      };
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-      triggerToast("Enregistrement annulé", "info");
+        triggerToast("Enregistrement annulé", "info");
+      }).catch((e: any) => {
+        console.error("Error cancelling recording:", e);
+      });
     }
   };
 
@@ -140,7 +142,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     triggerToast("Envoi de la note vocale...", "info");
 
     try {
-      const fileName = `${Date.now()}.webm`;
+      const fileName = `${Date.now()}.mp3`;
       const filePath = `manual-uploads/${activeChat.customerPhone}/${fileName}`;
 
       const formData = new FormData();

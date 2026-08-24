@@ -128,16 +128,29 @@ ${JSON.stringify(zones || [], null, 2)}
 `;
 
     // 5. Build conversation history for Claude
-    const formattedMessages = (messages || []).map((m: any) => ({
-      role: m.sender === "customer" ? "user" : "assistant",
-      content: m.text,
-    }));
+    const rawHistory = [
+      ...(messages || []).map((m: any) => ({
+        role: m.sender === "customer" ? "user" : "assistant",
+        content: m.text || "",
+      })),
+      {
+        role: "user",
+        content: text,
+      }
+    ];
 
-    // Add current user message
-    formattedMessages.push({
-      role: "user",
-      content: text,
-    });
+    const formattedMessages: any[] = [];
+    for (const msg of rawHistory) {
+      if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === msg.role) {
+        formattedMessages[formattedMessages.length - 1].content += "\n" + msg.content;
+      } else {
+        formattedMessages.push({ role: msg.role, content: msg.content });
+      }
+    }
+
+    while (formattedMessages.length > 0 && formattedMessages[0].role === "assistant") {
+      formattedMessages.shift();
+    }
 
     // Helper to update tags dynamically
     const updateCustomerTag = async (newTag: string) => {

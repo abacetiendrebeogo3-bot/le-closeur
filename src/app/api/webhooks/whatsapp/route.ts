@@ -582,7 +582,7 @@ ${JSON.stringify(zones || [], null, 2)}
           historyToMap = historyToMap.slice(0, -1);
         }
 
-        const formattedMessages: any[] = historyToMap.map((m: any) => {
+        const rawHistory: any[] = historyToMap.map((m: any) => {
           let textContent = m.text;
           // Clean dynamic media formatting tags so Anthropic focuses only on text transcriptions/conversations
           textContent = textContent.replace(/\[Audio:\s*[^\]]+\]/gi, "");
@@ -598,7 +598,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
         // Append current incoming message (with image visual content if applicable)
         if (messageObject.type === "image" && base64Data) {
-          formattedMessages.push({
+          rawHistory.push({
             role: "user" as const,
             content: [
               {
@@ -618,10 +618,34 @@ ${JSON.stringify(zones || [], null, 2)}
         } else {
           let currentText = messageText || "";
           currentText = currentText.replace(/\[Audio:\s*[^\]]+\]/gi, "");
-          formattedMessages.push({
+          rawHistory.push({
             role: "user" as const,
             content: currentText.trim() || "[Message vocal]"
           });
+        }
+
+        const formattedMessages: any[] = [];
+        for (const msg of rawHistory) {
+          if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === msg.role) {
+            const lastMsg = formattedMessages[formattedMessages.length - 1];
+            if (typeof lastMsg.content === "string" && typeof msg.content === "string") {
+              lastMsg.content += "\n" + msg.content;
+            } else {
+              const lastContentArray = Array.isArray(lastMsg.content)
+                ? lastMsg.content
+                : [{ type: "text", text: String(lastMsg.content) }];
+              const currentContentArray = Array.isArray(msg.content)
+                ? msg.content
+                : [{ type: "text", text: String(msg.content) }];
+              lastMsg.content = [...lastContentArray, ...currentContentArray];
+            }
+          } else {
+            formattedMessages.push({ role: msg.role, content: msg.content });
+          }
+        }
+
+        while (formattedMessages.length > 0 && formattedMessages[0].role === "assistant") {
+          formattedMessages.shift();
         }
 
         // Define Tools

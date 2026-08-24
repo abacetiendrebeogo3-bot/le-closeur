@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTypingIndicator } from "@/lib/whatsapp/send";
+import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, CLAUDE_MODEL } from "@/lib/ai/anthropic";
 import crypto from "crypto";
 

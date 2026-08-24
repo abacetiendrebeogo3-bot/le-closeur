@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, CLAUDE_MODEL } from "@/lib/ai/anthropic";
 
 export async function POST(req: NextRequest) {

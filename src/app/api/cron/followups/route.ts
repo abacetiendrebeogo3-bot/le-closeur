@@ -218,6 +218,19 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+
+      // --- RULE D: AUTOMATICALLY MARK AS FROID AFTER 24H INACTIVITY FROM CLIENT ---
+      if (lastMsg.sender === "ai" && !order) {
+        const lastMsgTime = new Date(lastMsg.created_at).getTime();
+        const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+        if (lastMsgTime < twentyFourHoursAgo && conv.engagement_status !== "froid") {
+          await supabaseServer
+            .from("conversations")
+            .update({ engagement_status: "froid" })
+            .eq("id", conversationId);
+          console.log(`Conversation ${conversationId} marked as 'froid' due to 24h+ client inactivity after agent message`);
+        }
+      }
     }
 
     return NextResponse.json({ status: "success", processed: processedCount });

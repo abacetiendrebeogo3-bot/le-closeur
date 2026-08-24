@@ -64,6 +64,32 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   const recorderRef = useRef<any>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const [engagementFilter, setEngagementFilter] = useState<string>("all");
+  const [showDeleteConfirmChat, setShowDeleteConfirmChat] = useState<number | null>(null);
+
+  const handleDeleteChat = async (id: number) => {
+    try {
+      const { error } = await supabase
+        .from("conversations")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+      
+      if (setConversations) {
+        setConversations(prev => prev.filter(c => c.id !== id));
+      }
+      if (activeChatId === id) {
+        setActiveChatId(null);
+      }
+      triggerToast("La conversation a été supprimée.", "success");
+    } catch (err: any) {
+      triggerToast(`Erreur : ${err.message}`, "warning");
+    } finally {
+      setShowDeleteConfirmChat(null);
+    }
+  };
+
   useEffect(() => {
     import("mic-recorder-to-mp3").then((mod) => {
       const MicRecorder = mod.default || mod;
@@ -491,17 +517,19 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
   // Simulation client removed
 
-  // Filter conversations list by search query
-  const filteredConversations = conversations.filter(conv =>
-    conv.customerName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter conversations list by search query and engagement status
+  const filteredConversations = conversations.filter(conv => {
+    const matchesSearch = conv.customerName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesEngagement = engagementFilter === "all" || (conv as any).engagementStatus === engagementFilter;
+    return matchesSearch && matchesEngagement;
+  });
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-10rem)] min-h-0">
       
       {/* Left sidebar: ConversationList */}
       <div className={`w-full lg:w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shrink-0 shadow-sm ${activeChatId !== null ? 'hidden lg:flex' : 'flex'}`}>
-        <div className="p-4 border-b border-graphite/10">
+        <div className="p-4 border-b border-graphite/10 flex flex-col gap-2">
           <input 
             type="text" 
             value={searchQuery}
@@ -509,6 +537,22 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             placeholder="Rechercher une discussion..." 
             className="w-full bg-neige border border-graphite/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-menthe font-semibold" 
           />
+          <select
+            value={engagementFilter}
+            onChange={(e) => setEngagementFilter(e.target.value)}
+            className="w-full bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-menthe cursor-pointer text-encre"
+          >
+            <option value="all">Tous les statuts d'engagement</option>
+            <option value="nouveau">Nouveau</option>
+            <option value="interesse">Intéressé</option>
+            <option value="hesitant">Hésitant</option>
+            <option value="chaud">Chaud</option>
+            <option value="client">Client</option>
+            <option value="client_fidele">Client Fidèle</option>
+            <option value="moins_interesse">Moins Intéressé</option>
+            <option value="froid">Froid</option>
+            <option value="reclamation">Réclamation</option>
+          </select>
         </div>
         
         <div className="flex-1 overflow-y-auto divide-y divide-graphite/5">
@@ -524,6 +568,30 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                 ai_active: "IA active",
                 human_takeover: "Action requise",
                 closed: "Clôturée"
+              };
+
+              const engagementStyles: Record<string, string> = {
+                nouveau: "bg-blue-100 text-blue-800 border-blue-200",
+                interesse: "bg-purple-100 text-purple-800 border-purple-200",
+                hesitant: "bg-amber-100 text-amber-800 border-amber-200",
+                chaud: "bg-rose-100 text-rose-800 border-rose-200",
+                client: "bg-emerald-100 text-emerald-800 border-emerald-200",
+                client_fidele: "bg-teal-100 text-teal-800 border-teal-200 font-extrabold",
+                moins_interesse: "bg-slate-100 text-slate-800 border-slate-200",
+                froid: "bg-gray-100 text-gray-800 border-gray-200",
+                reclamation: "bg-red-100 text-red-800 border-red-200"
+              };
+              
+              const engagementLabels: Record<string, string> = {
+                nouveau: "Nouveau",
+                interesse: "Intéressé",
+                hesitant: "Hésitant",
+                chaud: "Chaud",
+                client: "Client",
+                client_fidele: "Client Fidèle",
+                moins_interesse: "Moins Intéressé",
+                froid: "Froid",
+                reclamation: "Réclamation"
               };
 
               return (
@@ -543,10 +611,27 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                   </div>
                   <p className="text-xs text-encre/60 truncate">{lastMsg ? lastMsg.text : ''}</p>
                   <div className="flex items-center justify-between mt-1">
-                    <span className={`text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border ${badgeStyles[conv.status]}`}>
-                      {badgeLabels[conv.status]}
-                    </span>
-                    {conv.unread && <span className="w-2 h-2 bg-menthe rounded-full animate-pulse"></span>}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded-full font-bold border ${badgeStyles[conv.status]}`}>
+                        {badgeLabels[conv.status]}
+                      </span>
+                      <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded-full font-bold border ${engagementStyles[(conv as any).engagementStatus || "nouveau"]}`}>
+                        {engagementLabels[(conv as any).engagementStatus || "nouveau"]}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {conv.unread && <span className="w-2 h-2 bg-menthe rounded-full animate-pulse"></span>}
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowDeleteConfirmChat(conv.id);
+                        }}
+                        className="p-1 text-encre/40 hover:text-red-500 rounded transition-colors cursor-pointer"
+                        title="Supprimer la conversation"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </span>
+                    </div>
                   </div>
                 </button>
               );
@@ -880,6 +965,34 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
         )}
 
       </div>
+
+      {/* Delete Chat Confirmation Modal */}
+      {showDeleteConfirmChat !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-encre/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[2rem] border border-graphite/10 p-6 max-w-sm w-full shadow-lg flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex flex-col gap-2">
+              <span className="font-black text-sm text-encre">Supprimer la conversation ?</span>
+              <p className="text-xs text-encre/60 leading-relaxed font-semibold">
+                Cette action est irréversible. L&apos;historique complet des messages sera supprimé. Les commandes associées ne seront pas supprimées.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 mt-2">
+              <button
+                onClick={() => setShowDeleteConfirmChat(null)}
+                className="bg-neige hover:bg-neige-dark text-encre text-xs font-bold px-4 py-2 rounded-xl transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => handleDeleteChat(showDeleteConfirmChat)}
+                className="bg-red-500 hover:bg-red-600 text-neige text-xs font-bold px-4 py-2 rounded-xl transition-all"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

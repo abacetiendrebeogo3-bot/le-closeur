@@ -11,6 +11,7 @@ export interface Conversation {
   status: "ai_active" | "human_takeover" | "closed";
   avatar: string;
   unread: boolean;
+  engagementStatus?: string;
   messages: Message[];
 }
 

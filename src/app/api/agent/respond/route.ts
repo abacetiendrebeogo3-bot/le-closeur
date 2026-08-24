@@ -312,6 +312,21 @@ ${JSON.stringify(zones || [], null, 2)}
           required: ["image_type"],
         },
       },
+      {
+        name: "update_engagement_status",
+        description: "Met à jour le statut d'engagement de la conversation avec le client (ex: 'interesse', 'hesitant', 'chaud', 'reclamation'). Utilise cet outil quand le comportement du client indique un changement d'engagement (objections, intérêt fort, plaintes/insatisfaction).",
+        input_schema: {
+          type: "object",
+          properties: {
+            status: {
+              type: "string",
+              enum: ["interesse", "hesitant", "chaud", "reclamation"],
+              description: "Le nouveau statut d'engagement."
+            }
+          },
+          required: ["status"]
+        }
+      }
     ];
 
     // Call Anthropic
@@ -366,6 +381,16 @@ ${JSON.stringify(zones || [], null, 2)}
               resultData = { found: true, status: order.status, payment_status: order.payment_status, total: order.total };
             } else {
               resultData = { found: false, error: "Commande non trouvée." };
+            }
+          } else if (name === "update_engagement_status") {
+            const { error: updateErr } = await supabaseServer
+              .from("conversations")
+              .update({ engagement_status: input.status })
+              .eq("id", conversationId);
+            if (updateErr) {
+              resultData = { success: false, error: updateErr.message };
+            } else {
+              resultData = { success: true, message: `Statut d'engagement mis à jour à '${input.status}'.` };
             }
           } else if (name === "escalate_to_human") {
             // Update conversation status in Supabase
@@ -436,6 +461,19 @@ ${JSON.stringify(zones || [], null, 2)}
               // Insert Order Items
               await supabaseServer.from("order_items").insert(itemsToInsert);
               await updateCustomerTag("commande_passée");
+              
+              // Update conversation engagement status to client / client_fidele
+              const { count } = await supabaseServer
+                .from("orders")
+                .select("*", { count: "exact", head: true })
+                .eq("chat_id", conversationId);
+              const orderCount = (count || 0) + 1; // +1 for the newly inserted order
+              const newEngagement = orderCount >= 3 ? "client_fidele" : "client";
+              await supabaseServer
+                .from("conversations")
+                .update({ engagement_status: newEngagement })
+                .eq("id", conversationId);
+
               resultData = { success: true, order_id: newOrderId, total: total, shipping_fee: shippingFee };
             }
           }

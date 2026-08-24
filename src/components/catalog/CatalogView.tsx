@@ -280,7 +280,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     }
 
     if (showProductModal?.mode === "edit" && showProductModal.productId) {
-      const { error } = await supabase.from("products").update({
+      const { data, error } = await supabase.from("products").update({
         name: prodFormName.trim(),
         price: prodFormPrice,
         category: prodFormCategory.trim() || "Général",
@@ -290,10 +290,15 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         image_urls: imageUrlsArray,
         description: prodFormDescription.trim() || null,
         testimonials: prodFormTestimonials.trim() || null
-      }).eq("id", showProductModal.productId);
+      }).eq("id", showProductModal.productId).select();
 
       if (error) {
         triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        triggerToast("La modification n'a pas pu être enregistrée — vérifiez les permissions de ce produit", "warning");
         return;
       }
 
@@ -312,7 +317,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       triggerToast(`Produit mis à jour avec succès.`, "success");
     } else {
       const newId = `PROD-${Date.now().toString().slice(-4)}`;
-      const { error } = await supabase.from("products").insert({
+      const { data, error } = await supabase.from("products").insert({
         id: newId,
         business_id: businessId,
         name: prodFormName.trim(),
@@ -324,10 +329,15 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         image_urls: imageUrlsArray,
         description: prodFormDescription.trim() || null,
         testimonials: prodFormTestimonials.trim() || null
-      });
+      }).select();
 
       if (error) {
         triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        triggerToast("Le produit n'a pas pu être créé — vérifiez les permissions de votre compte", "warning");
         return;
       }
 
@@ -355,14 +365,19 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     if (!zoneFormName.trim()) return;
 
     if (showZoneModal?.mode === "edit" && showZoneModal.zoneId) {
-      const { error } = await supabase.from("delivery_zones").update({
+      const { data, error } = await supabase.from("delivery_zones").update({
         name: zoneFormName.trim(),
         fee: zoneFormFee,
         delivery_time: zoneFormTime.trim()
-      }).eq("id", showZoneModal.zoneId);
+      }).eq("id", showZoneModal.zoneId).select();
 
       if (error) {
         triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        triggerToast("La modification n'a pas pu être enregistrée — vérifiez les permissions de cette zone", "warning");
         return;
       }
 
@@ -375,16 +390,21 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       triggerToast(`Zone de livraison mise à jour.`, "success");
     } else {
       const newId = `ZONE-${Date.now().toString().slice(-4)}`;
-      const { error } = await supabase.from("delivery_zones").insert({
+      const { data, error } = await supabase.from("delivery_zones").insert({
         id: newId,
         business_id: businessId,
         name: zoneFormName.trim(),
         fee: zoneFormFee,
         delivery_time: zoneFormTime.trim()
-      });
+      }).select();
 
       if (error) {
         triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        triggerToast("La zone de livraison n'a pas pu être créée — vérifiez les permissions de votre compte", "warning");
         return;
       }
 

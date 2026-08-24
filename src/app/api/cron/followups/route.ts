@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic, CLAUDE_MODEL } from "@/lib/ai/anthropic";
 
 export const dynamic = "force-dynamic";
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "placeholder-anthropic-key",
-});
 
 export async function GET(req: NextRequest) {
   try {
@@ -186,7 +182,7 @@ export async function GET(req: NextRequest) {
 
             try {
               const response = await anthropic.messages.create({
-                model: "claude-sonnet-5",
+                model: CLAUDE_MODEL,
                 max_tokens: 150,
                 system: "Tu es un agent commercial de suivi client par messagerie. Rédige un message court (1-2 phrases maximum, style WhatsApp, ton naturel, amical et chaleureux) pour reprendre des nouvelles concernant le produit dont le client a discuté hier. Ne dis JAMAIS que tu es une IA ou un robot. Exemple : 'Bonjour, je voulais juste prendre de vos nouvelles concernant le [nom du produit] — je reste à votre disposition si vous avez des questions !'",
                 messages: [

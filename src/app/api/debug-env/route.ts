@@ -38,6 +38,13 @@ async function testModel(apiKey: string, model: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const adminSecretHeader = req.headers.get("x-admin-secret");
+  const adminSecretEnv = process.env.ADMIN_DEBUG_SECRET;
+
+  if (!adminSecretEnv || adminSecretHeader !== adminSecretEnv) {
+    return NextResponse.json({ error: "Unauthorized access" }, { status: 401 });
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {

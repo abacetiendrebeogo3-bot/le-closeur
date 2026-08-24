@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTypingIndicator } from "@/lib/whatsapp/send";
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic, CLAUDE_MODEL } from "@/lib/ai/anthropic";
 import crypto from "crypto";
-
-// Initialize Anthropic Client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "placeholder-anthropic-key",
-});
-
-// Model wrapper to intercept Translated Model Name
-const originalCreate = anthropic.messages.create.bind(anthropic.messages);
-anthropic.messages.create = function (params: any, options?: any) {
-  console.log("MODELE UTILISE:", params.model);
-  return originalCreate(params, options);
-} as any;
 
 const DEFAULT_BUSINESS_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -747,7 +735,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
         // Call Anthropic
         let response = await anthropic.messages.create({
-          model: "claude-sonnet-5",
+          model: CLAUDE_MODEL,
           max_tokens: 1024,
           system: systemPrompt,
           messages: formattedMessages,
@@ -903,7 +891,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
           // Get final reply from Claude with tool outputs
           const secondResponse = await anthropic.messages.create({
-            model: "claude-sonnet-5",
+            model: CLAUDE_MODEL,
             max_tokens: 1024,
             system: systemPrompt,
             messages: [
@@ -929,8 +917,18 @@ ${JSON.stringify(zones || [], null, 2)}
             time: aiTimeStr,
           });
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error in background closeur agent:", err);
+        const fallbackMessage = "Un instant, je reviens vers vous 🙏";
+        await sendWhatsAppMessage(customerPhone, fallbackMessage, businessId);
+
+        const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        await supabaseServer.from("messages").insert({
+          conversation_id: conversationId,
+          sender: "ai",
+          text: `[Erreur Technique: ${err.message || err}] ${fallbackMessage}`,
+          time: aiTimeStr,
+        });
       }
     };
 

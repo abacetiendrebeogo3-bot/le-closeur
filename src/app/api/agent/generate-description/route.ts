@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "placeholder-anthropic-key",
-});
+import { anthropic, CLAUDE_MODEL_LIGHT } from "@/lib/ai/anthropic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,7 +14,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
+      model: CLAUDE_MODEL_LIGHT,
       max_tokens: 250,
       temperature: 0.7,
       system: "Tu es un copywriter professionnel spécialisé dans le e-commerce en Afrique. Rédige une description produit captivante, courte (2-3 phrases max), persuasive et vendeuse, adaptée au public local. N'ajoute aucune introduction ni conclusion, écris uniquement la description elle-même.",

@@ -1,18 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import Anthropic from "@anthropic-ai/sdk";
-
-// Initialize Anthropic Client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "placeholder-anthropic-key",
-});
-
-// Model wrapper to intercept Translated Model Name
-const originalCreate = anthropic.messages.create.bind(anthropic.messages);
-anthropic.messages.create = function (params: any, options?: any) {
-  console.log("MODELE UTILISE:", params.model);
-  return originalCreate(params, options);
-} as any;
+import { anthropic, CLAUDE_MODEL } from "@/lib/ai/anthropic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -277,7 +265,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
     // Call Anthropic
     let response = await anthropic.messages.create({
-      model: "claude-sonnet-5",
+      model: CLAUDE_MODEL,
       max_tokens: 1024,
       system: systemPrompt,
       messages: formattedMessages,
@@ -412,7 +400,7 @@ ${JSON.stringify(zones || [], null, 2)}
 
       // 7. Get final reply from Claude with tool outputs
       const secondResponse = await anthropic.messages.create({
-        model: "claude-sonnet-5",
+        model: CLAUDE_MODEL,
         max_tokens: 1024,
         system: systemPrompt,
         messages: [

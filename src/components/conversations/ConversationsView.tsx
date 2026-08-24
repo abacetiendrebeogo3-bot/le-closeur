@@ -542,7 +542,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             onChange={(e) => setEngagementFilter(e.target.value)}
             className="w-full bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-menthe cursor-pointer text-encre"
           >
-            <option value="all">Tous les statuts d'engagement</option>
+            <option value="all">Tous les statuts d&apos;engagement</option>
             <option value="nouveau">Nouveau</option>
             <option value="interesse">Intéressé</option>
             <option value="hesitant">Hésitant</option>

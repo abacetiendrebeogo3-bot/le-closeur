@@ -35,6 +35,25 @@ export async function POST(req: NextRequest) {
       .eq("active", true);
 
     const products = (rawProducts || []).map((p: any) => {
+      let cleanImageUrl = p.image_url;
+      if (p.image_url && typeof p.image_url === "string" && p.image_url.includes("data:")) {
+        cleanImageUrl = "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
+      }
+
+      let cleanImageUrls = p.image_urls;
+      if (p.image_urls) {
+        if (typeof p.image_urls === "string" && p.image_urls.includes("data:")) {
+          cleanImageUrls = "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
+        } else if (Array.isArray(p.image_urls)) {
+          cleanImageUrls = p.image_urls.map((url: any) => {
+            if (typeof url === "string" && url.startsWith("data:")) {
+              return "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
+            }
+            return url;
+          });
+        }
+      }
+
       let cleanTestimonials = p.testimonials;
       if (p.testimonials && typeof p.testimonials === "string" && p.testimonials.includes("data:")) {
         try {
@@ -56,8 +75,8 @@ export async function POST(req: NextRequest) {
         name: p.name,
         price: p.price,
         description: p.description,
-        image_url: p.image_url,
-        image_urls: p.image_urls,
+        image_url: cleanImageUrl,
+        image_urls: cleanImageUrls,
         testimonials: cleanTestimonials,
         stock: p.stock,
         active: p.active,

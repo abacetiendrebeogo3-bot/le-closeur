@@ -26,26 +26,40 @@ CREATE POLICY "Allow access by business tenant" ON public.product_media
         )
     );
 
--- 2. Migrate existing agent_media_library (JSONB) to product_media table
-INSERT INTO public.product_media (business_id, label, url, product_id, media_type)
-SELECT 
-  b.id AS business_id,
-  kv.key AS label,
-  CASE 
-    WHEN jsonb_typeof(kv.value) = 'object' THEN (kv.value->>'url')
-    ELSE (kv.value->>0)
-  END AS url,
-  CASE 
-    WHEN jsonb_typeof(kv.value) = 'object' THEN (kv.value->>'productId')
-    ELSE NULL 
-  END AS product_id,
-  'image' AS media_type
-FROM 
-  public.businesses b,
-  LATERAL jsonb_each(b.agent_media_library) kv
-WHERE 
-  b.agent_media_library IS NOT NULL
-ON CONFLICT DO NOTHING;
+-- 2. Migrate existing agent_media_library (JSONB) to product_media table if column exists
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 
+    FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'businesses' 
+      AND column_name = 'agent_media_library'
+  ) THEN
+    EXECUTE '
+      INSERT INTO public.product_media (business_id, label, url, product_id, media_type)
+      SELECT 
+        b.id AS business_id,
+        kv.key AS label,
+        CASE 
+          WHEN jsonb_typeof(kv.value) = ''object'' THEN (kv.value->>''url'')
+          ELSE (kv.value->>0)
+        END AS url,
+        CASE 
+          WHEN jsonb_typeof(kv.value) = ''object'' THEN (kv.value->>''productId'')
+          ELSE NULL 
+        END AS product_id,
+        ''image'' AS media_type
+      FROM 
+        public.businesses b,
+        LATERAL jsonb_each(b.agent_media_library) kv
+      WHERE 
+        b.agent_media_library IS NOT NULL
+      ON CONFLICT DO NOTHING;
+    ';
+  END IF;
+END;
+$$;
 
 -- 3. Default KB items & Rules insertion function
 CREATE OR REPLACE FUNCTION public.populate_business_defaults(target_business_id UUID)

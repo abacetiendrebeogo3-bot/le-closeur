@@ -493,6 +493,28 @@ export async function POST(req: NextRequest) {
           .select("*")
           .eq("business_id", businessId);
 
+        // Fetch Knowledge Base
+        const { data: kbData } = await supabaseServer
+          .from("agent_knowledge_base")
+          .select("question, reponse")
+          .eq("business_id", businessId)
+          .eq("active", true);
+
+        const formattedKB = (kbData || [])
+          .map((k: any) => `Q: ${k.question}\nR: ${k.reponse}`)
+          .join("\n\n");
+
+        // Fetch Auto Rules
+        const { data: rulesData } = await supabaseServer
+          .from("agent_rules")
+          .select("condition, action")
+          .eq("business_id", businessId)
+          .eq("active", true);
+
+        const formattedRules = (rulesData || [])
+          .map((r: any) => `- SI: "${r.condition}" -> ALORS: "${r.action}"`)
+          .join("\n");
+
         // Construct System Prompt
         let returningCustomerContext = "";
         if (isReturningCustomer) {
@@ -533,9 +555,15 @@ ${salesRules}
 - ENVOI DE TÉMOIGNAGES SUR LES DOUTES : Si le client a des doutes (ex: "est-ce que ça marche ?", "j'ai peur de me faire arnaquer", "comment faire confiance ?", "est-ce efficace ?"), tu dois le rassurer et lui envoyer un témoignage client (capture d'écran). Regarde le champ 'testimonials' du produit concerné dans le catalogue (qui contient des URLs d'images de témoignages). Appelle l'outil 'send_product_visual' en renseignant le paramètre 'image_url' avec l'URL du témoignage trouvé dans ce champ, accompagné d'une courte légende.
 ${returningCustomerContext}
 
+[RÈGLES AUTOMATIQUES (SI/ALORS)]
+${formattedRules || "Aucune règle automatique définie."}
+
 [RÈGLES D'ESCALADE / REPRISE HUMAINE]
 ${escalationRules}
 - Si les règles d'escalade sont déclenchées ou si le client demande expressément à parler à un humain/conseiller/responsable, appelle l'outil 'escalate_to_human'.
+
+[BASE DE CONNAISSANCES]
+${formattedKB || "Aucune information supplémentaire dans la base de connaissances."}
 
 [ZONES DE LIVRAISON DISPONIBLES]
 ${JSON.stringify(zones || [], null, 2)}

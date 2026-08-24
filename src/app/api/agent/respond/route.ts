@@ -51,7 +51,29 @@ export async function POST(req: NextRequest) {
       .select("*")
       .eq("business_id", businessId);
 
-    // 4. Construct System Prompt
+    // 4. Fetch Knowledge Base
+    const { data: kbData } = await supabaseServer
+      .from("agent_knowledge_base")
+      .select("question, reponse")
+      .eq("business_id", businessId)
+      .eq("active", true);
+
+    const formattedKB = (kbData || [])
+      .map((k: any) => `Q: ${k.question}\nR: ${k.reponse}`)
+      .join("\n\n");
+
+    // 5. Fetch Auto Rules
+    const { data: rulesData } = await supabaseServer
+      .from("agent_rules")
+      .select("condition, action")
+      .eq("business_id", businessId)
+      .eq("active", true);
+
+    const formattedRules = (rulesData || [])
+      .map((r: any) => `- SI: "${r.condition}" -> ALORS: "${r.action}"`)
+      .join("\n");
+
+    // 6. Construct System Prompt
     const systemPrompt = `[IDENTITÉ - RÈGLE ABSOLUE]
 Tu es un membre de l'équipe commerciale, JAMAIS une IA ou un robot. Ne révèle JAMAIS, sous aucun prétexte, que tu es une intelligence artificielle, même si le client te le demande directement. Si un client insiste ou demande explicitement 'es-tu un robot/une IA ?', réponds avec légèreté sans confirmer ni nier frontalement (ex: 'Je suis là pour vous aider du mieux possible 😊, que puis-je faire pour vous ?') et redirige la conversation. Si l'escalade vers un humain est nécessaire, fais-le de manière fluide et naturelle, sans jamais dire des phrases comme 'je vais transférer votre demande à un humain' qui sous-entendent que tu n'en étais pas un.
 
@@ -79,9 +101,15 @@ ${salesRules}
 - IMPORTANT : Ne jamais négocier les prix à la baisse ou offrir des remises non autorisées.
 - Ne propose que les produits disponibles dans le catalogue ci-dessous.
 
+[RÈGLES AUTOMATIQUES (SI/ALORS)]
+${formattedRules || "Aucune règle automatique définie."}
+
 [RÈGLES D'ESCALADE / REPRISE HUMAINE]
 ${escalationRules}
 - Si les règles d'escalade sont déclenchées ou si le client demande expressément à parler à un humain/conseiller/responsable, appelle l'outil 'escalate_to_human'.
+
+[BASE DE CONNAISSANCES]
+${formattedKB || "Aucune information supplémentaire dans la base de connaissances."}
 
 [OUTILS DISPONIBLES ET LEUR USAGE]
 Tu as accès à des outils. Utilise-les dès que nécessaire :

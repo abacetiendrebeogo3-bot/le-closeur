@@ -65,7 +65,8 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    import("mic-recorder-to-mp3").then(({ default: MicRecorder }) => {
+    import("mic-recorder-to-mp3").then((mod) => {
+      const MicRecorder = mod.default || mod;
       recorderRef.current = new MicRecorder({ bitRate: 128 });
     }).catch(err => {
       console.error("Error initializing mic-recorder-to-mp3:", err);
@@ -75,7 +76,8 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   const startRecording = async () => {
     if (!recorderRef.current) {
       try {
-        const { default: MicRecorder } = await import("mic-recorder-to-mp3");
+        const mod = await import("mic-recorder-to-mp3");
+        const MicRecorder = mod.default || mod;
         recorderRef.current = new MicRecorder({ bitRate: 128 });
       } catch (err) {
         console.error("Error initializing mic-recorder-to-mp3 on-demand:", err);

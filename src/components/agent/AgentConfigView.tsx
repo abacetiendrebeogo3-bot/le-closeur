@@ -42,7 +42,7 @@ export const AgentConfigView: React.FC<AgentConfigViewProps> = ({
   // KB & Rules & Media list states
   const [kbItems, setKbItems] = useState<any[]>([]);
   const [rules, setRules] = useState<any[]>([]);
-  const [mediaLibrary, setMediaLibrary] = useState<Record<string, string>>({});
+  const [mediaLibrary, setMediaLibrary] = useState<any[]>([]);
 
   // Form states for adding items
   const [newKbQuestion, setNewKbQuestion] = useState("");
@@ -96,16 +96,16 @@ export const AgentConfigView: React.FC<AgentConfigViewProps> = ({
         .eq("active", true);
       if (prodData) setProductsList(prodData);
 
-      // Fetch Media Library
-      const { data: busData } = await supabase
-        .from("businesses")
-        .select("agent_media_library")
-        .eq("id", businessId)
-        .maybeSingle();
-      if (busData?.agent_media_library) {
-        setMediaLibrary(busData.agent_media_library as Record<string, string>);
+      // Fetch Product Media
+      const { data: mediaData } = await supabase
+        .from("product_media")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: true });
+      if (mediaData) {
+        setMediaLibrary(mediaData);
       } else {
-        setMediaLibrary({});
+        setMediaLibrary([]);
       }
     } catch (err) {
       console.error("Error loading agent configurations: ", err);
@@ -354,20 +354,25 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
   const handleAddMedia = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMediaKey.trim() || !newMediaUrl.trim()) {
-      triggerToast("La clé et l'URL du média sont requises.", "warning");
+      triggerToast("Le libellé et l'URL du média sont requis.", "warning");
       return;
     }
     setIsAddingMedia(true);
     try {
-      const mediaValue = newMediaProductId ? { url: newMediaUrl.trim(), productId: newMediaProductId } : newMediaUrl.trim();
-      const nextMedia = { ...mediaLibrary, [newMediaKey.trim()]: mediaValue };
-      const { error } = await supabase
-        .from("businesses")
-        .update({ agent_media_library: nextMedia })
-        .eq("id", businessId);
+      const { data, error } = await supabase
+        .from("product_media")
+        .insert({
+          business_id: businessId,
+          product_id: newMediaProductId || null,
+          label: newMediaKey.trim(),
+          url: newMediaUrl.trim(),
+          media_type: "image"
+        })
+        .select()
+        .single();
 
       if (error) throw error;
-      setMediaLibrary(nextMedia as any);
+      setMediaLibrary(prev => [...prev, data]);
       setNewMediaKey("");
       setNewMediaUrl("");
       setNewMediaProductId("");
@@ -380,18 +385,15 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
   };
 
   // Delete Media item
-  const handleDeleteMedia = async (key: string) => {
+  const handleDeleteMedia = async (id: string) => {
     try {
-      const nextMedia = { ...mediaLibrary };
-      delete nextMedia[key];
-
       const { error } = await supabase
-        .from("businesses")
-        .update({ agent_media_library: nextMedia })
-        .eq("id", businessId);
+        .from("product_media")
+        .delete()
+        .eq("id", id);
 
       if (error) throw error;
-      setMediaLibrary(nextMedia);
+      setMediaLibrary(prev => prev.filter(m => m.id !== id));
       triggerToast("Média retiré de la bibliothèque.", "success");
     } catch (err: any) {
       triggerToast(`Erreur : ${err.message}`, "warning");
@@ -854,7 +856,7 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
 
           {/* 6. MEDIA LIBRARY TAB */}
           {activeSubTab === "media" && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-6">
               {/* Form to add media entry */}
               <form onSubmit={handleAddMedia} className="p-4 bg-neige rounded-2xl border border-graphite/10 flex flex-col gap-3">
                 <span className="text-[10px] uppercase font-bold text-encre/60 flex items-center gap-1.5">
@@ -863,7 +865,7 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
-                    placeholder="Clé visuel (ex: temoignage_1)"
+                    placeholder="Libellé / Type (ex: photo_face, temoignage_1)"
                     value={newMediaKey}
                     onChange={(e) => setNewMediaKey(e.target.value)}
                     className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
@@ -883,7 +885,7 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                     onChange={(e) => setNewMediaProductId(e.target.value)}
                     className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
                   >
-                    <option value="">Global / Aucun produit spécifique</option>
+                    <option value="">Global / Aucun produit spécifique (Média générique)</option>
                     {productsList.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
@@ -898,45 +900,93 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                 </button>
               </form>
 
-              {/* List of media entries */}
-              <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
-                <span className="text-[10px] uppercase font-bold text-encre/40">Médiathèque de l&apos;Agent ({Object.keys(mediaLibrary).length})</span>
-                {Object.keys(mediaLibrary).length === 0 ? (
-                  <span className="text-[10px] italic text-encre/40 text-center py-4">Aucun média enregistré dans la bibliothèque.</span>
-                ) : (
-                  Object.entries(mediaLibrary).map(([key, value]) => {
-                    const mediaObj = typeof value === "object" && value !== null ? (value as any) : { url: value, productId: null };
-                    const product = productsList.find(p => p.id === mediaObj.productId);
-                    return (
-                      <div key={key} className="p-3 bg-white border border-graphite/10 rounded-xl flex items-center justify-between gap-3 shadow-xs">
-                        <div className="flex items-center gap-2.5 overflow-hidden">
-                          <div className="w-10 h-10 rounded-lg bg-neige border border-graphite/10 flex items-center justify-center shrink-0 overflow-hidden">
-                            {mediaObj.url ? (
-                              <img src={mediaObj.url} alt={key} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none" }} />
-                            ) : (
-                              <Image className="w-4 h-4 text-encre/40" />
-                            )}
+              {/* Organised list of media entries */}
+              <div className="flex flex-col gap-5 max-h-[500px] overflow-y-auto pr-1">
+                {/* 1. Generic media section */}
+                <div className="flex flex-col gap-2 p-3 bg-neige/30 rounded-2xl border border-graphite/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-black text-encre">Médias Génériques</span>
+                    <button
+                      onClick={() => {
+                        setNewMediaProductId("");
+                        setNewMediaKey("");
+                        triggerToast("Formulaire configuré pour ajouter un média générique", "info");
+                      }}
+                      className="text-[9px] bg-white border border-graphite/10 rounded-lg px-2 py-1 font-bold text-encre/60 hover:text-menthe transition-colors"
+                    >
+                      + Ajouter un média générique
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                    {mediaLibrary.filter(m => !m.product_id).length === 0 ? (
+                      <span className="text-[9px] italic text-encre/40 py-2 col-span-2 text-center">Aucun média générique configuré.</span>
+                    ) : (
+                      mediaLibrary.filter(m => !m.product_id).map((m) => (
+                        <div key={m.id} className="p-2.5 bg-white border border-graphite/10 rounded-xl flex items-center justify-between gap-2.5 shadow-xs">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <img src={m.url} alt={m.label} className="w-10 h-10 rounded-lg object-cover bg-neige border border-graphite/10 shrink-0" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[10px] font-extrabold text-encre truncate">{m.label}</span>
+                              <span className="text-[8px] font-mono text-encre/40 truncate">{m.url}</span>
+                            </div>
                           </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[10px] font-extrabold text-encre truncate">{key}</span>
-                            <span className="text-[8px] font-mono text-encre/40 truncate">{mediaObj.url}</span>
-                            {product && (
-                              <span className="bg-menthe/10 text-menthe border border-menthe/20 text-[7px] font-bold px-1.5 py-0.5 rounded-full uppercase self-start mt-0.5">
-                                Produit : {product.name}
-                              </span>
-                            )}
-                          </div>
+                          <button
+                            onClick={() => handleDeleteMedia(m.id)}
+                            className="p-1 text-encre/40 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Media by Product section */}
+                <span className="text-[10px] uppercase font-black text-encre/40 px-1 mt-1">Médias par Produit</span>
+                {productsList.map((product) => {
+                  const productMedia = mediaLibrary.filter(m => m.product_id === product.id);
+                  return (
+                    <div key={product.id} className="flex flex-col gap-2 p-3 bg-neige/30 rounded-2xl border border-graphite/5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-encre">{product.name}</span>
                         <button
-                          onClick={() => handleDeleteMedia(key)}
-                          className="p-1 text-encre/40 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors shrink-0"
+                          onClick={() => {
+                            setNewMediaProductId(product.id);
+                            setNewMediaKey("");
+                            triggerToast(`Formulaire pré-rempli pour : ${product.name}`, "info");
+                          }}
+                          className="text-[9px] bg-white border border-graphite/10 rounded-lg px-2 py-1 font-bold text-encre/60 hover:text-menthe transition-colors"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          + Ajouter une image
                         </button>
                       </div>
-                    );
-                  })
-                )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                        {productMedia.length === 0 ? (
+                          <span className="text-[9px] italic text-encre/40 py-2 col-span-2 text-center">Aucune image configurée pour ce produit.</span>
+                        ) : (
+                          productMedia.map((m) => (
+                            <div key={m.id} className="p-2.5 bg-white border border-graphite/10 rounded-xl flex items-center justify-between gap-2.5 shadow-xs">
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <img src={m.url} alt={m.label} className="w-10 h-10 rounded-lg object-cover bg-neige border border-graphite/10 shrink-0" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-[10px] font-extrabold text-encre truncate">{m.label}</span>
+                                  <span className="text-[8px] font-mono text-encre/40 truncate">{m.url}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteMedia(m.id)}
+                                className="p-1 text-encre/40 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

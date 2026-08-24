@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       .eq("active", true);
 
     const formattedRules = (rulesData || [])
-      .map((r: any) => `- SI: "${r.condition}" -> ALORS: "${r.action}"`)
+      .map((r: any) => `Si ${r.condition}, alors ${r.action}.`)
       .join("\n");
 
     // 6. Construct System Prompt
@@ -296,20 +296,27 @@ ${JSON.stringify(zones || [], null, 2)}
       },
       {
         name: "send_product_visual",
-        description: "Envoie un visuel produit ou un témoignage client au format image sur le WhatsApp du client.",
+        description: "Envoie un visuel produit ou un témoignage client au format image sur le WhatsApp du client. Tu peux spécifier soit le type de visuel de la bibliothèque de médias (image_type) soit le nom du produit (product_name) pour envoyer directement sa photo de catalogue.",
         input_schema: {
           type: "object",
           properties: {
             image_type: { 
               type: "string", 
-              description: "Le type de visuel à envoyer (ex: 'produit', 'temoignage_1', 'temoignage_2', etc. selon la bibliothèque de médias)." 
+              description: "Le type de visuel à envoyer de la bibliothèque de médias (ex: 'temoignage_1', 'temoignage_2', etc.)." 
+            },
+            product_name: {
+              type: "string",
+              description: "Le nom précis ou partiel du produit dont tu souhaites envoyer la photo depuis le catalogue (ex: 'Kit Minceur')."
+            },
+            image_url: {
+              type: "string",
+              description: "L'URL de l'image directe à envoyer si tu la connais (par exemple, issue du champ testimonials ou image_url du catalogue)."
             },
             caption: {
               type: "string",
               description: "Une légende explicative courte à joindre avec l'image."
             }
-          },
-          required: ["image_type"],
+          }
         },
       },
       {
@@ -402,14 +409,75 @@ ${JSON.stringify(zones || [], null, 2)}
             resultData = { success: true, message: "Contrôle transféré à un conseiller humain." };
           } else if (name === "send_product_visual") {
             const imgType = input.image_type;
+            const productName = input.product_name;
+            const directUrl = input.image_url;
             const captionStr = input.caption || "";
-            const mediaLib = business?.agent_media_library as Record<string, any> || {};
-            const mediaVal = mediaLib[imgType];
-            const imageUrl = typeof mediaVal === "object" && mediaVal !== null ? mediaVal.url : mediaVal;
+            let imageUrl = directUrl || "";
+
+            if (productName) {
+              const matchedProduct = (products || []).find(
+                (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
+              );
+              if (matchedProduct) {
+                imageUrl = matchedProduct.image_url || (matchedProduct.image_urls && matchedProduct.image_urls[0]) || "";
+              }
+            }
+
+            // Fallback to product_media query
+            if (!imageUrl) {
+              let matchedProductId: string | null = null;
+              if (productName) {
+                const matchedProduct = (products || []).find(
+                  (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
+                );
+                if (matchedProduct) {
+                  matchedProductId = matchedProduct.id;
+                }
+              }
+
+              if (matchedProductId && imgType) {
+                const { data: exactMedia } = await supabaseServer
+                  .from("product_media")
+                  .select("url")
+                  .eq("business_id", businessId)
+                  .eq("product_id", matchedProductId)
+                  .eq("label", imgType)
+                  .limit(1)
+                  .maybeSingle();
+                if (exactMedia) {
+                  imageUrl = exactMedia.url;
+                }
+              }
+
+              if (!imageUrl && matchedProductId) {
+                const { data: prodMedia } = await supabaseServer
+                  .from("product_media")
+                  .select("url")
+                  .eq("business_id", businessId)
+                  .eq("product_id", matchedProductId)
+                  .limit(1);
+                if (prodMedia && prodMedia.length > 0) {
+                  imageUrl = prodMedia[0].url;
+                }
+              }
+
+              if (!imageUrl && imgType) {
+                const { data: labelMedia } = await supabaseServer
+                  .from("product_media")
+                  .select("url")
+                  .eq("business_id", businessId)
+                  .eq("label", imgType)
+                  .limit(1);
+                if (labelMedia && labelMedia.length > 0) {
+                  imageUrl = labelMedia[0].url;
+                }
+              }
+            }
+
             if (imageUrl) {
-              resultData = { success: true, message: `Image '${imgType}' envoyée (simulation). URL: ${imageUrl}` };
+              resultData = { success: true, message: `Image envoyée (simulation). URL: ${imageUrl}` };
             } else {
-              resultData = { success: false, error: `Type de visuel '${imgType}' non configuré dans la bibliothèque de médias.` };
+              resultData = { success: false, error: `Impossible de trouver l'image pour le produit '${productName}' ou le type '${imgType}'.` };
             }
           } else if (name === "create_order") {
             // Find zone to get delivery fee

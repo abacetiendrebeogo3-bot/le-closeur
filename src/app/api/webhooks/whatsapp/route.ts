@@ -538,7 +538,7 @@ export async function POST(req: NextRequest) {
           .eq("active", true);
 
         const formattedRules = (rulesData || [])
-          .map((r: any) => `- SI: "${r.condition}" -> ALORS: "${r.action}"`)
+          .map((r: any) => `Si ${r.condition}, alors ${r.action}.`)
           .join("\n");
 
         // Construct System Prompt
@@ -866,11 +866,55 @@ ${JSON.stringify(zones || [], null, 2)}
                   }
                 }
 
-                // Fallback to agent_media_library if product image not found
-                if (!imageUrl && imgType) {
-                  const mediaLib = business?.agent_media_library as Record<string, any> || {};
-                  const mediaVal = mediaLib[imgType];
-                  imageUrl = typeof mediaVal === "object" && mediaVal !== null ? mediaVal.url : mediaVal;
+                // Fallback to product_media query
+                if (!imageUrl) {
+                  let matchedProductId: string | null = null;
+                  if (productName) {
+                    const matchedProduct = (rawProducts || []).find(
+                      (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
+                    );
+                    if (matchedProduct) {
+                      matchedProductId = matchedProduct.id;
+                    }
+                  }
+
+                  if (matchedProductId && imgType) {
+                    const { data: exactMedia } = await supabaseServer
+                      .from("product_media")
+                      .select("url")
+                      .eq("business_id", businessId)
+                      .eq("product_id", matchedProductId)
+                      .eq("label", imgType)
+                      .limit(1)
+                      .maybeSingle();
+                    if (exactMedia) {
+                      imageUrl = exactMedia.url;
+                    }
+                  }
+
+                  if (!imageUrl && matchedProductId) {
+                    const { data: prodMedia } = await supabaseServer
+                      .from("product_media")
+                      .select("url")
+                      .eq("business_id", businessId)
+                      .eq("product_id", matchedProductId)
+                      .limit(1);
+                    if (prodMedia && prodMedia.length > 0) {
+                      imageUrl = prodMedia[0].url;
+                    }
+                  }
+
+                  if (!imageUrl && imgType) {
+                    const { data: labelMedia } = await supabaseServer
+                      .from("product_media")
+                      .select("url")
+                      .eq("business_id", businessId)
+                      .eq("label", imgType)
+                      .limit(1);
+                    if (labelMedia && labelMedia.length > 0) {
+                      imageUrl = labelMedia[0].url;
+                    }
+                  }
                 }
 
                 if (imageUrl) {

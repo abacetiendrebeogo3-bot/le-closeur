@@ -74,8 +74,14 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
   const startRecording = async () => {
     if (!recorderRef.current) {
-      triggerToast("Le micro-enregistreur n'est pas initialisé", "warning");
-      return;
+      try {
+        const { default: MicRecorder } = await import("mic-recorder-to-mp3");
+        recorderRef.current = new MicRecorder({ bitRate: 128 });
+      } catch (err) {
+        console.error("Error initializing mic-recorder-to-mp3 on-demand:", err);
+        triggerToast("Le micro-enregistreur n'est pas initialisé", "warning");
+        return;
+      }
     }
     try {
       await recorderRef.current.start();

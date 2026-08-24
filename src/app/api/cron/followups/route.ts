@@ -186,7 +186,7 @@ export async function GET(req: NextRequest) {
 
             try {
               const response = await anthropic.messages.create({
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-sonnet-5",
                 max_tokens: 150,
                 system: "Tu es un agent commercial de suivi client par messagerie. Rédige un message court (1-2 phrases maximum, style WhatsApp, ton naturel, amical et chaleureux) pour reprendre des nouvelles concernant le produit dont le client a discuté hier. Ne dis JAMAIS que tu es une IA ou un robot. Exemple : 'Bonjour, je voulais juste prendre de vos nouvelles concernant le [nom du produit] — je reste à votre disposition si vous avez des questions !'",
                 messages: [

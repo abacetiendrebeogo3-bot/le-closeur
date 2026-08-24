@@ -28,11 +28,42 @@ export async function POST(req: NextRequest) {
     const tone = business?.agent_tone || "Chaleureux et Respectueux";
 
     // 2. Fetch Products
-    const { data: products } = await supabaseServer
+    const { data: rawProducts } = await supabaseServer
       .from("products")
       .select("*")
       .eq("business_id", businessId)
       .eq("active", true);
+
+    const products = (rawProducts || []).map((p: any) => {
+      let cleanTestimonials = p.testimonials;
+      if (p.testimonials && typeof p.testimonials === "string" && p.testimonials.includes("data:")) {
+        try {
+          const parsed = JSON.parse(p.testimonials);
+          if (Array.isArray(parsed)) {
+            cleanTestimonials = JSON.stringify(parsed.map((t: any) => {
+              if (t.content && t.content.startsWith("data:")) {
+                return { ...t, content: "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]" };
+              }
+              return t;
+            }));
+          }
+        } catch (e) {
+          cleanTestimonials = "[BASE64_IMAGE_DATA_OMITTED]";
+        }
+      }
+      return {
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        description: p.description,
+        image_url: p.image_url,
+        image_urls: p.image_urls,
+        testimonials: cleanTestimonials,
+        stock: p.stock,
+        active: p.active,
+        category: p.category
+      };
+    });
 
     // 3. Fetch Delivery Zones
     const { data: zones } = await supabaseServer

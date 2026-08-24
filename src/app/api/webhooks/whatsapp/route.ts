@@ -843,8 +843,9 @@ ${JSON.stringify(zones || [], null, 2)}
 
                 // Fallback to agent_media_library if product image not found
                 if (!imageUrl && imgType) {
-                  const mediaLib = business?.agent_media_library as Record<string, string> || {};
-                  imageUrl = mediaLib[imgType];
+                  const mediaLib = business?.agent_media_library as Record<string, any> || {};
+                  const mediaVal = mediaLib[imgType];
+                  imageUrl = typeof mediaVal === "object" && mediaVal !== null ? mediaVal.url : mediaVal;
                 }
 
                 if (imageUrl) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Bot, Shield, AlertCircle, Play, Eye, Send, ArrowRight, Check, Plus, Trash2, Image, HelpCircle } from "lucide-react";
+import { Sparkles, Bot, Shield, AlertCircle, Play, Eye, Send, ArrowRight, Check, Plus, Trash2, Image, HelpCircle, Upload, FileText } from "lucide-react";
 import { gsap } from "gsap";
 import { supabase } from "../../lib/supabase/client";
 
@@ -56,6 +56,9 @@ export const AgentConfigView: React.FC<AgentConfigViewProps> = ({
   const [newMediaKey, setNewMediaKey] = useState("");
   const [newMediaUrl, setNewMediaUrl] = useState("");
   const [isAddingMedia, setIsAddingMedia] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [productsList, setProductsList] = useState<any[]>([]);
+  const [newMediaProductId, setNewMediaProductId] = useState<string>("");
 
   // Sync props config to local state
   useEffect(() => {
@@ -84,6 +87,14 @@ export const AgentConfigView: React.FC<AgentConfigViewProps> = ({
         .eq("business_id", businessId)
         .order("created_at", { ascending: true });
       if (rulesData) setRules(rulesData);
+
+      // Fetch Products list for media association
+      const { data: prodData } = await supabase
+        .from("products")
+        .select("id, name")
+        .eq("business_id", businessId)
+        .eq("active", true);
+      if (prodData) setProductsList(prodData);
 
       // Fetch Media Library
       const { data: busData } = await supabase
@@ -348,16 +359,18 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
     }
     setIsAddingMedia(true);
     try {
-      const nextMedia = { ...mediaLibrary, [newMediaKey.trim()]: newMediaUrl.trim() };
+      const mediaValue = newMediaProductId ? { url: newMediaUrl.trim(), productId: newMediaProductId } : newMediaUrl.trim();
+      const nextMedia = { ...mediaLibrary, [newMediaKey.trim()]: mediaValue };
       const { error } = await supabase
         .from("businesses")
         .update({ agent_media_library: nextMedia })
         .eq("id", businessId);
 
       if (error) throw error;
-      setMediaLibrary(nextMedia);
+      setMediaLibrary(nextMedia as any);
       setNewMediaKey("");
       setNewMediaUrl("");
+      setNewMediaProductId("");
       triggerToast("Média ajouté à la bibliothèque.", "success");
     } catch (err: any) {
       triggerToast(`Erreur : ${err.message}`, "warning");
@@ -383,6 +396,58 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
     } catch (err: any) {
       triggerToast(`Erreur : ${err.message}`, "warning");
     }
+  };
+
+  // Upload plain-text file to KB
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validExtensions = [".txt", ".md", ".json"];
+    const fileExtension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    if (!validExtensions.includes(fileExtension)) {
+      triggerToast("Seuls les fichiers texte (.txt, .md, .json) sont supportés pour l'extraction de connaissances.", "warning");
+      return;
+    }
+
+    setIsUploadingFile(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const textContent = event.target?.result as string;
+        if (!textContent.trim()) {
+          triggerToast("Le fichier est vide.", "warning");
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("agent_knowledge_base")
+          .insert({
+            business_id: businessId,
+            question: `Document : ${file.name}`,
+            reponse: textContent.trim(),
+            active: true
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setKbItems(prev => [...prev, data]);
+        triggerToast(`Document "${file.name}" importé avec succès.`, "success");
+      } catch (err: any) {
+        triggerToast(`Erreur d'import : ${err.message}`, "warning");
+      } finally {
+        setIsUploadingFile(false);
+        e.target.value = "";
+      }
+    };
+
+    reader.onerror = () => {
+      triggerToast("Erreur de lecture du fichier.", "warning");
+      setIsUploadingFile(false);
+    };
+
+    reader.readAsText(file);
   };
 
   // Create a new simulated conversation
@@ -568,35 +633,66 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
           {/* 2. KNOWLEDGE BASE (Q&A) TAB */}
           {activeSubTab === "kb" && (
             <div className="flex flex-col gap-4">
-              {/* Form to add Q&A */}
-              <form onSubmit={handleAddKbEntry} className="p-4 bg-neige rounded-2xl border border-graphite/10 flex flex-col gap-3">
-                <span className="text-[10px] uppercase font-bold text-encre/60 flex items-center gap-1.5">
-                  <Plus className="w-3.5 h-3.5" /> Ajouter une question/réponse
-                </span>
-                <div className="flex flex-col gap-2">
-                  <input
-                    type="text"
-                    placeholder="Question (ex: Livrez-vous le dimanche ?)"
-                    value={newKbQuestion}
-                    onChange={(e) => setNewKbQuestion(e.target.value)}
-                    className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
-                  />
-                  <textarea
-                    rows={2}
-                    placeholder="Réponse (ex: Oui, de 8h à 20h.)"
-                    value={newKbResponse}
-                    onChange={(e) => setNewKbResponse(e.target.value)}
-                    className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
-                  />
+              {/* Forms to add KB Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <form onSubmit={handleAddKbEntry} className="p-4 bg-neige rounded-2xl border border-graphite/10 flex flex-col gap-3 justify-between">
+                  <div className="flex flex-col gap-3">
+                    <span className="text-[10px] uppercase font-bold text-encre/60 flex items-center gap-1.5">
+                      <Plus className="w-3.5 h-3.5" /> Ajouter une question/réponse
+                    </span>
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="text"
+                        placeholder="Question (ex: Livrez-vous le dimanche ?)"
+                        value={newKbQuestion}
+                        onChange={(e) => setNewKbQuestion(e.target.value)}
+                        className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
+                      />
+                      <textarea
+                        rows={2}
+                        placeholder="Réponse (ex: Oui, de 8h à 20h.)"
+                        value={newKbResponse}
+                        onChange={(e) => setNewKbResponse(e.target.value)}
+                        className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isAddingKb}
+                    className="bg-encre hover:bg-menthe text-neige text-[10px] font-bold py-2 rounded-xl transition-all self-end px-4 mt-2"
+                  >
+                    {isAddingKb ? "Ajout en cours..." : "Ajouter au savoir"}
+                  </button>
+                </form>
+
+                {/* Import document block */}
+                <div className="p-4 bg-neige rounded-2xl border border-graphite/10 flex flex-col gap-3 justify-between">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] uppercase font-bold text-encre/60 flex items-center gap-1.5">
+                      <Upload className="w-3.5 h-3.5" /> Importer un document
+                    </span>
+                    <p className="text-[9px] text-encre/50 leading-relaxed font-semibold">
+                      Importez un fichier plain-text (.txt, .md, .json) pour que l&apos;agent puisse extraire et apprendre l&apos;intégralité de son contenu.
+                    </p>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept=".txt,.md,.json"
+                      onChange={handleFileUpload}
+                      disabled={isUploadingFile}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <div className="border border-dashed border-graphite/30 hover:border-menthe bg-white rounded-xl py-4 flex flex-col items-center justify-center gap-1.5 transition-all">
+                      <FileText className="w-6 h-6 text-encre/40" />
+                      <span className="text-[10px] font-bold text-encre">
+                        {isUploadingFile ? "Lecture et import..." : "Choisir un fichier (.txt, .md, .json)"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  type="submit"
-                  disabled={isAddingKb}
-                  className="bg-encre hover:bg-menthe text-neige text-[10px] font-bold py-2 rounded-xl transition-all self-end px-4"
-                >
-                  {isAddingKb ? "Ajout en cours..." : "Ajouter au savoir"}
-                </button>
-              </form>
+              </div>
 
               {/* List of Q&As */}
               <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
@@ -780,6 +876,19 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                     className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
                   />
                 </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] uppercase font-bold text-encre/50">Associer à un produit (Optionnel)</label>
+                  <select
+                    value={newMediaProductId}
+                    onChange={(e) => setNewMediaProductId(e.target.value)}
+                    className="w-full bg-white border border-graphite/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
+                  >
+                    <option value="">Global / Aucun produit spécifique</option>
+                    {productsList.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   type="submit"
                   disabled={isAddingMedia}
@@ -795,29 +904,38 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                 {Object.keys(mediaLibrary).length === 0 ? (
                   <span className="text-[10px] italic text-encre/40 text-center py-4">Aucun média enregistré dans la bibliothèque.</span>
                 ) : (
-                  Object.entries(mediaLibrary).map(([key, url]) => (
-                    <div key={key} className="p-3 bg-white border border-graphite/10 rounded-xl flex items-center justify-between gap-3 shadow-xs">
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <div className="w-10 h-10 rounded-lg bg-neige border border-graphite/10 flex items-center justify-center shrink-0 overflow-hidden">
-                          {url ? (
-                            <img src={url} alt={key} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none" }} />
-                          ) : (
-                            <Image className="w-4 h-4 text-encre/40" />
-                          )}
+                  Object.entries(mediaLibrary).map(([key, value]) => {
+                    const mediaObj = typeof value === "object" && value !== null ? (value as any) : { url: value, productId: null };
+                    const product = productsList.find(p => p.id === mediaObj.productId);
+                    return (
+                      <div key={key} className="p-3 bg-white border border-graphite/10 rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <div className="w-10 h-10 rounded-lg bg-neige border border-graphite/10 flex items-center justify-center shrink-0 overflow-hidden">
+                            {mediaObj.url ? (
+                              <img src={mediaObj.url} alt={key} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                            ) : (
+                              <Image className="w-4 h-4 text-encre/40" />
+                            )}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[10px] font-extrabold text-encre truncate">{key}</span>
+                            <span className="text-[8px] font-mono text-encre/40 truncate">{mediaObj.url}</span>
+                            {product && (
+                              <span className="bg-menthe/10 text-menthe border border-menthe/20 text-[7px] font-bold px-1.5 py-0.5 rounded-full uppercase self-start mt-0.5">
+                                Produit : {product.name}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[10px] font-extrabold text-encre truncate">{key}</span>
-                          <span className="text-[8px] font-mono text-encre/40 truncate">{url}</span>
-                        </div>
+                        <button
+                          onClick={() => handleDeleteMedia(key)}
+                          className="p-1 text-encre/40 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleDeleteMedia(key)}
-                        className="p-1 text-encre/40 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors shrink-0"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

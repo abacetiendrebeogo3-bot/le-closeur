@@ -378,8 +378,9 @@ ${JSON.stringify(zones || [], null, 2)}
           } else if (name === "send_product_visual") {
             const imgType = input.image_type;
             const captionStr = input.caption || "";
-            const mediaLib = business?.agent_media_library as Record<string, string> || {};
-            const imageUrl = mediaLib[imgType];
+            const mediaLib = business?.agent_media_library as Record<string, any> || {};
+            const mediaVal = mediaLib[imgType];
+            const imageUrl = typeof mediaVal === "object" && mediaVal !== null ? mediaVal.url : mediaVal;
             if (imageUrl) {
               resultData = { success: true, message: `Image '${imgType}' envoyée (simulation). URL: ${imageUrl}` };
             } else {

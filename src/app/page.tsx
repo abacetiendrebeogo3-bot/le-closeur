@@ -33,6 +33,7 @@ import { CatalogView } from "../components/catalog/CatalogView";
 import { SettingsView } from "../components/settings/SettingsView";
 import { AgentConfigView } from "../components/agent/AgentConfigView";
 import { PilotageView } from "../components/finance/PilotageView";
+import { JournalView } from "../components/journal/JournalView";
 import { Toast } from "../components/ui/Toast";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
 
@@ -892,6 +893,7 @@ export default function Home() {
               {activeTab === "followups" && "Campagnes de Relances"}
               {activeTab === "settings" && "Paramètres du Business"}
               {activeTab === "pilotage" && "Pilotage Financier"}
+              {activeTab === "journal" && "Journal de Bord"}
             </h1>
             <p className="text-xs text-encre/50 mt-0.5">
               {activeTab === "dashboard" && "Suivi en temps réel de vos ventes et de vos agents de closing IA."}
@@ -909,6 +911,7 @@ export default function Home() {
               {activeTab === "followups" && "Configurez des relances automatiques par templates Meta WhatsApp."}
               {activeTab === "settings" && "Modifiez les consignes système de l'IA et vos zones logistiques."}
               {activeTab === "pilotage" && "Objectifs, bilans de fin de journée, répartition des gains et CFO IA."}
+              {activeTab === "journal" && "Notes quotidiennes libres, to-do list suggérée par l'IA et checklists publicitaires."}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -1127,6 +1130,15 @@ export default function Home() {
               businessId={businessId}
               orders={orders}
               formatFCFA={formatFCFA}
+            />
+          )}
+
+          {/* TAB: JOURNAL */}
+          {activeTab === "journal" && businessId && (
+            <JournalView 
+              businessId={businessId}
+              products={products}
+              triggerToast={triggerToast}
             />
           )}
 

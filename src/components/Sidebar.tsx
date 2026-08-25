@@ -10,7 +10,8 @@ import {
   Settings, 
   X,
   Bot,
-  TrendingUp
+  TrendingUp,
+  BookOpen
 } from "lucide-react";
 
 interface SidebarProps {
@@ -83,6 +84,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button onClick={() => { setActiveTab("pilotage"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "pilotage" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <TrendingUp className="w-4.5 h-4.5" />
             <span className="text-xs">Pilotage</span>
+          </button>
+          <button onClick={() => { setActiveTab("journal"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "journal" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
+            <BookOpen className="w-4.5 h-4.5" />
+            <span className="text-xs">Journal</span>
           </button>
           <button onClick={() => { setActiveTab("agent-config"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "agent-config" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
             <Bot className="w-4.5 h-4.5" />

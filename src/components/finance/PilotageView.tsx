@@ -154,7 +154,7 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
         setObjectifCa(0);
         setObjectifBenefice(0);
         setCaRealise(autoCa);
-        setDepenses({ pub: 0, stock: 0, livraison: 0, salaires: 0, postgres: 0, autres: 0 });
+        setDepenses({ pub: 0, stock: 0, livraison: 0, salaires: 0, autres: 0 });
       }
     } catch (err: any) {
       triggerToast(`Erreur chargement : ${err.message}`, "warning");

@@ -172,17 +172,22 @@ export const AgentConfigView: React.FC<AgentConfigViewProps> = ({
 
   // Stagger entry animation
   useEffect(() => {
-    gsap.fromTo(".config-card",
-      { opacity: 0, y: 15 },
-      { opacity: 1, y: 0, duration: 0.5, stagger: 0.08, ease: "power2.out" }
-    );
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!prefersReducedMotion) {
+      gsap.fromTo(".config-card",
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.5, stagger: 0.08, ease: "power2.out" }
+      );
+    } else {
+      gsap.set(".config-card", { opacity: 1, y: 0 });
+    }
   }, []);
 
   // Update compiled preview prompt in real-time
   useEffect(() => {
     const formattedRules = rules
       .filter((r) => r.active)
-      .map((r) => `- SI: "${r.condition}" -> ALORS: "${r.action}"`)
+      .map((r) => `Si ${r.condition}, alors ${r.action}.`)
       .join("\n");
 
     const formattedKB = kbItems
@@ -862,7 +867,7 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                 <span className="text-[10px] uppercase font-bold text-encre/60 flex items-center gap-1.5">
                   <Plus className="w-3.5 h-3.5" /> Associer un visuel média
                 </span>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input
                     type="text"
                     placeholder="Libellé / Type (ex: photo_face, temoignage_1)"
@@ -1027,7 +1032,7 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
 
             <div className="h-[1px] bg-graphite/5 my-1"></div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="flex flex-col gap-0.5">
                 <input
                   type="text"

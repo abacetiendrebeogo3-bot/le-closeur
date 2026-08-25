@@ -15,6 +15,10 @@ const config: Config = {
         graphite: '#2D2D2D',
         'graphite-light': '#3A3A3C',
         'neige-dark': '#F0F0F2',
+        ambre: '#D97706',
+      },
+      fontFamily: {
+        display: ['var(--font-display)', 'sans-serif'],
       },
       borderRadius: {
         'custom-lg': '2rem',

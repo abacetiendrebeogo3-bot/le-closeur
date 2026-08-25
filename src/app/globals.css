@@ -8,6 +8,9 @@
     color: #1C1C1E;
     font-family: 'Plus Jakarta Sans', sans-serif;
   }
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: var(--font-display), sans-serif;
+  }
 }
 
 /* Global noise overlay */
@@ -38,6 +41,12 @@
   scrollbar-width: none;
 }
 
+/* Accessibility focus-visible style */
+*:focus-visible {
+  outline: 2px solid #16A34A;
+  outline-offset: 2px;
+}
+
 /* Interactive animations */
 .interactive-card {
   transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -45,6 +54,10 @@
 .interactive-card:hover {
   transform: scale(1.01) translateY(-2px);
   box-shadow: 0 20px 40px -15px rgba(28, 28, 30, 0.08);
+}
+.interactive-card:active {
+  transform: scale(0.99) translateY(0px);
+  transition-duration: 0.1s;
 }
 
 .magnetic-btn {
@@ -54,5 +67,19 @@
   transform: scale(1.03);
 }
 .magnetic-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+  transition-duration: 0.1s;
+}
+
+/* Support accessibility preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
 }

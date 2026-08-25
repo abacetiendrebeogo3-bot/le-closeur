@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 import { 
   LayoutDashboard, 
   MessageSquare, 
@@ -11,7 +13,10 @@ import {
   X,
   Bot,
   TrendingUp,
-  BookOpen
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  LogOut
 } from "lucide-react";
 
 interface SidebarProps {
@@ -35,87 +40,182 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ownerName,
   onSignOut
 }) => {
+  // Collapse State with localStorage memory
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar_collapsed");
+    if (saved === "true") {
+      setIsCollapsed(true);
+    }
+  }, []);
+
+  const toggleCollapse = () => {
+    const nextVal = !isCollapsed;
+    setIsCollapsed(nextVal);
+    localStorage.setItem("sidebar_collapsed", String(nextVal));
+  };
+
+  const navGroups = [
+    {
+      title: "PRINCIPAL",
+      items: [
+        { id: "dashboard", label: "Vue d'ensemble", icon: LayoutDashboard },
+        { id: "conversations", label: "Conversations", icon: MessageSquare, badge: conversationsCount },
+        { id: "orders", label: "Commandes", icon: ShoppingBag }
+      ]
+    },
+    {
+      title: "COMMERCE",
+      items: [
+        { id: "catalog", label: "Catalogue", icon: Package },
+        { id: "customers", label: "Clients", icon: Users },
+        { id: "couriers", label: "Livreurs", icon: Truck },
+        { id: "followups", label: "Relances", icon: Clock }
+      ]
+    },
+    {
+      title: "PILOTAGE",
+      items: [
+        { id: "pilotage", label: "Pilotage", icon: TrendingUp },
+        { id: "journal", label: "Journal", icon: BookOpen }
+      ]
+    },
+    {
+      title: "CONFIGURATION",
+      items: [
+        { id: "agent-config", label: "Agent IA", icon: Bot },
+        { id: "settings", label: "Paramètres", icon: Settings }
+      ]
+    }
+  ];
+
   return (
-    <aside className={`fixed inset-y-0 left-0 w-80 bg-encre text-neige flex flex-col justify-between border-r border-graphite p-8 transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen shrink-0`}>
-      <div className="flex flex-col gap-8">
+    <aside className={`fixed inset-y-0 left-0 bg-encre text-neige flex flex-col justify-between border-r border-graphite transition-all duration-300 ease-in-out z-40 md:sticky md:h-screen shrink-0 ${
+      mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+    } md:translate-x-0 ${
+      isCollapsed ? 'w-20 p-4' : 'w-80 p-6'
+    }`}>
+      <div className="flex flex-col gap-6">
+        
+        {/* Header Block */}
         <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-tight text-neige">{businessName || "MON CLOSEUR"}</span>
-              <span className="w-2 h-2 bg-menthe rounded-full animate-pulse"></span>
+          {!isCollapsed ? (
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black tracking-tight text-neige truncate uppercase">{businessName || "MON CLOSEUR"}</span>
+                <span className="w-1.5 h-1.5 bg-menthe rounded-full animate-pulse shrink-0"></span>
+              </div>
+              <span className="text-[9px] text-neige/45 mt-0.5 uppercase tracking-wider font-semibold">Espace Client</span>
             </div>
-            <span className="text-[10px] text-neige/50 mt-1 uppercase tracking-wider">Espace Client</span>
+          ) : (
+            <div className="flex items-center justify-center w-full">
+              <span className="w-2.5 h-2.5 bg-menthe rounded-full animate-pulse"></span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Collapse toggle button for Desktop */}
+            <button 
+              onClick={toggleCollapse} 
+              className="hidden md:flex p-1.5 hover:bg-white/5 rounded-lg text-neige/50 hover:text-neige transition-colors"
+              title={isCollapsed ? "Déplier le menu" : "Replier le menu"}
+            >
+              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
+            
+            {/* Mobile close menu button */}
+            <button onClick={() => setMobileMenuOpen(false)} className="md:hidden p-1.5 text-neige/60 hover:text-menthe">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-neige/60 hover:text-menthe">
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
-        <nav className="flex flex-col gap-1">
-          <button onClick={() => { setActiveTab("dashboard"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "dashboard" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <LayoutDashboard className="w-4.5 h-4.5" />
-            <span className="text-xs">Vue d&apos;ensemble</span>
-          </button>
-          <button onClick={() => { setActiveTab("conversations"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "conversations" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <MessageSquare className="w-4.5 h-4.5" />
-            <span className="text-xs flex-1">Conversations</span>
-            <span className="text-[10px] bg-menthe text-white px-2 py-0.5 rounded-full font-bold">{conversationsCount}</span>
-          </button>
-          <button onClick={() => { setActiveTab("orders"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "orders" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <ShoppingBag className="w-4.5 h-4.5" />
-            <span className="text-xs">Commandes</span>
-          </button>
-          <button onClick={() => { setActiveTab("catalog"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "catalog" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <Package className="w-4.5 h-4.5" />
-            <span className="text-xs">Catalogue</span>
-          </button>
-          <button onClick={() => { setActiveTab("customers"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "customers" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <Users className="w-4.5 h-4.5" />
-            <span className="text-xs font-medium">Clients</span>
-          </button>
-          <button onClick={() => { setActiveTab("couriers"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "couriers" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <Truck className="w-4.5 h-4.5" />
-            <span className="text-xs">Livreurs</span>
-          </button>
-          <button onClick={() => { setActiveTab("followups"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "followups" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <Clock className="w-4.5 h-4.5" />
-            <span className="text-xs">Relances</span>
-          </button>
-          <button onClick={() => { setActiveTab("pilotage"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "pilotage" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <TrendingUp className="w-4.5 h-4.5" />
-            <span className="text-xs">Pilotage</span>
-          </button>
-          <button onClick={() => { setActiveTab("journal"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "journal" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <BookOpen className="w-4.5 h-4.5" />
-            <span className="text-xs">Journal</span>
-          </button>
-          <button onClick={() => { setActiveTab("agent-config"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "agent-config" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <Bot className="w-4.5 h-4.5" />
-            <span className="text-xs">Agent IA</span>
-          </button>
-          <button onClick={() => { setActiveTab("settings"); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3.5 transition-all ${activeTab === "settings" ? 'bg-menthe text-neige' : 'text-neige/60 hover:text-neige hover:bg-white/5'}`}>
-            <Settings className="w-4.5 h-4.5" />
-            <span className="text-xs">Paramètres</span>
-          </button>
+        {/* Grouped Navigation */}
+        <nav className="flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-200px)] pr-1">
+          {navGroups.map((group, groupIdx) => (
+            <div key={groupIdx} className="flex flex-col gap-1">
+              {!isCollapsed ? (
+                <span className="text-[8px] font-extrabold text-neige/30 uppercase tracking-widest px-3 mb-1 block">
+                  {group.title}
+                </span>
+              ) : (
+                <div className="border-t border-graphite/40 my-1 mx-2" />
+              )}
+
+              <div className="flex flex-col gap-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => { setActiveTab(item.id); setMobileMenuOpen(false); }}
+                      title={isCollapsed ? item.label : undefined}
+                      className={`w-full text-left rounded-xl font-medium flex items-center transition-all ${
+                        isCollapsed ? 'justify-center px-0 py-2.5' : 'px-3.5 py-2 gap-3'
+                      } ${
+                        isActive 
+                          ? 'bg-menthe text-neige font-bold shadow-xs' 
+                          : 'text-neige/60 hover:text-neige hover:bg-white/5'
+                      }`}
+                    >
+                      <Icon className="w-4.5 h-4.5 shrink-0" />
+                      
+                      {!isCollapsed && (
+                        <>
+                          <span className="text-[11px] truncate flex-1">{item.label}</span>
+                          {item.badge !== undefined && item.badge > 0 && (
+                            <span className="text-[9px] bg-menthe text-white px-2 py-0.5 rounded-full font-black border border-white/10 shrink-0">
+                              {item.badge}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
       </div>
 
-      <div className="flex flex-col gap-4 pt-6 border-t border-graphite">
+      {/* Footer / Account Block */}
+      <div className={`flex flex-col gap-3 pt-4 border-t border-graphite ${isCollapsed ? 'items-center' : ''}`}>
+        
+        {/* Profile */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-graphite flex items-center justify-center text-neige font-bold border border-menthe/30 text-xs">
+          <div className="w-9 h-9 rounded-full bg-graphite flex items-center justify-center text-neige font-bold border border-menthe/30 text-xs shrink-0">
             {ownerName ? ownerName.split(" ").map(n => n[0]).join("").toUpperCase() : "WT"}
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-neige">{ownerName || "Tiedrebeogo Wilfried"}</span>
-            <span className="text-[9px] text-neige/40 font-semibold uppercase">Propriétaire</span>
-          </div>
+          
+          {!isCollapsed && (
+            <div className="flex flex-col min-w-0">
+              <span className="text-[11px] font-bold text-neige truncate">{ownerName || "Tiedrebeogo Wilfried"}</span>
+              <span className="text-[8px] text-neige/40 font-bold uppercase tracking-wider mt-0.5">Propriétaire</span>
+            </div>
+          )}
         </div>
-        <button onClick={onSignOut} className="w-full text-left px-4 py-2.5 rounded-xl font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs transition-all flex items-center gap-2">
-          Se déconnecter
+
+        {/* Signout Button */}
+        <button 
+          onClick={onSignOut} 
+          title={isCollapsed ? "Se déconnecter" : undefined}
+          className={`text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all flex items-center ${
+            isCollapsed ? 'justify-center p-2.5 w-9 h-9' : 'w-full px-3.5 py-2 text-[10px] font-bold gap-2'
+          }`}
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span>Se déconnecter</span>}
         </button>
-        <div className="text-[9px] text-neige/45 font-semibold flex items-center justify-between px-4">
-          <span>v0.1.0</span>
-        </div>
+
+        {!isCollapsed && (
+          <div className="text-[8px] text-neige/30 font-bold flex items-center justify-between px-3 mt-1 uppercase tracking-wider">
+            <span>v0.1.0</span>
+          </div>
+        )}
       </div>
     </aside>
   );

@@ -32,6 +32,7 @@ import { FollowupsView } from "../components/followups/FollowupsView";
 import { CatalogView } from "../components/catalog/CatalogView";
 import { SettingsView } from "../components/settings/SettingsView";
 import { AgentConfigView } from "../components/agent/AgentConfigView";
+import { PilotageView } from "../components/finance/PilotageView";
 import { Toast } from "../components/ui/Toast";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
 
@@ -890,6 +891,7 @@ export default function Home() {
               {activeTab === "couriers" && "Suivi des Livreurs"}
               {activeTab === "followups" && "Campagnes de Relances"}
               {activeTab === "settings" && "Paramètres du Business"}
+              {activeTab === "pilotage" && "Pilotage Financier"}
             </h1>
             <p className="text-xs text-encre/50 mt-0.5">
               {activeTab === "dashboard" && "Suivi en temps réel de vos ventes et de vos agents de closing IA."}
@@ -906,6 +908,7 @@ export default function Home() {
               {activeTab === "couriers" && "Assignation de courses et charges de livraison."}
               {activeTab === "followups" && "Configurez des relances automatiques par templates Meta WhatsApp."}
               {activeTab === "settings" && "Modifiez les consignes système de l'IA et vos zones logistiques."}
+              {activeTab === "pilotage" && "Objectifs, bilans de fin de journée, répartition des gains et CFO IA."}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -1116,6 +1119,15 @@ export default function Home() {
           {/* TAB: SETTINGS */}
           {activeTab === "settings" && (
             <SettingsView triggerToast={triggerToast} ownerName={ownerName} businessId={businessId} />
+          )}
+
+          {/* TAB: PILOTAGE */}
+          {activeTab === "pilotage" && businessId && (
+            <PilotageView 
+              businessId={businessId}
+              orders={orders}
+              formatFCFA={formatFCFA}
+            />
           )}
 
         </div>

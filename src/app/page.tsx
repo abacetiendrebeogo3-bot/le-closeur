@@ -1139,6 +1139,7 @@ export default function Home() {
               businessId={businessId}
               products={products}
               triggerToast={triggerToast}
+              formatFCFA={formatFCFA}
             />
           )}
 

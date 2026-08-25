@@ -14,7 +14,10 @@ import {
   ChevronLeft, 
   ChevronRight,
   ClipboardList,
-  CheckCircle2
+  CheckCircle2,
+  Target,
+  Coins,
+  TrendingUp
 } from "lucide-react";
 import { Product } from "../../types";
 
@@ -22,12 +25,14 @@ interface JournalViewProps {
   businessId: string;
   products: Product[];
   triggerToast: (msg: string, type: "success" | "warning" | "info") => void;
+  formatFCFA?: (val: number) => string;
 }
 
 export const JournalView: React.FC<JournalViewProps> = ({
   businessId,
   products,
-  triggerToast
+  triggerToast,
+  formatFCFA
 }) => {
   // Date State
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -35,11 +40,18 @@ export const JournalView: React.FC<JournalViewProps> = ({
     return today.toISOString().split("T")[0];
   });
 
+  // Currency formatter fallback
+  const formatMoney = useCallback((val: number) => {
+    if (formatFCFA) return formatFCFA(val);
+    return new Intl.NumberFormat("fr-FR").format(val) + " F";
+  }, [formatFCFA]);
+
   // Data States
   const [journalContent, setJournalContent] = useState<string>("");
   const [journalId, setJournalId] = useState<string | null>(null);
   const [todos, setTodos] = useState<any[]>([]);
   const [checklists, setChecklists] = useState<any[]>([]);
+  const [financeStats, setFinanceStats] = useState<{ objectif_ca: number; objectif_benefice: number; ca_realise: number } | null>(null);
 
   // Form States
   const [newTodoItem, setNewTodoItem] = useState<string>("");
@@ -83,6 +95,25 @@ export const JournalView: React.FC<JournalViewProps> = ({
 
       if (tErr) throw tErr;
       setTodos(tData || []);
+
+      // 3. Fetch Finance Info
+      const { data: fData, error: fErr } = await supabase
+        .from("finance_daily_entries")
+        .select("objectif_ca, objectif_benefice, ca_realise")
+        .eq("business_id", businessId)
+        .eq("date", selectedDate)
+        .maybeSingle();
+
+      if (fErr) throw fErr;
+      if (fData) {
+        setFinanceStats({
+          objectif_ca: fData.objectif_ca || 0,
+          objectif_benefice: fData.objectif_benefice || 0,
+          ca_realise: fData.ca_realise || 0
+        });
+      } else {
+        setFinanceStats(null);
+      }
     } catch (err: any) {
       console.error("Error loading journal/todos:", err);
     }
@@ -375,6 +406,56 @@ export const JournalView: React.FC<JournalViewProps> = ({
         </div>
       </div>
 
+      {/* Financial Objectives Banner Block */}
+      <div className="bg-white p-5 rounded-2xl border border-graphite/10 shadow-xs flex flex-col gap-3">
+        <span className="text-[10px] font-black uppercase text-encre/40 tracking-wider flex items-center gap-1.5">
+          <Target className="w-4 h-4 text-menthe" /> Objectifs financiers du jour ({selectedDate})
+        </span>
+
+        {financeStats && (financeStats.objectif_ca > 0 || financeStats.objectif_benefice > 0) ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 bg-neige rounded-xl border border-graphite/5 flex flex-col gap-1">
+              <span className="text-[8px] uppercase font-bold text-encre/40 flex items-center gap-1">
+                <Target className="w-3.5 h-3.5 text-menthe" /> Objectif CA
+              </span>
+              <span className="text-sm font-black text-encre tabular-nums">
+                {formatMoney(financeStats.objectif_ca)}
+              </span>
+            </div>
+
+            <div className="p-4 bg-neige rounded-xl border border-graphite/5 flex flex-col gap-1">
+              <span className="text-[8px] uppercase font-bold text-encre/40 flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5 text-menthe" /> Objectif Bénéfice Net
+              </span>
+              <span className="text-sm font-black text-encre tabular-nums">
+                {formatMoney(financeStats.objectif_benefice)}
+              </span>
+            </div>
+
+            <div className="p-4 bg-neige rounded-xl border border-graphite/5 flex flex-col gap-1">
+              <span className="text-[8px] uppercase font-bold text-encre/40 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5 text-menthe" /> CA Réalisé
+              </span>
+              <span className="text-sm font-black text-encre tabular-nums">
+                {formatMoney(financeStats.ca_realise)}
+              </span>
+              {financeStats.objectif_ca > 0 && (
+                <div className="w-full h-1 bg-white rounded-full overflow-hidden mt-1">
+                  <div 
+                    className="h-full bg-menthe"
+                    style={{ width: `${Math.min((financeStats.ca_realise / financeStats.objectif_ca) * 100, 100)}%` }}
+                  ></div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl text-[10px] text-amber-700 font-semibold leading-relaxed">
+            Aucun objectif n&apos;a encore été défini pour cette journée. Rendez-vous dans l&apos;onglet <strong className="font-extrabold">&quot;Pilotage&quot;</strong> pour fixer vos objectifs de chiffre d&apos;affaires et de bénéfice net.
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Block 1: Journal & Todo List */}
@@ -399,7 +480,12 @@ export const JournalView: React.FC<JournalViewProps> = ({
               placeholder="Notez vos réflexions du jour, points bloquants, idées publicitaires, remarques sur les clients ou livreurs..."
               value={journalContent}
               onChange={(e) => setJournalContent(e.target.value)}
-              className="w-full min-h-[140px] bg-neige border border-graphite/10 rounded-xl p-3 text-xs font-medium focus:outline-none focus:border-menthe text-encre leading-relaxed resize-y"
+              className="w-full min-h-[400px] bg-[#FAF8F5] border border-graphite/10 rounded-2xl p-5 text-sm font-medium focus:outline-none focus:border-menthe text-encre leading-[2rem] resize-y shadow-inner"
+              style={{
+                backgroundImage: "linear-gradient(#E2E2E2 1px, transparent 1px)",
+                backgroundSize: "100% 2rem",
+                paddingTop: "0.5rem"
+              }}
             />
           </div>
 

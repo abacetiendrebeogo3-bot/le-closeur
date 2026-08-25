@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Settings, AlertTriangle, Database, CheckCircle2, RefreshCw } from "lucide-react";
+import { Settings, AlertTriangle, Database, CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
 import { supabase } from "../../lib/supabase/client";
 
 declare global {
@@ -19,15 +19,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   const [wabaId, setWabaId] = useState<string | null>(null);
   const [phoneNumberId, setPhoneNumberId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  
+  // Meta Ads States
+  const [metaAdsToken, setMetaAdsToken] = useState<string | null>(null);
+  const [metaAdsAccountId, setMetaAdsAccountId] = useState<string | null>(null);
+
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnectingAds, setIsConnectingAds] = useState(false);
   const [activeTab, setActiveTab] = useState<"auto" | "manual">("manual"); // Default to manual since it's user preference
 
   // Manual inputs form state
   const [inputWabaId, setInputWabaId] = useState("");
   const [inputPhoneNumberId, setInputPhoneNumberId] = useState("");
   const [inputAccessToken, setInputAccessToken] = useState("");
+  
+  const [inputMetaAdsToken, setInputMetaAdsToken] = useState("");
+  const [inputMetaAdsAccountId, setInputMetaAdsAccountId] = useState("");
+  
   const [isSavingManual, setIsSavingManual] = useState(false);
+  const [isSavingManualAds, setIsSavingManualAds] = useState(false);
 
   const fetchWhatsAppConfig = useCallback(async () => {
     if (!businessId) return;
@@ -35,7 +46,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     try {
       const { data, error } = await supabase
         .from("businesses")
-        .select("whatsapp_waba_id, whatsapp_phone_number_id, whatsapp_access_token")
+        .select("whatsapp_waba_id, whatsapp_phone_number_id, whatsapp_access_token, meta_ads_access_token, meta_ads_account_id")
         .eq("id", businessId)
         .maybeSingle();
 
@@ -48,6 +59,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         setInputWabaId(data.whatsapp_waba_id || "");
         setInputPhoneNumberId(data.whatsapp_phone_number_id || "");
         setInputAccessToken(data.whatsapp_access_token || "");
+
+        // Set Meta Ads
+        setMetaAdsToken(data.meta_ads_access_token || null);
+        setMetaAdsAccountId(data.meta_ads_account_id || null);
+        setInputMetaAdsToken(data.meta_ads_access_token || "");
+        setInputMetaAdsAccountId(data.meta_ads_account_id || "");
       }
     } catch (err) {
       console.error("Error fetching WhatsApp configuration:", err);
@@ -191,7 +208,99 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     }
   };
 
+  const handleConnectMetaAds = () => {
+    if (!businessId) {
+      triggerToast("Erreur : Aucun ID de commerce identifié.", "warning");
+      return;
+    }
+
+    if (!window.FB) {
+      triggerToast("Le SDK Meta n'est pas encore chargé. Veuillez patienter ou recharger la page.", "warning");
+      return;
+    }
+
+    setIsConnectingAds(true);
+
+    try {
+      window.FB.login(
+        async (response: any) => {
+          if (response.authResponse) {
+            const code = response.authResponse.code;
+            try {
+              const res = await fetch("/api/meta-ads/connect", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  code,
+                  businessId,
+                  redirectUri: window.location.origin + "/",
+                }),
+              });
+
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.error || "Échec de l'intégration Meta Ads.");
+              }
+
+              triggerToast(`Meta Ads connecté avec succès ! Compte publicitaire ID : ${data.adAccountId || ""}`, "success");
+              fetchWhatsAppConfig();
+            } catch (err: any) {
+              console.error("Error in exchange:", err);
+              triggerToast(err.message || "Erreur de connexion Meta Ads", "warning");
+            } finally {
+              setIsConnectingAds(false);
+            }
+          } else {
+            triggerToast("Le processus de connexion Meta Ads a été annulé.", "warning");
+            setIsConnectingAds(false);
+          }
+        },
+        {
+          scope: "ads_read,read_insights",
+          response_type: "code",
+          override_default_response_type: true
+        }
+      );
+    } catch (error: any) {
+      console.error("FB.login failed:", error);
+      triggerToast("Impossible d'ouvrir la popup de connexion Meta Ads. Vérifiez que votre navigateur autorise les fenêtres popups.", "warning");
+      setIsConnectingAds(false);
+    }
+  };
+
+  const handleSaveManualMetaAds = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessId) {
+      triggerToast("Erreur : Aucun ID de commerce identifié.", "warning");
+      return;
+    }
+
+    setIsSavingManualAds(true);
+    try {
+      const { error } = await supabase
+        .from("businesses")
+        .update({
+          meta_ads_access_token: inputMetaAdsToken.trim() || null,
+          meta_ads_account_id: inputMetaAdsAccountId.trim() || null,
+        })
+        .eq("id", businessId);
+
+      if (error) throw error;
+
+      triggerToast("Configuration Meta Ads enregistrée !", "success");
+      fetchWhatsAppConfig();
+    } catch (err: any) {
+      console.error("Error saving manual ads config:", err);
+      triggerToast(err.message || "Erreur lors de la sauvegarde", "warning");
+    } finally {
+      setIsSavingManualAds(false);
+    }
+  };
+
   const isConnected = !!phoneNumberId && !!wabaId;
+  const isAdsConnected = !!metaAdsToken && !!metaAdsAccountId;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full text-encre">
@@ -357,6 +466,100 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
             <span className="font-bold text-encre">Sécurité d’accès</span><br />
             L’API Meta requiert un jeton d’accès permanent stocké de manière isolée pour {ownerName || "Tiedrebeogo Wilfried"}.
           </div>
+        </div>
+      </div>
+
+      {/* Meta Ads API Integration Card */}
+      <div className="bg-white p-6 rounded-[2rem] border border-graphite/10 flex flex-col justify-between gap-5 shadow-sm">
+        <div className="flex flex-col gap-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-encre flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-menthe" />
+              <span>Facebook Ads Link</span>
+            </h3>
+            <span className="text-[9px] uppercase px-2.5 py-0.5 rounded-full font-bold bg-menthe/10 text-menthe border border-menthe/20">
+              Marketing API
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleConnectMetaAds}
+              disabled={isConnectingAds || !businessId}
+              className={`w-full py-3 px-4 rounded-xl text-xs font-bold text-center transition-all ${
+                isConnectingAds || !businessId
+                  ? "bg-neige border border-graphite/10 text-encre/30 cursor-not-allowed"
+                  : isAdsConnected
+                    ? "bg-white border border-graphite/15 hover:bg-graphite/5 text-encre"
+                    : "bg-graphite text-white hover:opacity-90"
+              } flex items-center justify-center gap-2`}
+            >
+              {isConnectingAds ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Connexion en cours...</span>
+                </>
+              ) : isAdsConnected ? (
+                "Reconnecter ou modifier Facebook Ads"
+              ) : (
+                "Connecter mon compte publicitaire Facebook"
+              )}
+            </button>
+
+            {isAdsConnected ? (
+              <span className="text-[10px] text-menthe font-semibold text-center block mt-1 flex items-center justify-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Publicités Facebook Connectées
+              </span>
+            ) : (
+              <span className="text-[10px] text-amber-600 font-semibold text-center block mt-1">
+                ⚠️ Non connecté — lier pour analyser vos campagnes
+              </span>
+            )}
+          </div>
+
+          {/* Manual inputs fallback for Ads */}
+          <form onSubmit={handleSaveManualMetaAds} className="flex flex-col gap-3 border-t border-graphite/5 pt-4">
+            <span className="text-[9px] uppercase font-black text-encre/40">Configuration manuelle ads</span>
+            
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase font-bold text-encre/50">Jeton d&apos;accès publicitaire</label>
+              <input
+                type="password"
+                placeholder="EAAG..."
+                value={inputMetaAdsToken}
+                onChange={(e) => setInputMetaAdsToken(e.target.value)}
+                className="w-full bg-neige border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none focus:border-graphite/30"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase font-bold text-encre/50">Facebook Ad Account ID</label>
+              <input
+                type="text"
+                placeholder="Ex: 109283749102"
+                value={inputMetaAdsAccountId}
+                onChange={(e) => setInputMetaAdsAccountId(e.target.value)}
+                className="w-full bg-neige border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none focus:border-graphite/30"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSavingManualAds || loadingConfig || !businessId}
+              className="w-full bg-neige hover:bg-graphite/10 text-encre border border-graphite/10 font-bold py-2 px-4 rounded-xl text-xs text-center transition-all flex items-center justify-center gap-2 mt-1"
+            >
+              {isSavingManualAds ? "Sauvegarde..." : "Enregistrer la config Ads"}
+            </button>
+          </form>
+
+          {isAdsConnected && (
+            <div className="bg-neige border border-graphite/10 p-3 rounded-xl flex flex-col gap-2 text-[10px] font-semibold text-encre/70">
+              <div>
+                <span className="text-encre/40 uppercase font-bold">Ad Account ID :</span>{" "}
+                <code className="bg-white px-1 py-0.5 rounded border border-graphite/10 font-mono text-[10px]">{metaAdsAccountId}</code>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

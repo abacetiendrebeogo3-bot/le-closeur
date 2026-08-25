@@ -83,6 +83,7 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [generatingIa, setGeneratingIa] = useState<boolean>(false);
+  const [generatingAdsIa, setGeneratingAdsIa] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" | "info" } | null>(null);
 
   const triggerToast = useCallback((message: string, type: "success" | "warning" | "info") => {
@@ -294,6 +295,27 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
       triggerToast(`Erreur IA : ${err.message}`, "warning");
     } finally {
       setGeneratingIa(false);
+    }
+  };
+
+  // Trigger Meta Ads IA Critique Generation
+  const handleGenerateAdsComment = async () => {
+    setGeneratingAdsIa(true);
+    try {
+      const res = await fetch("/api/meta-ads/generate-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId, date: selectedDate })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Une erreur est survenue.");
+
+      triggerToast("Rapport publicitaire généré !", "success");
+      loadDailyEntry();
+    } catch (err: any) {
+      triggerToast(`Erreur IA Ads : ${err.message}`, "warning");
+    } finally {
+      setGeneratingAdsIa(false);
     }
   };
 
@@ -723,6 +745,54 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
 
               <div className="text-[8px] text-neige/40 font-bold border-t border-graphite-light pt-3 uppercase tracking-wider text-center">
                 Analyse Générée par IA · Directeur Financier Virtuel
+              </div>
+            </div>
+
+            {/* IA Meta Ads Critique card */}
+            <div className="p-5 bg-encre text-neige rounded-2xl border border-graphite shadow-md flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-graphite-light pb-3">
+                <span className="text-xs font-black uppercase text-neige/90 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-menthe" /> Critique Pubs IA (Meta Ads)
+                </span>
+                <button
+                  onClick={handleGenerateAdsComment}
+                  disabled={generatingAdsIa || !entry}
+                  className="p-1.5 bg-graphite-light hover:bg-menthe text-neige/70 hover:text-neige rounded-xl transition-colors disabled:opacity-40 disabled:hover:bg-graphite-light"
+                  title="Régénérer la critique Ads IA"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${generatingAdsIa ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-3 min-h-[150px]">
+                {generatingAdsIa ? (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8 text-neige/55">
+                    <RefreshCw className="w-5 h-5 animate-spin text-menthe" />
+                    <span className="text-[10px] font-bold">Critique des campagnes en cours...</span>
+                  </div>
+                ) : entry?.commentaire_ads_ia ? (
+                  <p className="text-[11px] leading-relaxed font-medium text-neige/85 whitespace-pre-line italic">
+                    « {entry.commentaire_ads_ia} »
+                  </p>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-3 py-6 text-center text-neige/50">
+                    <span className="text-[10px] italic">Aucune critique générée pour cette date.</span>
+                    {entry ? (
+                      <button
+                        onClick={handleGenerateAdsComment}
+                        className="bg-menthe text-neige text-[10px] font-bold px-4 py-2 rounded-xl"
+                      >
+                        Générer la critique Ads
+                      </button>
+                    ) : (
+                      <span className="text-[9px] text-neige/45 max-w-[200px]">Enregistrez le bilan de la journée à gauche d&apos;abord pour permettre à l&apos;IA de critiquer les pubs.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="text-[8px] text-neige/40 font-bold border-t border-graphite-light pt-3 uppercase tracking-wider text-center">
+                Analyse Générée par IA · Contrôleur Publicitaire Virtuel
               </div>
             </div>
 

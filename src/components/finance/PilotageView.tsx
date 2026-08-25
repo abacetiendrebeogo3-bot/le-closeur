@@ -31,6 +31,14 @@ interface PilotageViewProps {
   formatFCFA: (val: number) => string;
 }
 
+interface FinanceExpenses {
+  pub: number;
+  stock: number;
+  livraison: number;
+  salaires: number;
+  autres: number;
+}
+
 export const PilotageView: React.FC<PilotageViewProps> = ({
   businessId,
   orders,
@@ -54,7 +62,7 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
   const [objectifCa, setObjectifCa] = useState<number>(0);
   const [objectifBenefice, setObjectifBenefice] = useState<number>(0);
   const [caRealise, setCaRealise] = useState<number>(0);
-  const [depenses, setDepenses] = useState<any>({
+  const [depenses, setDepenses] = useState<FinanceExpenses>({
     pub: 0,
     stock: 0,
     livraison: 0,

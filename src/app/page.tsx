@@ -640,6 +640,9 @@ export default function Home() {
   };
 
   const handleAssignCourier = async (orderId: string, courierName: string) => {
+    const orderObj = orders.find(o => o.id === orderId);
+    if (!orderObj) return;
+
     const { error: orderErr } = await supabase.from("orders").update({
       courier_name: courierName,
       status: "sent_to_courier"
@@ -658,6 +661,30 @@ export default function Home() {
       }).eq("id", cour.id);
 
       setCouriers(prev => prev.map(c => c.id === cour.id ? { ...c, load: nextLoad } : c));
+
+      // Send WhatsApp message to the courier with order details if their phone exists
+      if (cour.phone) {
+        const itemsStr = orderObj.items.map(item => `- ${item.product} (x${item.quantity})`).join("\n");
+        const messageText = `Bonjour ${cour.name} ! 🚚\n\nUne nouvelle commande vous a été assignée :\n\n- *ID Commande* : ${orderObj.id}\n- *Client* : ${orderObj.customer}\n- *Téléphone* : ${orderObj.customerPhone}\n- *Zone de livraison* : ${orderObj.deliveryZone}\n- *Adresse* : ${orderObj.customerAddress || "Non spécifiée"}\n- *Articles* :\n${itemsStr}\n- *Frais de livraison* : ${orderObj.shippingFee} FCFA\n- *Total à collecter* : ${orderObj.total} FCFA\n\nMerci de confirmer la bonne réception ! 🙏`;
+        
+        try {
+          const res = await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: cour.phone,
+              text: messageText
+            })
+          });
+          if (res.ok) {
+            triggerToast(`Notification WhatsApp envoyée au livreur ${courierName}.`, "success");
+          } else {
+            console.error("Failed to send WhatsApp message to courier:", await res.json());
+          }
+        } catch (err) {
+          console.error("Error calling send API for courier:", err);
+        }
+      }
     }
 
     setOrders(prev => prev.map(o => {

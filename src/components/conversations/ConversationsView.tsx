@@ -403,6 +403,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     if ((match = text.match(imageRegex))) {
       const url = match[1].trim();
       const restText = text.replace(match[0], "").trim();
+      
+      // If the matched URL is a base64 image, we render it directly
+      const isBase64 = url.startsWith("data:image/");
       return (
         <div className="flex flex-col gap-2">
           <img src={url} alt="Visuel" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />
@@ -459,6 +462,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       if (lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mov")) {
         return <video src={cleanText} controls className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
       }
+    } else if (cleanText.startsWith("data:image/")) {
+      // Split base64 image if there is additional text, or display directly
+      return <img src={cleanText} alt="Image" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
     }
 
     return <span>{text}</span>;
@@ -525,7 +531,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   });
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-10rem)] min-h-0">
+    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-8rem)] lg:h-[calc(100vh-10rem)] min-h-0">
       
       {/* Left sidebar: ConversationList */}
       <div className={`w-full lg:w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shrink-0 shadow-sm ${activeChatId !== null ? 'hidden lg:flex' : 'flex'}`}>

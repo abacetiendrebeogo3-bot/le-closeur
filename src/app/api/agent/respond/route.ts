@@ -375,18 +375,20 @@ ${JSON.stringify(zones || [], null, 2)}
             }
           },
           required: ["status"]
-        }
-      }
+        },
+        cache_control: { type: "ephemeral" }
+      } as any
     ];
 
-    // Call Anthropic with automatic prompt caching
+    // Call Anthropic with explicit prompt caching
     let response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 1024,
-      system: systemPrompt,
+      system: [
+        { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }
+      ] as any,
       messages: formattedMessages,
       tools: tools,
-      cache_control: { type: "ephemeral" },
     } as any);
 
     let toolCalls = response.content.filter((c) => c.type === "tool_use") as any[];
@@ -640,13 +642,14 @@ ${JSON.stringify(zones || [], null, 2)}
       const secondResponse = await anthropic.messages.create({
         model: CLAUDE_MODEL,
         max_tokens: 1024,
-        system: systemPrompt,
+        system: [
+          { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }
+        ] as any,
         messages: [
           ...formattedMessages,
           { role: "assistant", content: response.content },
           { role: "user", content: toolResults as any },
         ],
-        cache_control: { type: "ephemeral" },
       } as any);
 
       assistantMessage = secondResponse.content.find((c) => c.type === "text")?.text || "";

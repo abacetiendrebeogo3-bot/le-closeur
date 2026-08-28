@@ -765,12 +765,13 @@ ${isReturningCustomer ? `Note: Ce client a déjà commandé. Son ancienne adress
 ${formattedRules}
 `;
 
-            // Call Claude
+            // Call Claude with automatic prompt caching
             const response = await anthropic.messages.create({
               model: CLAUDE_MODEL,
               max_tokens: 1024,
               system: systemPrompt,
               messages: formattedMessages as any,
+              cache_control: { type: "ephemeral" },
               tools: [
                 {
                   name: "search_products",
@@ -1170,7 +1171,7 @@ ${formattedRules}
                 });
               }
 
-              // Get final reply from Claude with tool outputs
+              // Get final reply from Claude with tool outputs (with prompt caching)
               const secondResponse = await anthropic.messages.create({
                 model: CLAUDE_MODEL,
                 max_tokens: 1024,
@@ -1180,7 +1181,8 @@ ${formattedRules}
                   { role: "assistant", content: response.content },
                   { role: "user", content: toolResults as any },
                 ],
-              });
+                cache_control: { type: "ephemeral" },
+              } as any);
 
               assistantMessage = secondResponse.content.find((c) => c.type === "text")?.text || "";
             }

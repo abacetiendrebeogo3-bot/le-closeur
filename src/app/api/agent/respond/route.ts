@@ -379,14 +379,15 @@ ${JSON.stringify(zones || [], null, 2)}
       }
     ];
 
-    // Call Anthropic
+    // Call Anthropic with automatic prompt caching
     let response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 1024,
       system: systemPrompt,
       messages: formattedMessages,
       tools: tools,
-    });
+      cache_control: { type: "ephemeral" },
+    } as any);
 
     let toolCalls = response.content.filter((c) => c.type === "tool_use") as any[];
     let assistantMessage = response.content.find((c) => c.type === "text")?.text || "";
@@ -635,7 +636,7 @@ ${JSON.stringify(zones || [], null, 2)}
         });
       }
 
-      // 7. Get final reply from Claude with tool outputs
+      // 7. Get final reply from Claude with tool outputs (with prompt caching)
       const secondResponse = await anthropic.messages.create({
         model: CLAUDE_MODEL,
         max_tokens: 1024,
@@ -645,7 +646,8 @@ ${JSON.stringify(zones || [], null, 2)}
           { role: "assistant", content: response.content },
           { role: "user", content: toolResults as any },
         ],
-      });
+        cache_control: { type: "ephemeral" },
+      } as any);
 
       assistantMessage = secondResponse.content.find((c) => c.type === "text")?.text || "";
     }

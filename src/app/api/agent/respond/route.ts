@@ -471,67 +471,57 @@ ${JSON.stringify(zones || [], null, 2)}
               imageUrl = "";
             }
 
-            if (productName) {
+            if (!imageUrl && productName) {
               const matchedProduct = (products || []).find(
                 (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
               );
               if (matchedProduct) {
-                imageUrl = matchedProduct.image_url || (matchedProduct.image_urls && matchedProduct.image_urls[0]) || "";
+                // 1. Try to find product_media matching BOTH product_id AND label (imgType)
+                if (imgType) {
+                  const { data: exactMedia } = await supabaseServer
+                    .from("product_media")
+                    .select("url")
+                    .eq("business_id", businessId)
+                    .eq("product_id", matchedProduct.id)
+                    .eq("label", imgType)
+                    .limit(1)
+                    .maybeSingle();
+                  if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
+                    imageUrl = exactMedia.url;
+                  }
+                }
+
+                // 2. If not found, try to find any product_media matching just product_id
+                if (!imageUrl) {
+                  const { data: exactMedia } = await supabaseServer
+                    .from("product_media")
+                    .select("url")
+                    .eq("business_id", businessId)
+                    .eq("product_id", matchedProduct.id)
+                    .limit(1)
+                    .maybeSingle();
+                  if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
+                    imageUrl = exactMedia.url;
+                  }
+                }
+
+                // 3. Fallback to product record's image_url
+                if (!imageUrl) {
+                  imageUrl = matchedProduct.image_url || (matchedProduct.image_urls && matchedProduct.image_urls[0]) || "";
+                }
               }
             }
 
-            if (imageUrl && imageUrl.startsWith("data:")) {
-              imageUrl = "";
-            }
-
-            // Fallback to product_media query
-            if (!imageUrl) {
-              let matchedProductId: string | null = null;
-              if (productName) {
-                const matchedProduct = (products || []).find(
-                  (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
-                );
-                if (matchedProduct) {
-                  matchedProductId = matchedProduct.id;
-                }
-              }
-
-              if (matchedProductId && imgType) {
-                const { data: exactMedia } = await supabaseServer
-                  .from("product_media")
-                  .select("url")
-                  .eq("business_id", businessId)
-                  .eq("product_id", matchedProductId)
-                  .eq("label", imgType)
-                  .limit(1)
-                  .maybeSingle();
-                if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
-                  imageUrl = exactMedia.url;
-                }
-              }
-
-              if (!imageUrl && matchedProductId) {
-                const { data: prodMedia } = await supabaseServer
-                  .from("product_media")
-                  .select("url")
-                  .eq("business_id", businessId)
-                  .eq("product_id", matchedProductId)
-                  .limit(1);
-                if (prodMedia && prodMedia.length > 0 && prodMedia[0].url && !prodMedia[0].url.startsWith("data:")) {
-                  imageUrl = prodMedia[0].url;
-                }
-              }
-
-              if (!imageUrl && imgType) {
-                const { data: labelMedia } = await supabaseServer
-                  .from("product_media")
-                  .select("url")
-                  .eq("business_id", businessId)
-                  .eq("label", imgType)
-                  .limit(1);
-                if (labelMedia && labelMedia.length > 0 && labelMedia[0].url && !labelMedia[0].url.startsWith("data:")) {
-                  imageUrl = labelMedia[0].url;
-                }
+            // 4. Fallback if still no image, search product_media by label only
+            if (!imageUrl && imgType) {
+              const { data: labelMedia } = await supabaseServer
+                .from("product_media")
+                .select("url")
+                .eq("business_id", businessId)
+                .eq("label", imgType)
+                .limit(1);
+              if (labelMedia && labelMedia.length > 0 && labelMedia[0].url && !labelMedia[0].url.startsWith("data:")) {
+                imageUrl = labelMedia[0].url;
               }
             }
 

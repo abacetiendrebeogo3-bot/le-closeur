@@ -316,6 +316,7 @@ export async function POST(req: NextRequest) {
         let messageText = "";
         let base64Data = "";
         let imageMimeType = "image/jpeg";
+        let isLocalLanguageAudio = false;
 
         if (messageObject.type === "audio") {
           const audioId = messageObject.audio?.id;
@@ -369,7 +370,7 @@ export async function POST(req: NextRequest) {
                   // Append the file with a generic filename that Whisper accepts
                   formData.append("file", blob, "audio.ogg");
                   formData.append("model", "whisper-1");
-                  formData.append("language", "fr");
+                  formData.append("response_format", "verbose_json");
 
                   const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
                     method: "POST",
@@ -383,6 +384,13 @@ export async function POST(req: NextRequest) {
                     const whisperData = await whisperRes.json();
                     if (whisperData.text) {
                       transcribedText = whisperData.text;
+                      const detectedLanguage = (whisperData.language || "").toLowerCase();
+                      const isFrench = detectedLanguage === "french" || detectedLanguage === "fr";
+                      
+                      if (!isFrench) {
+                        isLocalLanguageAudio = true;
+                      }
+
                       messageText = audioPublicUrl 
                         ? `[Audio: ${audioPublicUrl}] ${transcribedText}` 
                         : transcribedText;
@@ -479,6 +487,28 @@ export async function POST(req: NextRequest) {
         }
 
         if (!messageText) {
+          return;
+        }
+
+        if (isLocalLanguageAudio) {
+          const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+          
+          // Save the customer side notification message with WA_MSG_ID prefix
+          const notificationMsg = `[WA_MSG_ID: ${messageId}] 🔔 Message vocal reçu, probablement en langue locale (non français) — transcription automatique non fiable. Écoutez directement l'audio dans le SaaS pour répondre.`;
+          await saveMessageSafe(conversationId, "customer", notificationMsg, timeStr, customerPhone, businessId);
+
+          // Escalate to human in DB
+          await supabaseServer
+            .from("conversations")
+            .update({ status: "human_takeover" })
+            .eq("id", conversationId);
+
+          // Send polite waiting message to customer
+          const customerWaitingMsg = "Un instant, je reviens vers vous 🙏";
+          await sendWhatsAppMessage(customerPhone, customerWaitingMsg, businessId);
+          
+          // Save AI reply in messages table
+          await saveMessageSafe(conversationId, "ai", customerWaitingMsg, timeStr, customerPhone, businessId);
           return;
         }
 

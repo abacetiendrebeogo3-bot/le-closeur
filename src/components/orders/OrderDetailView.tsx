@@ -70,9 +70,9 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({
   let activeIndex = 0;
   if (orderObj.status === "discussing") activeIndex = 0;
   else if (orderObj.status === "confirmed") activeIndex = 1;
-  else if (orderObj.status === "sent_to_courier") {
-    activeIndex = orderObj.courier ? 3 : 2; // "En livraison" if courier is assigned, else "Chez livreur"
-  }
+  else if (orderObj.status === "courier_assigned") activeIndex = 2;
+  else if (orderObj.status === "sent_to_courier") activeIndex = 2;
+  else if (orderObj.status === "shipping") activeIndex = 3;
   else if (orderObj.status === "delivered") activeIndex = 4;
   else if (orderObj.status === "paid") activeIndex = 5;
 
@@ -285,7 +285,9 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({
             >
               {orderObj.status === "discussing" && "Confirmer la commande"}
               {orderObj.status === "confirmed" && "Expédier (Chez livreur)"}
-              {orderObj.status === "sent_to_courier" && "En livraison"}
+              {orderObj.status === "courier_assigned" && "Expédier (Chez livreur)"}
+              {orderObj.status === "sent_to_courier" && "Lancer la livraison (En cours)"}
+              {orderObj.status === "shipping" && "Marquer comme livrée"}
               {orderObj.status === "delivered" && "Marquer comme payée"}
             </button>
           )}

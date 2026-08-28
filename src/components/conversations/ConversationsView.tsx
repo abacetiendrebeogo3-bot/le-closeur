@@ -742,13 +742,16 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                                   ? `${ownerName.split(" ")[0]} (Reprise)` 
                                   : 'Wilfried (Reprise)'}
                           </span>
-                          <div className={`px-4 py-2.5 rounded-[1.2rem] text-xs leading-relaxed ${
-                            isCust 
-                              ? 'bg-white border border-graphite/10 text-encre shadow-sm rounded-tl-none' 
-                              : isAI
-                                ? 'bg-encre text-neige shadow-sm rounded-tr-none border border-graphite'
-                                : 'bg-menthe text-white shadow-sm rounded-tr-none border border-menthe/20'
-                          }`}>
+                          <div 
+                            className={`px-4 py-2.5 rounded-[1.2rem] text-xs leading-relaxed ${
+                              isCust 
+                                ? 'bg-white border border-graphite/10 text-encre shadow-sm rounded-tl-none' 
+                                : isAI
+                                  ? 'bg-encre text-neige shadow-sm rounded-tr-none border border-graphite'
+                                  : 'bg-menthe text-white shadow-sm rounded-tr-none border border-menthe/20'
+                            }`}
+                            style={{ wordBreak: "break-all", overflowWrap: "anywhere" }}
+                          >
                             {renderMessageContent(msg.text)}
                           </div>
                           <span className="text-[8px] text-encre/30 px-1 text-right mt-0.5">{msg.time}</span>

@@ -7,6 +7,41 @@ import crypto from "crypto";
 
 const DEFAULT_BUSINESS_ID = "00000000-0000-0000-0000-000000000000";
 
+// Helper to save message safely to DB (preventing base64 or long messages from bloating DB / client)
+async function saveMessageSafe(
+  conversationId: string,
+  sender: "ai" | "customer" | "system",
+  text: string,
+  time: string,
+  customerPhone?: string,
+  businessId?: string
+) {
+  let textToSave = text || "";
+  const isTooLong = textToSave.length > 2000;
+  const hasBase64 = textToSave.toLowerCase().includes("base64") || textToSave.includes("data:");
+  
+  if (isTooLong || hasBase64) {
+    console.error(`[CRITICAL] Message safety check triggered! Length: ${textToSave.length}, Contains base64: ${hasBase64}. Blocked contents.`);
+    textToSave = "Un instant, je vous transmets ça 🙏";
+    
+    if (sender === "ai" && customerPhone && businessId) {
+      try {
+        await sendWhatsAppMessage(customerPhone, textToSave, businessId);
+      } catch (err) {
+        console.error("Failed to send fallback message on WhatsApp:", err);
+      }
+    }
+  }
+
+  return await supabaseServer.from("messages").insert({
+    conversation_id: conversationId,
+    sender,
+    text: textToSave,
+    time
+  });
+}
+
+
 // Verify Signature from Meta (X-Hub-Signature-256)
 function verifySignature(payload: string, signatureHeader: string | null): boolean {
   console.log("verifySignature called. Header:", signatureHeader);
@@ -352,12 +387,7 @@ export async function POST(req: NextRequest) {
         await sendWhatsAppMessage(customerPhone, audioReply, businessId);
         
         const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-        await supabaseServer.from("messages").insert({
-          conversation_id: conversationId,
-          sender: "customer",
-          text: "[Message vocal reçu (Non lu)]",
-          time: timeStr,
-        });
+        await saveMessageSafe(conversationId, "customer", "[Message vocal reçu (Non lu)]", timeStr, customerPhone, businessId);
 
         return NextResponse.json({ status: "success", message: "Audio message fallback processed." });
       }
@@ -417,12 +447,14 @@ export async function POST(req: NextRequest) {
       await sendWhatsAppMessage(customerPhone, fallbackReply, businessId);
 
       const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-      await supabaseServer.from("messages").insert({
-        conversation_id: conversationId,
-        sender: "customer",
-        text: `[Fichier reçu non pris en charge: ${messageObject.type}]`,
-        time: timeStr,
-      });
+      await saveMessageSafe(
+        conversationId,
+        "customer",
+        `[Fichier reçu non pris en charge: ${messageObject.type}]`,
+        timeStr,
+        customerPhone,
+        businessId
+      );
 
       return NextResponse.json({ status: "success", message: "Unsupported message type fallback processed." });
     } else {
@@ -435,12 +467,7 @@ export async function POST(req: NextRequest) {
 
     // Save incoming message in messages history
     const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    await supabaseServer.from("messages").insert({
-      conversation_id: conversationId,
-      sender: "customer",
-      text: messageText,
-      time: timeStr,
-    });
+    await saveMessageSafe(conversationId, "customer", messageText, timeStr, customerPhone, businessId);
 
     // If human takeover is active, stop here (do not call Claude / send AI reply)
     if (conversation.status === "human_takeover") {
@@ -567,6 +594,10 @@ Ton but est de conseiller les prospects, de les aider à choisir des produits, d
 - Utilise des emojis avec modération pour rester engageant.
 - RÈGLES DE VALIDATION DE COMMANDE DIRECTES : Dès que le client exprime de l'intérêt ou choisit un produit, récapitule immédiatement la commande (Produit, prix, zone de livraison) et demande sa confirmation (ex: "C'est noté, je vous livre le Kit Minceur à 6 500F à Benego. C'est bien cela ?").
 - Pas de questions répétitives ou de demandes d'informations géographiques redondantes. Si le client mentionne un quartier (ex: "Benego"), ne pose plus de questions de précision sur le quartier (comme "c'est où?", "quartier, repère?") avant d'enregistrer la commande. Valide directement. Une fois qu'il confirme la commande par "Oui", appelle immédiatement l'outil "create_order" pour enregistrer la commande.
+
+[RÈGLES D'EXTRACTION DE CONTEXTE - ABSOLUES]
+- Si le client a déjà fourni son nom (ex: "Je m'appelle Amadou") ou son quartier/adresse (ex: "Je suis à Benego") dans l'historique de la conversation, tu ne dois JAMAIS lui redemander ces informations. Déduis-les directement de l'historique et utilise-les pour remplir les arguments des outils ou valider la commande.
+- Ne reconfirme pas non plus inutilement des informations déjà clairement validées. Sois direct et fluide.
 
 [IDENTITÉ ET RÔLE]
 ${identity}
@@ -858,21 +889,44 @@ ${JSON.stringify(zones || [], null, 2)}
                 const captionStr = input.caption || "";
                 let imageUrl = directUrl || "";
 
+                if (imageUrl && imageUrl.startsWith("data:")) {
+                  console.error("SERVER ERROR: Input image_url starts with data: (base64 blocked)");
+                  imageUrl = "";
+                }
+
                 if (productName) {
                   // Find the product in the products list
-                  const matchedProduct = (rawProducts || []).find(
+                  const matchedProduct = (products || []).find(
                     (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
                   );
                   if (matchedProduct) {
-                    imageUrl = matchedProduct.image_url || (matchedProduct.image_urls && matchedProduct.image_urls[0]) || "";
+                    // Try to fetch from product_media first (URLs propres)
+                    const { data: exactMedia } = await supabaseServer
+                      .from("product_media")
+                      .select("url")
+                      .eq("business_id", businessId)
+                      .eq("product_id", matchedProduct.id)
+                      .limit(1)
+                      .maybeSingle();
+
+                    if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
+                      imageUrl = exactMedia.url;
+                    } else {
+                      imageUrl = matchedProduct.image_url || (matchedProduct.image_urls && matchedProduct.image_urls[0]) || "";
+                    }
                   }
+                }
+
+                if (imageUrl && imageUrl.startsWith("data:")) {
+                  console.error("SERVER ERROR: Selected product image_url starts with data: (base64 blocked)");
+                  imageUrl = "";
                 }
 
                 // Fallback to product_media query
                 if (!imageUrl) {
                   let matchedProductId: string | null = null;
                   if (productName) {
-                    const matchedProduct = (rawProducts || []).find(
+                    const matchedProduct = (products || []).find(
                       (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
                     );
                     if (matchedProduct) {
@@ -889,7 +943,7 @@ ${JSON.stringify(zones || [], null, 2)}
                       .eq("label", imgType)
                       .limit(1)
                       .maybeSingle();
-                    if (exactMedia) {
+                    if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
                       imageUrl = exactMedia.url;
                     }
                   }
@@ -901,7 +955,7 @@ ${JSON.stringify(zones || [], null, 2)}
                       .eq("business_id", businessId)
                       .eq("product_id", matchedProductId)
                       .limit(1);
-                    if (prodMedia && prodMedia.length > 0) {
+                    if (prodMedia && prodMedia.length > 0 && prodMedia[0].url && !prodMedia[0].url.startsWith("data:")) {
                       imageUrl = prodMedia[0].url;
                     }
                   }
@@ -913,26 +967,38 @@ ${JSON.stringify(zones || [], null, 2)}
                       .eq("business_id", businessId)
                       .eq("label", imgType)
                       .limit(1);
-                    if (labelMedia && labelMedia.length > 0) {
+                    if (labelMedia && labelMedia.length > 0 && labelMedia[0].url && !labelMedia[0].url.startsWith("data:")) {
                       imageUrl = labelMedia[0].url;
                     }
                   }
                 }
 
-                if (imageUrl) {
+                if (imageUrl && imageUrl.startsWith("data:")) {
+                  console.error("SERVER ERROR: Fallback imageUrl starts with data: (base64 blocked)");
+                  imageUrl = "";
+                }
+
+                if (imageUrl && !imageUrl.startsWith("data:")) {
                   const success = await sendWhatsAppImage(customerPhone, imageUrl, captionStr, businessId);
                   
-                  // Save visually sent image message in history
+                  // Save visually sent image message in history safely (no base64 saved to DB)
                   const msgTime = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-                  await supabaseServer.from("messages").insert({
-                    conversation_id: conversationId,
-                    sender: "ai",
-                    text: `[Image envoyée : ${productName || imgType || 'direct'}] ${imageUrl}`,
-                    time: msgTime
-                  });
+                  const historyText = imageUrl.startsWith("data:") 
+                    ? `[Image envoyée : ${productName || imgType || 'direct'}] [Image produit]`
+                    : `[Image envoyée : ${productName || imgType || 'direct'}] ${imageUrl}`;
+
+                  await saveMessageSafe(
+                    conversationId,
+                    "ai",
+                    historyText,
+                    msgTime,
+                    customerPhone,
+                    businessId
+                  );
 
                   resultData = { success, message: `Image envoyée avec succès.` };
                 } else {
+                  console.error("SERVER ERROR: send_product_visual failed - imageUrl is empty or data: (base64)");
                   resultData = { success: false, error: `Impossible de trouver l'image pour le produit '${productName}' ou le type '${imgType}'.` };
                 }
               } else if (name === "create_order") {
@@ -963,6 +1029,25 @@ ${JSON.stringify(zones || [], null, 2)}
 
                 const total = subtotal + shippingFee;
 
+                // Automatic courier assignment logic
+                const { data: activeCouriers } = await supabaseServer
+                  .from("couriers")
+                  .select("*")
+                  .eq("business_id", businessId)
+                  .eq("active", true);
+
+                let assignedCourier = null;
+                let orderStatus = "confirmed";
+
+                if (activeCouriers && activeCouriers.length > 0) {
+                  assignedCourier = activeCouriers.reduce((prev: any, curr: any) => {
+                    const prevLoad = prev.load || 0;
+                    const currLoad = curr.load || 0;
+                    return prevLoad <= currLoad ? prev : curr;
+                  });
+                  orderStatus = "sent_to_courier";
+                }
+
                 // Insert Order
                 const { error: orderErr } = await supabaseServer.from("orders").insert({
                   id: newOrderId,
@@ -971,12 +1056,13 @@ ${JSON.stringify(zones || [], null, 2)}
                   customer_phone: customerPhone,
                   customer_address: input.customer_address,
                   date: new Date().toISOString().substring(0, 10),
-                  status: "confirmed",
+                  status: orderStatus,
                   payment_status: "pending",
                   delivery_zone: input.delivery_zone,
                   shipping_fee: shippingFee,
                   total: total,
                   chat_id: conversationId,
+                  courier_name: assignedCourier ? assignedCourier.name : null,
                 });
 
                 if (orderErr) {
@@ -985,6 +1071,21 @@ ${JSON.stringify(zones || [], null, 2)}
                   // Insert Order Items
                   await supabaseServer.from("order_items").insert(itemsToInsert);
                   await updateCustomerTag("commande_passée");
+
+                  if (assignedCourier) {
+                    // Update courier load
+                    await supabaseServer
+                      .from("couriers")
+                      .update({ load: (assignedCourier.load || 0) + 1 })
+                      .eq("id", assignedCourier.id);
+
+                    // Notify courier via WhatsApp
+                    if (assignedCourier.phone) {
+                      const courierItemsStr = input.items.map((item: any) => `- ${item.product_name} (x${item.quantity})`).join("\n");
+                      const courierMessageText = `Bonjour ${assignedCourier.name} ! 🚚\n\nUne nouvelle commande vous a été AUTOMATIQUEMENT assignée :\n\n- *ID Commande* : ${newOrderId}\n- *Client* : ${input.customer_name}\n- *Téléphone* : ${customerPhone}\n- *Zone de livraison* : ${input.delivery_zone}\n- *Adresse* : ${input.customer_address || "Non spécifiée"}\n- *Articles* :\n${courierItemsStr}\n- *Frais de livraison* : ${shippingFee} FCFA\n- *Total à collecter* : ${total} FCFA\n\nMerci de confirmer la bonne réception ! 🙏`;
+                      await sendWhatsAppMessage(assignedCourier.phone, courierMessageText, businessId);
+                    }
+                  }
                   
                   // Update conversation engagement status to client / client_fidele
                   const { count } = await supabaseServer
@@ -1028,17 +1129,15 @@ ${JSON.stringify(zones || [], null, 2)}
         }
 
         if (assistantMessage) {
-          // Send message via Meta WhatsApp
-          await sendWhatsAppMessage(customerPhone, assistantMessage, businessId);
-
-          // Save AI reply to Supabase
+          // Send message via Meta WhatsApp (saveMessageSafe handles safety logic & fallbacks to customer)
           const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-          await supabaseServer.from("messages").insert({
-            conversation_id: conversationId,
-            sender: "ai",
-            text: assistantMessage,
-            time: aiTimeStr,
-          });
+          const isTooLong = assistantMessage.length > 2000;
+          const hasBase64 = assistantMessage.toLowerCase().includes("base64") || assistantMessage.includes("data:");
+          
+          if (!isTooLong && !hasBase64) {
+            await sendWhatsAppMessage(customerPhone, assistantMessage, businessId);
+          }
+          await saveMessageSafe(conversationId, "ai", assistantMessage, aiTimeStr, customerPhone, businessId);
         }
       } catch (err: any) {
         console.error("Error in background closeur agent:", err);
@@ -1046,12 +1145,14 @@ ${JSON.stringify(zones || [], null, 2)}
         await sendWhatsAppMessage(customerPhone, fallbackMessage, businessId);
 
         const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-        await supabaseServer.from("messages").insert({
-          conversation_id: conversationId,
-          sender: "ai",
-          text: `[Erreur Technique: ${err.message || err}] ${fallbackMessage}`,
-          time: aiTimeStr,
-        });
+        await saveMessageSafe(
+          conversationId,
+          "ai",
+          `[Erreur Technique: ${err.message || err}] ${fallbackMessage}`,
+          aiTimeStr,
+          customerPhone,
+          businessId
+        );
       }
     };
 

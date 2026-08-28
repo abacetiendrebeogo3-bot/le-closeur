@@ -27,7 +27,7 @@ export interface Order {
   customerPhone: string;
   customerAddress: string;
   date: string;
-  status: "discussing" | "confirmed" | "sent_to_courier" | "delivered" | "paid" | "cancelled";
+  status: "discussing" | "confirmed" | "courier_assigned" | "sent_to_courier" | "shipping" | "delivered" | "paid" | "cancelled";
   paymentStatus: "paid" | "pending" | "overdue";
   total: number;
   shippingFee: number;

@@ -588,7 +588,9 @@ export default function Home() {
     let nextPayment = o.paymentStatus;
     if (o.status === "discussing") nextStatus = "confirmed";
     else if (o.status === "confirmed") nextStatus = "sent_to_courier";
-    else if (o.status === "sent_to_courier") nextStatus = "delivered";
+    else if (o.status === "courier_assigned") nextStatus = "sent_to_courier";
+    else if (o.status === "sent_to_courier") nextStatus = "shipping";
+    else if (o.status === "shipping") nextStatus = "delivered";
     else if (o.status === "delivered") {
       nextStatus = "paid";
       nextPayment = "paid";
@@ -843,9 +845,11 @@ export default function Home() {
   const orderBadges = {
     discussing: <span className="bg-blue-100 text-blue-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">En discussion</span>,
     confirmed: <span className="bg-purple-100 text-purple-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">Confirmée</span>,
+    courier_assigned: <span className="bg-indigo-100 text-indigo-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">Livreur assigné</span>,
     sent_to_courier: <span className="bg-orange-100 text-orange-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">Chez livreur</span>,
-    delivered: <span className="bg-cyan-100 text-cyan-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">En livraison</span>,
-    paid: <span className="bg-green-100 text-green-900 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">Livrée & Payée</span>,
+    shipping: <span className="bg-cyan-100 text-cyan-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">En livraison</span>,
+    delivered: <span className="bg-teal-100 text-teal-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">Livrée</span>,
+    paid: <span className="bg-green-100 text-green-900 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">Payée</span>,
     cancelled: <span className="bg-red-100 text-red-800 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">Annulée</span>
   };
 

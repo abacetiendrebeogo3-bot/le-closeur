@@ -137,1033 +137,954 @@ export async function POST(req: NextRequest) {
     const customerPhone = messageObject.from; // e.g. "221776543210" or formatted phone
     const contactName = value?.contacts?.[0]?.profile?.name || customerPhone;
 
-    // Resolve businessId dynamically based on the receiving phone number ID
-    const phoneNumberId = value?.metadata?.phone_number_id;
-    let businessId = DEFAULT_BUSINESS_ID;
-
-    if (phoneNumberId) {
-      const { data: bus, error: busErr } = await supabaseServer
-        .from("businesses")
+    const messageId = messageObject?.id;
+    if (messageId) {
+      const { data: existingMsg } = await supabaseServer
+        .from("messages")
         .select("id")
-        .eq("whatsapp_phone_number_id", phoneNumberId)
-        .maybeSingle();
-      
-      if (busErr) {
-        console.error("Error looking up business by phone number ID:", busErr);
-      } else if (bus) {
-        businessId = bus.id;
-        console.log(`Resolved dynamic business_id: ${businessId} for phone_number_id: ${phoneNumberId}`);
-      } else {
-        console.warn(`No business found matching phone number ID: ${phoneNumberId}. Falling back to default.`);
-      }
-    }
-
-    // Fetch Business Config
-    const { data: business } = await supabaseServer
-      .from("businesses")
-      .select("*")
-      .eq("id", businessId)
-      .maybeSingle();
-
-    const identity = business?.agent_identity || "Tu es un agent d'aide à la vente.";
-    const salesRules = business?.agent_sales_rules || "";
-    const escalationRules = business?.agent_escalation_rules || "";
-    const tone = business?.agent_tone || "Chaleureux et Respectueux";
-    const token = business?.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN || "";
-
-    // 1. Ensure customer exists in Supabase
-    const { data: customer, error: customerFetchErr } = await supabaseServer
-      .from("customers")
-      .select("*")
-      .eq("phone", customerPhone)
-      .maybeSingle();
-
-    let lastOrderAddress = "";
-    let lastOrderCustomerName = "";
-    let isReturningCustomer = false;
-
-    if (customer) {
-      const { data: lastOrders } = await supabaseServer
-        .from("orders")
-        .select("customer, customer_address")
-        .eq("customer_phone", customerPhone)
-        .order("created_at", { ascending: false })
+        .like("text", `[WA_MSG_ID: ${messageId}]%`)
         .limit(1);
 
-      if (lastOrders && lastOrders.length > 0) {
-        lastOrderAddress = lastOrders[0].customer_address;
-        lastOrderCustomerName = lastOrders[0].customer;
-        isReturningCustomer = true;
+      if (existingMsg && existingMsg.length > 0) {
+        console.log(`[DEDUPLICATION] Message ${messageId} already processed. Ignoring.`);
+        return NextResponse.json({ status: "success", message: "Duplicate ignored." });
       }
     }
 
-    if (customerFetchErr) {
-      console.error("Error checking customer in Supabase:", customerFetchErr);
-    }
-
-    let customerId = customer?.id;
-
-    if (!customer) {
-      // Create new customer
-      const newCustId = `CUST-WA-${Math.floor(Math.random() * 90000 + 10000)}`;
-      const { data: newCust, error: createCustErr } = await supabaseServer
-        .from("customers")
-        .insert({
-          id: newCustId,
-          business_id: businessId,
-          name: contactName,
-          phone: customerPhone,
-          first_contact: new Date().toLocaleDateString("fr-FR"),
-          tags: ["prospect"],
-        })
-        .select()
-        .single();
-
-      if (createCustErr) {
-        console.error("Error creating customer in Supabase:", createCustErr);
-        customerId = newCustId;
-      } else {
-        customerId = newCust?.id;
-      }
-    }
-
-    // Helper to update tags dynamically
-    const updateCustomerTag = async (newTag: string) => {
+    // Define background processing promise
+    const handleIncomingMessageBackground = async () => {
       try {
-        if (!customerId) return;
-        const { data: cust } = await supabaseServer
-          .from("customers")
-          .select("tags")
-          .eq("id", customerId)
+        // Resolve businessId dynamically based on the receiving phone number ID
+        const phoneNumberId = value?.metadata?.phone_number_id;
+        let businessId = DEFAULT_BUSINESS_ID;
+
+        if (phoneNumberId) {
+          const { data: bus, error: busErr } = await supabaseServer
+            .from("businesses")
+            .select("id")
+            .eq("whatsapp_phone_number_id", phoneNumberId)
+            .maybeSingle();
+          
+          if (busErr) {
+            console.error("Error looking up business by phone number ID:", busErr);
+          } else if (bus) {
+            businessId = bus.id;
+            console.log(`Resolved dynamic business_id: ${businessId} for phone_number_id: ${phoneNumberId}`);
+          } else {
+            console.warn(`No business found matching phone number ID: ${phoneNumberId}. Falling back to default.`);
+          }
+        }
+
+        // Fetch Business Config
+        const { data: business } = await supabaseServer
+          .from("businesses")
+          .select("*")
+          .eq("id", businessId)
           .maybeSingle();
 
-        if (cust) {
-          const tagsList = cust.tags || [];
-          if (!tagsList.includes(newTag)) {
-            await supabaseServer
-              .from("customers")
-              .update({ tags: [...tagsList, newTag] })
-              .eq("id", customerId);
+        const identity = business?.agent_identity || "Tu es un agent d'aide à la vente.";
+        const salesRules = business?.agent_sales_rules || "";
+        const escalationRules = business?.agent_escalation_rules || "";
+        const tone = business?.agent_tone || "Chaleureux et Respectueux";
+        const token = business?.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN || "";
+
+        // 1. Ensure customer exists in Supabase
+        const { data: customer, error: customerFetchErr } = await supabaseServer
+          .from("customers")
+          .select("*")
+          .eq("phone", customerPhone)
+          .maybeSingle();
+
+        let lastOrderAddress = "";
+        let lastOrderCustomerName = "";
+        let isReturningCustomer = false;
+
+        if (customer) {
+          const { data: lastOrders } = await supabaseServer
+            .from("orders")
+            .select("customer, customer_address")
+            .eq("customer_phone", customerPhone)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (lastOrders && lastOrders.length > 0) {
+            lastOrderAddress = lastOrders[0].customer_address;
+            lastOrderCustomerName = lastOrders[0].customer;
+            isReturningCustomer = true;
           }
         }
-      } catch (err) {
-        console.error("Error updating customer tag:", err);
-      }
-    };
 
-    // 2. Find or create conversation
-    let { data: conversation, error: convFetchErr } = await supabaseServer
-      .from("conversations")
-      .select("*")
-      .eq("customer_phone", customerPhone)
-      .eq("business_id", businessId)
-      .maybeSingle();
+        if (customerFetchErr) {
+          console.error("Error checking customer in Supabase:", customerFetchErr);
+        }
 
-    if (convFetchErr) {
-      console.error("Error checking conversation in Supabase:", convFetchErr);
-    }
+        let customerId = customer?.id;
 
-    let conversationId = conversation?.id;
+        if (!customer) {
+          // Create new customer
+          const newCustId = `CUST-WA-${Math.floor(Math.random() * 90000 + 10000)}`;
+          const { data: newCust, error: createCustErr } = await supabaseServer
+            .from("customers")
+            .insert({
+              id: newCustId,
+              business_id: businessId,
+              name: contactName,
+              phone: customerPhone,
+              first_contact: new Date().toLocaleDateString("fr-FR"),
+              tags: ["prospect"],
+            })
+            .select()
+            .single();
 
-    if (!conversation) {
-      const avatarLetters = contactName.substring(0, 2).toUpperCase();
-      const { data: newConv, error: createConvErr } = await supabaseServer
-        .from("conversations")
-        .insert({
-          business_id: businessId,
-          customer_name: contactName,
-          customer_phone: customerPhone,
-          status: "ai_active",
-          avatar: avatarLetters,
-          unread: true,
-        })
-        .select()
-        .single();
+          if (createCustErr) {
+            console.error("Error creating customer in Supabase:", createCustErr);
+            customerId = newCustId;
+          } else {
+            customerId = newCust?.id;
+          }
+        }
 
-      if (createConvErr) {
-        console.error("Error creating conversation in Supabase:", createConvErr);
-        return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
-      }
+        // Helper to update tags dynamically
+        const updateCustomerTag = async (newTag: string) => {
+          try {
+            if (!customerId) return;
+            const { data: cust } = await supabaseServer
+              .from("customers")
+              .select("tags")
+              .eq("id", customerId)
+              .maybeSingle();
 
-      conversation = newConv;
-      conversationId = newConv.id;
-    } else {
-      // Update conversation unread status
-      await supabaseServer
-        .from("conversations")
-        .update({ unread: true })
-        .eq("id", conversationId);
-    }
+            if (cust) {
+              const tagsList = cust.tags || [];
+              if (!tagsList.includes(newTag)) {
+                await supabaseServer
+                  .from("customers")
+                  .update({ tags: [...tagsList, newTag] })
+                  .eq("id", customerId);
+              }
+            }
+          } catch (err) {
+            console.error("Error updating customer tag:", err);
+          }
+        };
 
-    // 3. Process Multimedia incoming messages
-    let messageText = "";
-    let base64Data = "";
-    let imageMimeType = "image/jpeg";
+        // 2. Find or create conversation
+        let { data: conversation, error: convFetchErr } = await supabaseServer
+          .from("conversations")
+          .select("*")
+          .eq("customer_phone", customerPhone)
+          .eq("business_id", businessId)
+          .maybeSingle();
 
-    if (messageObject.type === "audio") {
-      const audioId = messageObject.audio?.id;
-      let transcribedText = "";
+        if (convFetchErr) {
+          console.error("Error checking conversation in Supabase:", convFetchErr);
+        }
 
-      if (audioId && token) {
-        try {
-          // Fetch media URL from Meta API
-          const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const mediaMetadata = await mediaRes.json();
-          const downloadUrl = mediaMetadata.url;
+        let conversationId = conversation?.id;
 
-          if (downloadUrl) {
-            // Download audio file from Meta
-            const audioFileRes = await fetch(downloadUrl, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            const arrayBuffer = await audioFileRes.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
+        if (!conversation) {
+          const avatarLetters = contactName.substring(0, 2).toUpperCase();
+          const { data: newConv, error: createConvErr } = await supabaseServer
+            .from("conversations")
+            .insert({
+              business_id: businessId,
+              customer_name: contactName,
+              customer_phone: customerPhone,
+              status: "ai_active",
+              avatar: avatarLetters,
+              unread: true,
+            })
+            .select()
+            .single();
 
-            // Upload audio file to Supabase Storage
-            let audioPublicUrl = "";
+          if (createConvErr) {
+            console.error("Error creating conversation in Supabase:", createConvErr);
+            return;
+          }
+
+          conversation = newConv;
+          conversationId = newConv.id;
+        } else {
+          // Update conversation unread status
+          await supabaseServer
+            .from("conversations")
+            .update({ unread: true })
+            .eq("id", conversationId);
+        }
+
+        // 3. Process Multimedia incoming messages
+        let messageText = "";
+        let base64Data = "";
+        let imageMimeType = "image/jpeg";
+
+        if (messageObject.type === "audio") {
+          const audioId = messageObject.audio?.id;
+          let transcribedText = "";
+
+          if (audioId && token) {
             try {
-              const audioUploadPath = `received-audio/${customerPhone}/${Date.now()}.ogg`;
-              const { error: uploadAudioErr } = await supabaseServer.storage
-                .from("product-images")
-                .upload(audioUploadPath, buffer, {
-                  contentType: messageObject.audio.mime_type || "audio/ogg",
-                  upsert: true
-                });
+              // Fetch media URL from Meta API
+              const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              const mediaMetadata = await mediaRes.json();
+              const downloadUrl = mediaMetadata.url;
 
-              if (uploadAudioErr) {
-                console.error("Supabase storage upload audio error:", uploadAudioErr);
-              } else {
+              if (downloadUrl) {
+                // Download audio file from Meta
+                const audioFileRes = await fetch(downloadUrl, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                const arrayBuffer = await audioFileRes.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+
+                // Upload audio file to Supabase Storage
+                let audioPublicUrl = "";
+                try {
+                  const audioUploadPath = `received-audio/${customerPhone}/${Date.now()}.ogg`;
+                  const { error: uploadAudioErr } = await supabaseServer.storage
+                    .from("product-images")
+                    .upload(audioUploadPath, buffer, {
+                      contentType: messageObject.audio.mime_type || "audio/ogg",
+                      upsert: true
+                    });
+
+                  if (uploadAudioErr) {
+                    console.error("Supabase storage upload audio error:", uploadAudioErr);
+                  } else {
+                    const { data: { publicUrl } } = supabaseServer.storage
+                      .from("product-images")
+                      .getPublicUrl(audioUploadPath);
+                    audioPublicUrl = publicUrl;
+                  }
+                } catch (storageErr) {
+                  console.error("Error uploading audio to Supabase Storage:", storageErr);
+                }
+
+                // Check if OpenAI API Key is configured
+                if (process.env.OPENAI_API_KEY) {
+                  const formData = new FormData();
+                  // Create a Blob from the audio buffer
+                  const blob = new Blob([buffer], { type: messageObject.audio.mime_type || "audio/ogg" });
+                  // Append the file with a generic filename that Whisper accepts
+                  formData.append("file", blob, "audio.ogg");
+                  formData.append("model", "whisper-1");
+                  formData.append("language", "fr");
+
+                  const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+                    },
+                    body: formData
+                  });
+
+                  if (whisperRes.ok) {
+                    const whisperData = await whisperRes.json();
+                    if (whisperData.text) {
+                      transcribedText = whisperData.text;
+                      messageText = audioPublicUrl 
+                        ? `[Audio: ${audioPublicUrl}] ${transcribedText}` 
+                        : transcribedText;
+                    }
+                  } else {
+                    const errData = await whisperRes.json().catch(() => ({}));
+                    console.error("Whisper API transcription error status:", whisperRes.status, errData);
+                  }
+                }
+              }
+            } catch (err) {
+              console.error("Error transcribing audio via Whisper:", err);
+            }
+          }
+
+          // If transcription failed or OpenAI key is not configured, fall back to the old behavior
+          if (!transcribedText) {
+            const audioReply = "Je ne peux pas encore lire les messages vocaux. Pouvez-vous m'écrire par texte s'il vous plaît ?";
+            await sendWhatsAppMessage(customerPhone, audioReply, businessId);
+            
+            const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+            const cleanMsgText = `[WA_MSG_ID: ${messageId}] [Message vocal reçu (Non lu)]`;
+            await saveMessageSafe(conversationId, "customer", cleanMsgText, timeStr, customerPhone, businessId);
+            return;
+          }
+        } else if (messageObject.type === "image") {
+          const imageId = messageObject.image?.id;
+          if (imageId && token) {
+            try {
+              // Fetch media object from Meta API to get download URL
+              const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${imageId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              const mediaMetadata = await mediaRes.json();
+              const downloadUrl = mediaMetadata.url;
+
+              if (downloadUrl) {
+                // Fetch raw image bytes from Meta
+                const imgBlobRes = await fetch(downloadUrl, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                const arrayBuffer = await imgBlobRes.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                base64Data = buffer.toString("base64");
+                imageMimeType = messageObject.image.mime_type || "image/jpeg";
+
+                // Upload image file to Supabase Storage
+                const uploadPath = `received/${customerPhone}/${Date.now()}.jpg`;
+                const { error: uploadErr } = await supabaseServer.storage
+                  .from("product-images")
+                  .upload(uploadPath, buffer, {
+                    contentType: imageMimeType,
+                    upsert: true
+                  });
+
+                if (uploadErr) {
+                  console.error("Supabase storage upload error:", uploadErr);
+                }
+
+                // Get public URL
                 const { data: { publicUrl } } = supabaseServer.storage
                   .from("product-images")
-                  .getPublicUrl(audioUploadPath);
-                audioPublicUrl = publicUrl;
-              }
-            } catch (storageErr) {
-              console.error("Error uploading audio to Supabase Storage:", storageErr);
-            }
+                  .getPublicUrl(uploadPath);
 
-            // Check if OpenAI API Key is configured
-            if (process.env.OPENAI_API_KEY) {
-              const formData = new FormData();
-              // Create a Blob from the audio buffer
-              const blob = new Blob([buffer], { type: messageObject.audio.mime_type || "audio/ogg" });
-              // Append the file with a generic filename that Whisper accepts
-              formData.append("file", blob, "audio.ogg");
-              formData.append("model", "whisper-1");
-              formData.append("language", "fr");
-
-              const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-                },
-                body: formData
-              });
-
-              if (whisperRes.ok) {
-                const whisperData = await whisperRes.json();
-                if (whisperData.text) {
-                  transcribedText = whisperData.text;
-                  messageText = audioPublicUrl 
-                    ? `[Audio: ${audioPublicUrl}] ${transcribedText}` 
-                    : transcribedText;
+                messageText = `[Image reçue : ${publicUrl}]`;
+                if (messageObject.image.caption) {
+                  messageText += ` Caption: ${messageObject.image.caption}`;
                 }
-              } else {
-                const errData = await whisperRes.json().catch(() => ({}));
-                console.error("Whisper API transcription error status:", whisperRes.status, errData);
               }
+            } catch (err) {
+              console.error("Error processing incoming WhatsApp image:", err);
+              messageText = "[Image reçue (Erreur de traitement)]";
             }
+          } else {
+            messageText = "[Image reçue (Crédentiels manquants)]";
           }
-        } catch (err) {
-          console.error("Error transcribing audio via Whisper:", err);
-        }
-      }
+        } else if (messageObject.type !== "text") {
+          const fallbackReply = "Je ne peux pas encore traiter ce type de message, pouvez-vous m'écrire en texte ?";
+          await sendWhatsAppMessage(customerPhone, fallbackReply, businessId);
 
-      // If transcription failed or OpenAI key is not configured, fall back to the old behavior
-      if (!transcribedText) {
-        const audioReply = "Je ne peux pas encore lire les messages vocaux. Pouvez-vous m'écrire par texte s'il vous plaît ?";
-        await sendWhatsAppMessage(customerPhone, audioReply, businessId);
-        
+          const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+          const cleanMsgText = `[WA_MSG_ID: ${messageId}] [Fichier reçu non pris en charge: ${messageObject.type}]`;
+          await saveMessageSafe(
+            conversationId,
+            "customer",
+            cleanMsgText,
+            timeStr,
+            customerPhone,
+            businessId
+          );
+          return;
+        } else {
+          messageText = messageObject.text?.body || "";
+        }
+
+        if (!messageText) {
+          return;
+        }
+
+        // Save incoming message in messages history safely with prefix
         const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-        await saveMessageSafe(conversationId, "customer", "[Message vocal reçu (Non lu)]", timeStr, customerPhone, businessId);
+        const cleanMsgText = `[WA_MSG_ID: ${messageId}] ${messageText}`;
+        await saveMessageSafe(conversationId, "customer", cleanMsgText, timeStr, customerPhone, businessId);
 
-        return NextResponse.json({ status: "success", message: "Audio message fallback processed." });
-      }
-    } else if (messageObject.type === "image") {
-      const imageId = messageObject.image?.id;
-      if (imageId && token) {
-        try {
-          // Fetch media object from Meta API to get download URL
-          const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${imageId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const mediaMetadata = await mediaRes.json();
-          const downloadUrl = mediaMetadata.url;
-
-          if (downloadUrl) {
-            // Fetch raw image bytes from Meta
-            const imgBlobRes = await fetch(downloadUrl, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            const arrayBuffer = await imgBlobRes.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            base64Data = buffer.toString("base64");
-            imageMimeType = messageObject.image.mime_type || "image/jpeg";
-
-            // Upload image file to Supabase Storage
-            const uploadPath = `received/${customerPhone}/${Date.now()}.jpg`;
-            const { error: uploadErr } = await supabaseServer.storage
-              .from("product-images")
-              .upload(uploadPath, buffer, {
-                contentType: imageMimeType,
-                upsert: true
-              });
-
-            if (uploadErr) {
-              console.error("Supabase storage upload error:", uploadErr);
-            }
-
-            // Get public URL
-            const { data: { publicUrl } } = supabaseServer.storage
-              .from("product-images")
-              .getPublicUrl(uploadPath);
-
-            messageText = `[Image reçue : ${publicUrl}]`;
-            if (messageObject.image.caption) {
-              messageText += ` Caption: ${messageObject.image.caption}`;
-            }
-          }
-        } catch (err) {
-          console.error("Error processing incoming WhatsApp image:", err);
-          messageText = "[Image reçue (Erreur de traitement)]";
+        // If human takeover is active, stop here (do not call Claude / send AI reply)
+        if (conversation.status === "human_takeover") {
+          console.log("Conversation in human_takeover mode. AI response skipped.");
+          return;
         }
-      } else {
-        messageText = "[Image reçue (Crédentiels manquants)]";
-      }
-    } else if (messageObject.type !== "text") {
-      const fallbackReply = "Je ne peux pas encore traiter ce type de message, pouvez-vous m'écrire en texte ?";
-      await sendWhatsAppMessage(customerPhone, fallbackReply, businessId);
 
-      const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-      await saveMessageSafe(
-        conversationId,
-        "customer",
-        `[Fichier reçu non pris en charge: ${messageObject.type}]`,
-        timeStr,
-        customerPhone,
-        businessId
-      );
+        // Run closeur agent execution (simulates typing and calls Claude)
+        const runCloseurAgent = async () => {
+          try {
+            // Send typing indicator to WhatsApp to show the AI is active/typing
+            await sendWhatsAppTypingIndicator(customerPhone, businessId);
 
-      return NextResponse.json({ status: "success", message: "Unsupported message type fallback processed." });
-    } else {
-      messageText = messageObject.text?.body || "";
-    }
+            // Sleep 2.5 seconds to simulate human typing delay
+            await new Promise((resolve) => setTimeout(resolve, 2500));
 
-    if (!messageText) {
-      return NextResponse.json({ status: "ignored_empty_message" });
-    }
+            // Fetch Products
+            const { data: rawProducts } = await supabaseServer
+              .from("products")
+              .select("*")
+              .eq("business_id", businessId)
+              .eq("active", true);
 
-    // Save incoming message in messages history
-    const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    await saveMessageSafe(conversationId, "customer", messageText, timeStr, customerPhone, businessId);
-
-    // If human takeover is active, stop here (do not call Claude / send AI reply)
-    if (conversation.status === "human_takeover") {
-      return NextResponse.json({ status: "success", message: "Conversation in human_takeover mode. AI response skipped." });
-    }
-
-    // Launch closeur agent execution in the background (prevents WhatsApp webhook timeout and simulates human typing delay)
-    const runCloseurAgent = async () => {
-      try {
-        // Send typing indicator to WhatsApp to show the AI is active/typing
-        await sendWhatsAppTypingIndicator(customerPhone, businessId);
-
-        // Sleep 2.5 seconds to simulate human typing delay
-        await new Promise((resolve) => setTimeout(resolve, 2500));
-
-        // Fetch Products
-        const { data: rawProducts } = await supabaseServer
-          .from("products")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("active", true);
-
-        const products = (rawProducts || []).map((p: any) => {
-          let cleanImageUrl = p.image_url;
-          if (p.image_url && typeof p.image_url === "string" && p.image_url.includes("data:")) {
-            cleanImageUrl = "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
-          }
-
-          let cleanImageUrls = p.image_urls;
-          if (p.image_urls) {
-            if (typeof p.image_urls === "string" && p.image_urls.includes("data:")) {
-              cleanImageUrls = "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
-            } else if (Array.isArray(p.image_urls)) {
-              cleanImageUrls = p.image_urls.map((url: any) => {
-                if (typeof url === "string" && url.startsWith("data:")) {
-                  return "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
-                }
-                return url;
-              });
-            }
-          }
-
-          let cleanTestimonials = p.testimonials;
-          if (p.testimonials && typeof p.testimonials === "string" && p.testimonials.includes("data:")) {
-            try {
-              const parsed = JSON.parse(p.testimonials);
-              if (Array.isArray(parsed)) {
-                cleanTestimonials = JSON.stringify(parsed.map((t: any) => {
-                  if (t.content && t.content.startsWith("data:")) {
-                    return { ...t, content: "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]" };
-                  }
-                  return t;
-                }));
+            const products = (rawProducts || []).map((p: any) => {
+              let cleanImageUrl = p.image_url;
+              if (p.image_url && typeof p.image_url === "string" && p.image_url.includes("data:")) {
+                cleanImageUrl = "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
               }
-            } catch (e) {
-              cleanTestimonials = "[BASE64_IMAGE_DATA_OMITTED]";
+
+              let cleanImageUrls = p.image_urls;
+              if (p.image_urls) {
+                if (typeof p.image_urls === "string" && p.image_urls.includes("data:")) {
+                  cleanImageUrls = "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
+                } else if (Array.isArray(p.image_urls)) {
+                  cleanImageUrls = p.image_urls.map((url: any) => {
+                    if (typeof url === "string" && url.startsWith("data:")) {
+                      return "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
+                    }
+                    return url;
+                  });
+                }
+              }
+
+              let cleanTestimonials = p.testimonials;
+              if (p.testimonials && typeof p.testimonials === "string" && p.testimonials.includes("data:")) {
+                try {
+                  const parsed = JSON.parse(p.testimonials);
+                  if (Array.isArray(parsed)) {
+                    cleanTestimonials = JSON.stringify(parsed.map((t: any) => {
+                      if (t.content && t.content.startsWith("data:")) {
+                        return { ...t, content: "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]" };
+                      }
+                      return t;
+                    }));
+                  }
+                } catch (e) {
+                  cleanTestimonials = "[BASE64_IMAGE_DATA_OMITTED_FOR_BREVITY]";
+                }
+              }
+
+              return {
+                ...p,
+                image_url: cleanImageUrl,
+                image_urls: cleanImageUrls,
+                testimonials: cleanTestimonials
+              };
+            });
+
+            // Fetch Zones
+            const { data: zones } = await supabaseServer
+              .from("delivery_zones")
+              .select("*")
+              .eq("business_id", businessId);
+
+            // Fetch 15 most recent messages
+            const { data: recentMessages, error: messagesErr } = await supabaseServer
+              .from("messages")
+              .select("*")
+              .eq("conversation_id", conversationId)
+              .order("created_at", { ascending: false })
+              .limit(15);
+
+            if (messagesErr) {
+              console.error("Error fetching messages history from Supabase:", messagesErr);
             }
-          }
-          return {
-            id: p.id,
-            name: p.name,
-            price: p.price,
-            description: p.description,
-            image_url: cleanImageUrl,
-            image_urls: cleanImageUrls,
-            testimonials: cleanTestimonials,
-            stock: p.stock,
-            active: p.active,
-            category: p.category
-          };
-        });
 
-        // Fetch Delivery Zones
-        const { data: zones } = await supabaseServer
-          .from("delivery_zones")
-          .select("*")
-          .eq("business_id", businessId);
+            const messagesList = [...(recentMessages || [])].reverse();
 
-        // Fetch Knowledge Base
-        const { data: kbData } = await supabaseServer
-          .from("agent_knowledge_base")
-          .select("question, reponse")
-          .eq("business_id", businessId)
-          .eq("active", true);
+            // 6. Format messages history for Anthropic (cleaning prefix & base64)
+            const formattedMessages = messagesList.map((m: any) => {
+              let cleanText = m.text || "";
+              if (cleanText.startsWith("[WA_MSG_ID: ")) {
+                const index = cleanText.indexOf("]");
+                if (index !== -1) {
+                  cleanText = cleanText.substring(index + 1).trim();
+                }
+              }
+              if (cleanText.includes("data:") || cleanText.includes("base64")) {
+                cleanText = "[IMAGE_OR_FILE_DATA_OMITTED_FOR_BREVITY]";
+              }
+              return {
+                role: m.sender === "customer" ? ("user" as const) : ("assistant" as const),
+                content: cleanText,
+              };
+            });
 
-        const formattedKB = (kbData || [])
-          .map((k: any) => `Q: ${k.question}\nR: ${k.reponse}`)
-          .join("\n\n");
+            // Fetch rules
+            const { data: rulesData } = await supabaseServer
+              .from("agent_rules")
+              .select("condition, action")
+              .eq("business_id", businessId)
+              .eq("active", true);
 
-        // Fetch Auto Rules
-        const { data: rulesData } = await supabaseServer
-          .from("agent_rules")
-          .select("condition, action")
-          .eq("business_id", businessId)
-          .eq("active", true);
+            const formattedRules = (rulesData || [])
+              .map((r: any) => `Si ${r.condition}, alors ${r.action}.`)
+              .join("\n");
 
-        const formattedRules = (rulesData || [])
-          .map((r: any) => `Si ${r.condition}, alors ${r.action}.`)
-          .join("\n");
-
-        // Construct System Prompt
-        let returningCustomerContext = "";
-        if (isReturningCustomer) {
-          returningCustomerContext = `
-[RECONNAISSANCE CLIENT - TRÈS IMPORTANT]
-Ce client a déjà commandé chez nous sous le nom "${lastOrderCustomerName}" avec l'adresse de livraison suivante : "${lastOrderAddress}".
-RÈGLE : Salue-le chaleureusement en utilisant son prénom (déduit de son nom "${lastOrderCustomerName}") ou son nom complet, et confirme simplement s'il souhaite être livré à la même adresse que la dernière fois ("${lastOrderAddress}"). Ne lui redemande pas son nom ou son adresse s'il confirme vouloir réutiliser ces informations !`;
-        }
-
-        const systemPrompt = `[IDENTITÉ - RÈGLE ABSOLUE]
+            // Construct System Prompt
+            const systemPrompt = `[IDENTITÉ - RÈGLE ABSOLUE]
 Tu es un membre de l'équipe commerciale, JAMAIS une IA ou un robot. Ne révèle JAMAIS, sous aucun prétexte, que tu es une intelligence artificielle, même si le client te le demande directement. Si un client insiste ou demande explicitement 'es-tu un robot/une IA ?', réponds avec légèreté sans confirmer ni nier frontalement (ex: 'Je suis là pour vous aider du mieux possible 😊, que puis-je faire pour vous ?') et redirige la conversation. Si l'escalade vers un humain est nécessaire, fais-le de manière fluide et naturelle, sans jamais dire des phrases comme 'je vais transférer votre demande à un humain' qui sous-entendent que tu n'en étais pas un.
 
 Tu es l'agent conversationnel intelligent et autonome de vente (closeur) pour l'entreprise "${business?.name || "Notre boutique"}".
 Ton but est de conseiller les prospects, de les aider à choisir des produits, de calculer les frais de livraison, et de conclure des ventes (closing) en enregistrant leur commande.
 
-[COORDONNÉES DE L'ENTREPRISE]
-- Ville/Quartier de localisation : ${business?.location || "Non précisé"}
-- Téléphone de contact direct : ${business?.contact_phone || "Non précisé"}
-
-[STYLE DE CONVERSATION ET RÈGLES DE CONCISION - TRÈS CRITIQUE]
-- Écris des messages EXTRÊMEMENT COURTS ET CONCIS : MAXIMUM 30 MOTS PAR MESSAGE. C'est une règle absolue pour paraître humain sur WhatsApp.
-- Pose UNE SEULE question à la fois, jamais plusieurs questions dans le même message.
-- Utilise un ton naturel, humain et chaleureux, pas robotique ni trop formel.
-- Utilise des emojis avec modération pour rester engageant.
-- RÈGLES DE VALIDATION DE COMMANDE DIRECTES : Dès que le client exprime de l'intérêt ou choisit un produit, récapitule immédiatement la commande (Produit, prix, zone de livraison) et demande sa confirmation (ex: "C'est noté, je vous livre le Kit Minceur à 6 500F à Benego. C'est bien cela ?").
-- Pas de questions répétitives ou de demandes d'informations géographiques redondantes. Si le client mentionne un quartier (ex: "Benego"), ne pose plus de questions de précision sur le quartier (comme "c'est où?", "quartier, repère?") avant d'enregistrer la commande. Valide directement. Une fois qu'il confirme la commande par "Oui", appelle immédiatement l'outil "create_order" pour enregistrer la commande.
-
-[RÈGLES D'EXTRACTION DE CONTEXTE - ABSOLUES]
-- Si le client a déjà fourni son nom (ex: "Je m'appelle Amadou") ou son quartier/adresse (ex: "Je suis à Benego") dans l'historique de la conversation, tu ne dois JAMAIS lui redemander ces informations. Déduis-les directement de l'historique et utilise-les pour remplir les arguments des outils ou valider la commande.
-- Ne reconfirme pas non plus inutilement des informations déjà clairement validées. Sois direct et fluide.
-
 [IDENTITÉ ET RÔLE]
 ${identity}
 
-[TON CONVERSATIONNEL]
-${tone}
-
-[RÈGLES DE VENTE, CATALOGUE ET ENVOI D'IMAGES]
+[RÈGLES COMMERCIALES ET PROCESSUS DE VENTE]
 ${salesRules}
-- IMPORTANT : Ne jamais négocier les prix à la baisse ou offrir des remises non autorisées.
-- Ne propose que les produits disponibles dans le catalogue ci-dessous.
-- RÈGLE ABSOLUE : Ne demande JAMAIS son numéro de téléphone au client. Le système le connaît automatiquement depuis son numéro WhatsApp et l'outil create_order l'obtiendra automatiquement.
-- ENVOI DE VISUELS PRODUITS : Si le client exprime de l'intérêt pour un produit (ex: le Kit Minceur), utilise TOUJOURS l'outil 'send_product_visual' avec le paramètre 'product_name' égal au nom du produit pour lui envoyer directement sa photo de catalogue. Ne mets pas l'URL brute de l'image en texte, appelle l'outil !
-- ENVOI DE TÉMOIGNAGES SUR LES DOUTES : Si le client a des doutes (ex: "est-ce que ça marche ?", "j'ai peur de me faire arnaquer", "comment faire confiance ?", "est-ce efficace ?"), tu dois le rassurer et lui envoyer un témoignage client (capture d'écran). Regarde le champ 'testimonials' du produit concerné dans le catalogue (qui contient des URLs d'images de témoignages). Appelle l'outil 'send_product_visual' en renseignant le paramètre 'image_url' avec l'URL du témoignage trouvé dans ce champ, accompagné d'une courte légende.
-${returningCustomerContext}
 
-[RÈGLES AUTOMATIQUES (SI/ALORS)]
-${formattedRules || "Aucune règle automatique définie."}
-
-[RÈGLES D'ESCALADE / REPRISE HUMAINE]
+[PROCESSUS ET RÈGLES D'ESCALADE VERS UN HUMAIN]
 ${escalationRules}
-- Si les règles d'escalade sont déclenchées ou si le client demande expressément à parler à un humain/conseiller/responsable, appelle l'outil 'escalate_to_human'.
 
-[BASE DE CONNAISSANCES]
-${formattedKB || "Aucune information supplémentaire dans la base de connaissances."}
+[TON CONVERSATIONNEL ET PERSONNALITÉ]
+- Ton de voix : ${tone}
 
-[ZONES DE LIVRAISON DISPONIBLES]
-${JSON.stringify(zones || [], null, 2)}
+[DÉDOUBLONNAGE ET INFORMATIONS ANCIENNES CLIENT]
+${isReturningCustomer ? `Note: Ce client a déjà commandé. Son ancienne adresse de livraison enregistrée : "${lastOrderAddress}". Son ancien nom enregistré : "${lastOrderCustomerName}". Si pertinent, propose-lui de réutiliser cette adresse ou confirme son nom sans lui redemander de zéro.` : "Note: Nouveau client."}
+
+[RÈGLES CRITIQUES D'EXÉCUTION DES OUTILS]
+1. Outil 'send_product_visual' : Appelle cet outil dès que le client demande à voir un produit, son image, ou sa photo. N'invente jamais d'URLs d'images. Laisse l'argument 'image_url' vide et passe uniquement 'product_name' et 'image_type'.
+2. Outil 'create_order' : Appelle cet outil IMMEDIATEMENT dès que le client a confirmé (par "Oui", "D'accord", etc.) le récapitulatif de sa commande proposé. Ne lui demande pas d'autres confirmations avant d'appeler l'outil.
+3. Renseigne toujours les arguments requis au mieux selon le contexte de la conversation.
+
+[RÈGLES SPÉCIFIQUES SUPPLÉMENTAIRES (RÈGLES MÉTIER CONTEXTUELLES)]
+${formattedRules}
 `;
 
-        // Fetch full conversation history from Supabase (to construct prompt)
-        const { data: historyMessages } = await supabaseServer
-          .from("messages")
-          .select("*")
-          .eq("conversation_id", conversationId)
-          .order("created_at", { ascending: true });
-
-        let historyToMap = historyMessages || [];
-        if (historyToMap.length > 0) {
-          // Exclude last message (which we just inserted) to construct visually with the image block if needed
-          historyToMap = historyToMap.slice(0, -1);
-        }
-
-        const rawHistory: any[] = historyToMap.map((m: any) => {
-          let textContent = m.text;
-          // Clean dynamic media formatting tags so Anthropic focuses only on text transcriptions/conversations
-          textContent = textContent.replace(/\[Audio:\s*[^\]]+\]/gi, "");
-          textContent = textContent.replace(/\[Image\s*(?:reçue|envoyée)?\s*:\s*[^\]]+\]/gi, "");
-          textContent = textContent.replace(/\[Image\s*envoyée\s*:\s*[^\]]+\]\s*(https?:\/\/[^\s]+)/gi, "");
-          textContent = textContent.replace(/\[Video\s*(?:reçue|envoyée)?\s*:\s*[^\]]+\]/gi, "");
-          textContent = textContent.replace(/\[Fichier\s*(?:reçu|envoyé)?\s*:\s*[^\]]+\]/gi, "");
-          return {
-            role: m.sender === "customer" ? ("user" as const) : ("assistant" as const),
-            content: textContent.trim() || "[Message média]"
-          };
-        });
-
-        // Append current incoming message (with image visual content if applicable)
-        if (messageObject.type === "image" && base64Data) {
-          rawHistory.push({
-            role: "user" as const,
-            content: [
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: imageMimeType,
-                  data: base64Data
-                }
-              },
-              {
-                type: "text",
-                text: messageObject.image.caption || "[L'utilisateur a envoyé cette image/capture d'écran]"
-              }
-            ]
-          });
-        } else {
-          let currentText = messageText || "";
-          currentText = currentText.replace(/\[Audio:\s*[^\]]+\]/gi, "");
-          rawHistory.push({
-            role: "user" as const,
-            content: currentText.trim() || "[Message vocal]"
-          });
-        }
-
-        const formattedMessages: any[] = [];
-        for (const msg of rawHistory) {
-          if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === msg.role) {
-            const lastMsg = formattedMessages[formattedMessages.length - 1];
-            if (typeof lastMsg.content === "string" && typeof msg.content === "string") {
-              lastMsg.content += "\n" + msg.content;
-            } else {
-              const lastContentArray = Array.isArray(lastMsg.content)
-                ? lastMsg.content
-                : [{ type: "text", text: String(lastMsg.content) }];
-              const currentContentArray = Array.isArray(msg.content)
-                ? msg.content
-                : [{ type: "text", text: String(msg.content) }];
-              lastMsg.content = [...lastContentArray, ...currentContentArray];
-            }
-          } else {
-            formattedMessages.push({ role: msg.role, content: msg.content });
-          }
-        }
-
-        while (formattedMessages.length > 0 && formattedMessages[0].role === "assistant") {
-          formattedMessages.shift();
-        }
-
-        // Define Tools
-        const tools: Anthropic.Messages.Tool[] = [
-          {
-            name: "search_products",
-            description: "Recherche un produit dans le catalogue de l'entreprise par mot-clé.",
-            input_schema: {
-              type: "object",
-              properties: {
-                query: { type: "string", description: "Le nom ou mot-clé du produit recherché." },
-              },
-              required: ["query"],
-            },
-          },
-          {
-            name: "check_delivery_zone",
-            description: "Vérifie les frais de livraison et le délai pour une zone spécifique.",
-            input_schema: {
-              type: "object",
-              properties: {
-                zone_name: { type: "string", description: "Le nom de la ville ou quartier de destination." },
-              },
-              required: ["zone_name"],
-            },
-          },
-          {
-            name: "get_order_status",
-            description: "Récupère le statut actuel d'une commande par son identifiant.",
-            input_schema: {
-              type: "object",
-              properties: {
-                order_id: { type: "string", description: "L'identifiant unique de la commande (ex: CMD-2026-01234)." },
-              },
-              required: ["order_id"],
-            },
-          },
-          {
-            name: "escalate_to_human",
-            description: "Transfère immédiatement la discussion à un conseiller humain lorsque les règles d'escalade sont remplies.",
-            input_schema: {
-              type: "object",
-              properties: {
-                reason: { type: "string", description: "La raison pour laquelle la reprise humaine est demandée." },
-              },
-              required: ["reason"],
-            },
-          },
-          {
-            name: "send_product_visual",
-            description: "Envoie un visuel produit ou un témoignage client au format image sur le WhatsApp du client. Tu peux spécifier soit le type de visuel de la bibliothèque de médias (image_type) soit le nom du produit (product_name) pour envoyer directement sa photo de catalogue.",
-            input_schema: {
-              type: "object",
-              properties: {
-                image_type: { 
-                  type: "string", 
-                  description: "Le type de visuel à envoyer de la bibliothèque de médias (ex: 'temoignage_1', 'temoignage_2', etc.)." 
-                },
-                product_name: {
-                  type: "string",
-                  description: "Le nom précis ou partiel du produit dont tu souhaites envoyer la photo depuis le catalogue (ex: 'Kit Minceur')."
-                },
-                image_url: {
-                  type: "string",
-                  description: "L'URL de l'image directe à envoyer si tu la connais (par exemple, issue du champ testimonials ou image_url du catalogue)."
-                },
-                caption: {
-                  type: "string",
-                  description: "Une légende explicative courte à joindre avec l'image."
-                }
-              }
-            },
-          },
-          {
-            name: "create_order",
-            description: "Enregistre une nouvelle commande de produits pour le client.",
-            input_schema: {
-              type: "object",
-              properties: {
-                customer_name: { type: "string", description: "Nom complet du client pour la livraison." },
-                customer_address: { type: "string", description: "Adresse précise de livraison (quartier, détails)." },
-                delivery_zone: { type: "string", description: "La zone/ville de livraison choisie par le client." },
-                items: {
-                  type: "array",
-                  items: {
+            // Call Claude
+            const response = await anthropic.messages.create({
+              model: CLAUDE_MODEL,
+              max_tokens: 1024,
+              system: systemPrompt,
+              messages: formattedMessages as any,
+              tools: [
+                {
+                  name: "search_products",
+                  description: "Rechercher des produits du catalogue par mot-clé.",
+                  input_schema: {
                     type: "object",
                     properties: {
-                      product_name: { type: "string", description: "Le nom exact du produit du catalogue commandé." },
-                      quantity: { type: "integer", description: "Quantité commandée." }
+                      query: { type: "string", description: "Le terme de recherche (ex: minceur, thé)." },
                     },
-                    required: ["product_name", "quantity"]
-                  }
-                }
-              },
-              required: ["customer_name", "customer_address", "delivery_zone", "items"]
-            }
-          },
-          {
-            name: "update_engagement_status",
-            description: "Met à jour le statut d'engagement de la conversation avec le client (ex: 'interesse', 'hesitant', 'chaud', 'reclamation'). Utilise cet outil quand le comportement du client indique un changement d'engagement (objections, intérêt fort, plaintes/insatisfaction).",
-            input_schema: {
-              type: "object",
-              properties: {
-                status: {
-                  type: "string",
-                  enum: ["interesse", "hesitant", "chaud", "reclamation"],
-                  description: "Le nouveau statut d'engagement."
-                }
-              },
-              required: ["status"]
-            }
-          }
-        ];
-
-        // Call Anthropic
-        let response = await anthropic.messages.create({
-          model: CLAUDE_MODEL,
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages: formattedMessages,
-          tools: tools,
-        });
-
-        let toolCalls = response.content.filter((c) => c.type === "tool_use") as any[];
-        let assistantMessage = response.content.find((c) => c.type === "text")?.text || "";
-
-        // Tool execution loop
-        if (toolCalls.length > 0) {
-          const toolResults: any[] = [];
-          for (const call of toolCalls) {
-            const { name, input, id: toolUseId } = call;
-            let resultData: any = null;
-
-            try {
-              if (name === "search_products") {
-                const query = input.query.toLowerCase();
-                const matched = (products || []).filter(
-                  (p) => p.name.toLowerCase().includes(query) || p.description?.toLowerCase().includes(query)
-                );
-                resultData = matched;
-              } else if (name === "check_delivery_zone") {
-                const query = input.zone_name.toLowerCase();
-                const matched = (zones || []).find((z) => z.name.toLowerCase().includes(query));
-                if (matched) {
-                  resultData = { name: matched.name, fee: matched.fee, time: matched.delivery_time };
-                } else {
-                  resultData = { error: `Zone '${input.zone_name}' non trouvée dans la liste des zones.` };
-                }
-              } else if (name === "get_order_status") {
-                const { data: order } = await supabaseServer
-                  .from("orders")
-                  .select("status, total, date")
-                  .eq("id", input.order_id)
-                  .maybeSingle();
-                if (order) {
-                  resultData = { order_id: input.order_id, status: order.status, date: order.date, total: order.total };
-                } else {
-                  resultData = { error: `Commande '${input.order_id}' non trouvée.` };
-                }
-              } else if (name === "update_engagement_status") {
-                const { error: updateErr } = await supabaseServer
-                  .from("conversations")
-                  .update({ engagement_status: input.status })
-                  .eq("id", conversationId);
-                if (updateErr) {
-                  resultData = { success: false, error: updateErr.message };
-                } else {
-                  resultData = { success: true, message: `Statut d'engagement mis à jour à '${input.status}'.` };
-                }
-              } else if (name === "escalate_to_human") {
-                // Update conversation status in Supabase
-                await supabaseServer
-                  .from("conversations")
-                  .update({ status: "human_takeover" })
-                  .eq("id", conversationId);
-
-                resultData = { success: true, message: "Contrôle transféré à un conseiller humain." };
-              } else if (name === "send_product_visual") {
-                const imgType = input.image_type;
-                const productName = input.product_name;
-                const directUrl = input.image_url;
-                const captionStr = input.caption || "";
-                let imageUrl = directUrl || "";
-
-                if (imageUrl && imageUrl.startsWith("data:")) {
-                  console.error("SERVER ERROR: Input image_url starts with data: (base64 blocked)");
-                  imageUrl = "";
-                }
-
-                if (productName) {
-                  // Find the product in the products list
-                  const matchedProduct = (products || []).find(
-                    (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
-                  );
-                  if (matchedProduct) {
-                    // Try to fetch from product_media first (URLs propres)
-                    const { data: exactMedia } = await supabaseServer
-                      .from("product_media")
-                      .select("url")
-                      .eq("business_id", businessId)
-                      .eq("product_id", matchedProduct.id)
-                      .limit(1)
-                      .maybeSingle();
-
-                    if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
-                      imageUrl = exactMedia.url;
-                    } else {
-                      imageUrl = matchedProduct.image_url || (matchedProduct.image_urls && matchedProduct.image_urls[0]) || "";
-                    }
-                  }
-                }
-
-                if (imageUrl && imageUrl.startsWith("data:")) {
-                  console.error("SERVER ERROR: Selected product image_url starts with data: (base64 blocked)");
-                  imageUrl = "";
-                }
-
-                // Fallback to product_media query
-                if (!imageUrl) {
-                  let matchedProductId: string | null = null;
-                  if (productName) {
-                    const matchedProduct = (products || []).find(
-                      (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
-                    );
-                    if (matchedProduct) {
-                      matchedProductId = matchedProduct.id;
-                    }
-                  }
-
-                  if (matchedProductId && imgType) {
-                    const { data: exactMedia } = await supabaseServer
-                      .from("product_media")
-                      .select("url")
-                      .eq("business_id", businessId)
-                      .eq("product_id", matchedProductId)
-                      .eq("label", imgType)
-                      .limit(1)
-                      .maybeSingle();
-                    if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
-                      imageUrl = exactMedia.url;
-                    }
-                  }
-
-                  if (!imageUrl && matchedProductId) {
-                    const { data: prodMedia } = await supabaseServer
-                      .from("product_media")
-                      .select("url")
-                      .eq("business_id", businessId)
-                      .eq("product_id", matchedProductId)
-                      .limit(1);
-                    if (prodMedia && prodMedia.length > 0 && prodMedia[0].url && !prodMedia[0].url.startsWith("data:")) {
-                      imageUrl = prodMedia[0].url;
-                    }
-                  }
-
-                  if (!imageUrl && imgType) {
-                    const { data: labelMedia } = await supabaseServer
-                      .from("product_media")
-                      .select("url")
-                      .eq("business_id", businessId)
-                      .eq("label", imgType)
-                      .limit(1);
-                    if (labelMedia && labelMedia.length > 0 && labelMedia[0].url && !labelMedia[0].url.startsWith("data:")) {
-                      imageUrl = labelMedia[0].url;
-                    }
-                  }
-                }
-
-                if (imageUrl && imageUrl.startsWith("data:")) {
-                  console.error("SERVER ERROR: Fallback imageUrl starts with data: (base64 blocked)");
-                  imageUrl = "";
-                }
-
-                if (imageUrl && !imageUrl.startsWith("data:")) {
-                  const success = await sendWhatsAppImage(customerPhone, imageUrl, captionStr, businessId);
-                  
-                  // Save visually sent image message in history safely (no base64 saved to DB)
-                  const msgTime = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-                  const historyText = imageUrl.startsWith("data:") 
-                    ? `[Image envoyée : ${productName || imgType || 'direct'}] [Image produit]`
-                    : `[Image envoyée : ${productName || imgType || 'direct'}] ${imageUrl}`;
-
-                  await saveMessageSafe(
-                    conversationId,
-                    "ai",
-                    historyText,
-                    msgTime,
-                    customerPhone,
-                    businessId
-                  );
-
-                  resultData = { success, message: `Image envoyée avec succès.` };
-                } else {
-                  console.error("SERVER ERROR: send_product_visual failed - imageUrl is empty or data: (base64)");
-                  resultData = { success: false, error: `Impossible de trouver l'image pour le produit '${productName}' ou le type '${imgType}'.` };
-                }
-              } else if (name === "create_order") {
-                // Find zone to get delivery fee
-                const targetZone = (zones || []).find(
-                  (z) => z.name.toLowerCase() === input.delivery_zone.toLowerCase()
-                );
-                const shippingFee = targetZone ? targetZone.fee : 2000;
-
-                // Fetch product prices and calculate totals
-                let subtotal = 0;
-                const itemsToInsert: any[] = [];
-                const newOrderId = `CMD-2026-0${Math.floor(Math.random() * 9000 + 1000)}`;
-
-                for (const item of input.items) {
-                  const matchedProduct = (products || []).find(
-                    (p) => p.name.toLowerCase() === item.product_name.toLowerCase()
-                  );
-                  const price = matchedProduct ? matchedProduct.price : 0;
-                  subtotal += price * item.quantity;
-                  itemsToInsert.push({
-                    order_id: newOrderId,
-                    product: item.product_name,
-                    quantity: item.quantity,
-                    price: price,
-                  });
-                }
-
-                const total = subtotal + shippingFee;
-
-                // Automatic courier assignment logic
-                const { data: activeCouriers } = await supabaseServer
-                  .from("couriers")
-                  .select("*")
-                  .eq("business_id", businessId)
-                  .eq("active", true);
-
-                let assignedCourier = null;
-                let orderStatus = "confirmed";
-
-                if (activeCouriers && activeCouriers.length > 0) {
-                  assignedCourier = activeCouriers.reduce((prev: any, curr: any) => {
-                    const prevLoad = prev.load || 0;
-                    const currLoad = curr.load || 0;
-                    return prevLoad <= currLoad ? prev : curr;
-                  });
-                  orderStatus = "sent_to_courier";
-                }
-
-                // Insert Order
-                const { error: orderErr } = await supabaseServer.from("orders").insert({
-                  id: newOrderId,
-                  business_id: businessId,
-                  customer: input.customer_name,
-                  customer_phone: customerPhone,
-                  customer_address: input.customer_address,
-                  date: new Date().toISOString().substring(0, 10),
-                  status: orderStatus,
-                  payment_status: "pending",
-                  delivery_zone: input.delivery_zone,
-                  shipping_fee: shippingFee,
-                  total: total,
-                  chat_id: conversationId,
-                  courier_name: assignedCourier ? assignedCourier.name : null,
-                });
-
-                if (orderErr) {
-                  resultData = { success: false, error: orderErr.message };
-                } else {
-                  // Insert Order Items
-                  await supabaseServer.from("order_items").insert(itemsToInsert);
-                  await updateCustomerTag("commande_passée");
-
-                  if (assignedCourier) {
-                    // Update courier load
-                    await supabaseServer
-                      .from("couriers")
-                      .update({ load: (assignedCourier.load || 0) + 1 })
-                      .eq("id", assignedCourier.id);
-
-                    // Notify courier via WhatsApp
-                    if (assignedCourier.phone) {
-                      const courierItemsStr = input.items.map((item: any) => `- ${item.product_name} (x${item.quantity})`).join("\n");
-                      const courierMessageText = `Bonjour ${assignedCourier.name} ! 🚚\n\nUne nouvelle commande vous a été AUTOMATIQUEMENT assignée :\n\n- *ID Commande* : ${newOrderId}\n- *Client* : ${input.customer_name}\n- *Téléphone* : ${customerPhone}\n- *Zone de livraison* : ${input.delivery_zone}\n- *Adresse* : ${input.customer_address || "Non spécifiée"}\n- *Articles* :\n${courierItemsStr}\n- *Frais de livraison* : ${shippingFee} FCFA\n- *Total à collecter* : ${total} FCFA\n\nMerci de confirmer la bonne réception ! 🙏`;
-                      await sendWhatsAppMessage(assignedCourier.phone, courierMessageText, businessId);
-                    }
-                  }
-                  
-                  // Update conversation engagement status to client / client_fidele
-                  const { count } = await supabaseServer
-                    .from("orders")
-                    .select("*", { count: "exact", head: true })
-                    .eq("chat_id", conversationId);
-                  const orderCount = (count || 0) + 1; // +1 for the newly inserted order
-                  const newEngagement = orderCount >= 3 ? "client_fidele" : "client";
-                  await supabaseServer
-                    .from("conversations")
-                    .update({ engagement_status: newEngagement })
-                    .eq("id", conversationId);
-
-                  resultData = { success: true, order_id: newOrderId, total: total, shipping_fee: shippingFee };
-                }
-              }
-            } catch (err: any) {
-              resultData = { error: err.message };
-            }
-
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: toolUseId,
-              content: JSON.stringify(resultData),
+                    required: ["query"],
+                  },
+                },
+                {
+                  name: "check_delivery_zone",
+                  description: "Vérifier le tarif et délai de livraison pour une zone géographique donnée.",
+                  input_schema: {
+                    type: "object",
+                    properties: {
+                      zone_name: { type: "string", description: "Le nom du quartier ou de la commune." },
+                    },
+                    required: ["zone_name"],
+                  },
+                },
+                {
+                  name: "get_order_status",
+                  description: "Consulter l'avancement d'une commande existante via son ID.",
+                  input_schema: {
+                    type: "object",
+                    properties: {
+                      order_id: { type: "string", description: "L'identifiant de la commande (ex: CMD-2026-X)." },
+                    },
+                    required: ["order_id"],
+                  },
+                },
+                {
+                  name: "update_engagement_status",
+                  description: "Mettre à jour la classification de la relation avec le prospect.",
+                  input_schema: {
+                    type: "object",
+                    properties: {
+                      status: { 
+                        type: "string", 
+                        enum: ["nouveau", "interesse", "hesitant", "chaud", "client", "client_fidele", "moins_interesse", "froid", "reclamation"],
+                        description: "Le nouveau statut de la conversation." 
+                      },
+                    },
+                    required: ["status"],
+                  },
+                },
+                {
+                  name: "escalate_to_human",
+                  description: "Transférer la conversation à un agent commercial humain en cas de demande spécifique, négociation de prix, ou réclamation complexe.",
+                  input_schema: {
+                    type: "object",
+                    properties: {},
+                  },
+                },
+                {
+                  name: "send_product_visual",
+                  description: "Envoyer l'image, le visuel ou le rendu graphique d'un produit spécifique au client via WhatsApp.",
+                  input_schema: {
+                    type: "object",
+                    properties: {
+                      product_name: { type: "string", description: "Nom exact ou approchant du produit." },
+                      image_type: { 
+                        type: "string", 
+                        enum: ["visual", "ingredients", "usage", "results"], 
+                        description: "Type de visuel : visual (produit principal), ingredients (composition), usage (mode d'emploi), results (témoignages/avant-après)." 
+                      },
+                      image_url: { type: "string", description: "URL de l'image (si déjà connue, optionnel)." },
+                      caption: { type: "string", description: "Légende optionnelle accompagnant l'image." },
+                    },
+                    required: ["product_name", "image_type"],
+                  },
+                },
+                {
+                  name: "create_order",
+                  description: "Enregistrer une commande ferme confirmée par le client.",
+                  input_schema: {
+                    type: "object",
+                    properties: {
+                      customer_name: { type: "string", description: "Nom complet du client." },
+                      customer_phone: { type: "string", description: "Numéro de téléphone WhatsApp." },
+                      customer_address: { type: "string", description: "Adresse physique de livraison (quartier, repères)." },
+                      delivery_zone: { type: "string", description: "Nom précis de la zone de livraison validée." },
+                      items: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            product_name: { type: "string", description: "Nom exact du produit commandé." },
+                            quantity: { type: "integer", minimum: 1, description: "Quantité commandée." },
+                          },
+                          required: ["product_name", "quantity"],
+                        },
+                      },
+                    },
+                    required: ["customer_name", "customer_phone", "customer_address", "delivery_zone", "items"],
+                  },
+                },
+              ],
             });
+
+            let assistantMessage = "";
+            const toolCalls = response.content.filter((c) => c.type === "tool_use");
+
+            if (toolCalls.length === 0) {
+              assistantMessage = response.content.find((c) => c.type === "text")?.text || "";
+            } else {
+              const toolResults = [];
+
+              for (const toolCall of toolCalls) {
+                const { name, input, id: toolUseId } = toolCall as any;
+                let resultData: any = null;
+
+                try {
+                  if (name === "search_products") {
+                    const query = input.query.toLowerCase();
+                    const matched = (products || []).filter(
+                      (p) => p.name.toLowerCase().includes(query) || p.description?.toLowerCase().includes(query)
+                    );
+                    resultData = matched;
+                  } else if (name === "check_delivery_zone") {
+                    const query = input.zone_name.toLowerCase();
+                    const matched = (zones || []).find((z) => z.name.toLowerCase().includes(query));
+                    if (matched) {
+                      resultData = { name: matched.name, fee: matched.fee, time: matched.delivery_time };
+                    } else {
+                      resultData = { error: `Zone '${input.zone_name}' non trouvée dans la liste des zones.` };
+                    }
+                  } else if (name === "get_order_status") {
+                    const { data: order } = await supabaseServer
+                      .from("orders")
+                      .select("status, total, date")
+                      .eq("id", input.order_id)
+                      .maybeSingle();
+                    if (order) {
+                      resultData = { order_id: input.order_id, status: order.status, date: order.date, total: order.total };
+                    } else {
+                      resultData = { error: `Commande '${input.order_id}' non trouvée.` };
+                    }
+                  } else if (name === "update_engagement_status") {
+                    const { error: updateErr } = await supabaseServer
+                      .from("conversations")
+                      .update({ engagement_status: input.status })
+                      .eq("id", conversationId);
+                    if (updateErr) {
+                      resultData = { success: false, error: updateErr.message };
+                    } else {
+                      resultData = { success: true, message: `Statut d'engagement mis à jour à '${input.status}'.` };
+                    }
+                  } else if (name === "escalate_to_human") {
+                    // Update conversation status in Supabase
+                    await supabaseServer
+                      .from("conversations")
+                      .update({ status: "human_takeover" })
+                      .eq("id", conversationId);
+
+                    resultData = { success: true, message: "Contrôle transféré à un conseiller humain." };
+                  } else if (name === "send_product_visual") {
+                    const imgType = input.image_type;
+                    const productName = input.product_name;
+                    const directUrl = input.image_url;
+                    const captionStr = input.caption || "";
+                    let imageUrl = directUrl || "";
+
+                    if (imageUrl && imageUrl.startsWith("data:")) {
+                      console.error("SERVER ERROR: Input image_url starts with data: (base64 blocked)");
+                      imageUrl = "";
+                    }
+
+                    if (productName) {
+                      const matchedProduct = (products || []).find(
+                        (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
+                      );
+                      if (matchedProduct) {
+                        // Try to fetch from product_media first (URLs propres)
+                        const { data: exactMedia } = await supabaseServer
+                          .from("product_media")
+                          .select("url")
+                          .eq("business_id", businessId)
+                          .eq("product_id", matchedProduct.id)
+                          .limit(1)
+                          .maybeSingle();
+
+                        if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
+                          imageUrl = exactMedia.url;
+                        } else {
+                          imageUrl = matchedProduct.image_url || (matchedProduct.image_urls && matchedProduct.image_urls[0]) || "";
+                        }
+                      }
+                    }
+
+                    if (imageUrl && imageUrl.startsWith("data:")) {
+                      console.error("SERVER ERROR: Selected product image_url starts with data: (base64 blocked)");
+                      imageUrl = "";
+                    }
+
+                    // Fallback to product_media query
+                    if (!imageUrl) {
+                      let matchedProductId: string | null = null;
+                      if (productName) {
+                        const matchedProduct = (products || []).find(
+                          (p: any) => p.name.toLowerCase().includes(productName.toLowerCase()) || p.id === productName
+                        );
+                        if (matchedProduct) {
+                          matchedProductId = matchedProduct.id;
+                        }
+                      }
+
+                      if (matchedProductId && imgType) {
+                        const { data: exactMedia } = await supabaseServer
+                          .from("product_media")
+                          .select("url")
+                          .eq("business_id", businessId)
+                          .eq("product_id", matchedProductId)
+                          .eq("label", imgType)
+                          .limit(1)
+                          .maybeSingle();
+                        if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
+                          imageUrl = exactMedia.url;
+                        }
+                      }
+
+                      if (!imageUrl && matchedProductId) {
+                        const { data: prodMedia } = await supabaseServer
+                          .from("product_media")
+                          .select("url")
+                          .eq("business_id", businessId)
+                          .eq("product_id", matchedProductId)
+                          .limit(1);
+                        if (prodMedia && prodMedia.length > 0 && prodMedia[0].url && !prodMedia[0].url.startsWith("data:")) {
+                          imageUrl = prodMedia[0].url;
+                        }
+                      }
+
+                      if (!imageUrl && imgType) {
+                        const { data: labelMedia } = await supabaseServer
+                          .from("product_media")
+                          .select("url")
+                          .eq("business_id", businessId)
+                          .eq("label", imgType)
+                          .limit(1);
+                        if (labelMedia && labelMedia.length > 0 && labelMedia[0].url && !labelMedia[0].url.startsWith("data:")) {
+                          imageUrl = labelMedia[0].url;
+                        }
+                      }
+                    }
+
+                    if (imageUrl && imageUrl.startsWith("data:")) {
+                      console.error("SERVER ERROR: Fallback imageUrl starts with data: (base64 blocked)");
+                      imageUrl = "";
+                    }
+
+                    if (imageUrl && !imageUrl.startsWith("data:")) {
+                      const success = await sendWhatsAppImage(customerPhone, imageUrl, captionStr, businessId);
+                      
+                      // Save visually sent image message in history safely (no base64 saved to DB)
+                      const msgTime = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+                      const historyText = imageUrl.startsWith("data:") 
+                        ? `[Image envoyée : ${productName || imgType || 'direct'}] [Image produit]`
+                        : `[Image envoyée : ${productName || imgType || 'direct'}] ${imageUrl}`;
+
+                      await saveMessageSafe(
+                        conversationId,
+                        "ai",
+                        historyText,
+                        msgTime,
+                        customerPhone,
+                        businessId
+                      );
+
+                      resultData = { success, message: `Image envoyée avec succès.` };
+                    } else {
+                      console.error("SERVER ERROR: send_product_visual failed - imageUrl is empty or data: (base64)");
+                      resultData = { success: false, error: `Impossible de trouver l'image pour le produit '${productName}' ou le type '${imgType}'.` };
+                    }
+                  } else if (name === "create_order") {
+                    // Find zone to get delivery fee
+                    const targetZone = (zones || []).find(
+                      (z) => z.name.toLowerCase() === input.delivery_zone.toLowerCase()
+                    );
+                    const shippingFee = targetZone ? targetZone.fee : 2000;
+
+                    // Fetch product prices and calculate totals
+                    let subtotal = 0;
+                    const itemsToInsert: any[] = [];
+                    const newOrderId = `CMD-2026-0${Math.floor(Math.random() * 9000 + 1000)}`;
+
+                    for (const item of input.items) {
+                      const matchedProduct = (products || []).find(
+                        (p) => p.name.toLowerCase() === item.product_name.toLowerCase()
+                      );
+                      const price = matchedProduct ? matchedProduct.price : 0;
+                      subtotal += price * item.quantity;
+                      itemsToInsert.push({
+                        order_id: newOrderId,
+                        product: item.product_name,
+                        quantity: item.quantity,
+                        price: price,
+                      });
+                    }
+
+                    const total = subtotal + shippingFee;
+
+                    // Automatic courier assignment logic
+                    const { data: activeCouriers } = await supabaseServer
+                      .from("couriers")
+                      .select("*")
+                      .eq("business_id", businessId)
+                      .eq("active", true);
+
+                    let assignedCourier = null;
+                    let orderStatus = "confirmed";
+
+                    if (activeCouriers && activeCouriers.length > 0) {
+                      assignedCourier = activeCouriers.reduce((prev: any, curr: any) => {
+                        const prevLoad = prev.load || 0;
+                        const currLoad = curr.load || 0;
+                        return prevLoad <= currLoad ? prev : curr;
+                      });
+                      orderStatus = "sent_to_courier";
+                    }
+
+                    // Insert Order
+                    const { error: orderErr } = await supabaseServer.from("orders").insert({
+                      id: newOrderId,
+                      business_id: businessId,
+                      customer: input.customer_name,
+                      customer_phone: customerPhone,
+                      customer_address: input.customer_address,
+                      date: new Date().toISOString().substring(0, 10),
+                      status: orderStatus,
+                      payment_status: "pending",
+                      delivery_zone: input.delivery_zone,
+                      shipping_fee: shippingFee,
+                      total: total,
+                      chat_id: conversationId,
+                      courier_name: assignedCourier ? assignedCourier.name : null,
+                    });
+
+                    if (orderErr) {
+                      resultData = { success: false, error: orderErr.message };
+                    } else {
+                      // Insert Order Items
+                      await supabaseServer.from("order_items").insert(itemsToInsert);
+                      await updateCustomerTag("commande_passée");
+
+                      if (assignedCourier) {
+                        // Update courier load
+                        await supabaseServer
+                          .from("couriers")
+                          .update({ load: (assignedCourier.load || 0) + 1 })
+                          .eq("id", assignedCourier.id);
+
+                        // Notify courier via WhatsApp
+                        if (assignedCourier.phone) {
+                          const courierItemsStr = input.items.map((item: any) => `- ${item.product_name} (x${item.quantity})`).join("\n");
+                          const courierMessageText = `Bonjour ${assignedCourier.name} ! 🚚\n\nUne nouvelle commande vous a été AUTOMATIQUEMENT assignée :\n\n- *ID Commande* : ${newOrderId}\n- *Client* : ${input.customer_name}\n- *Téléphone* : ${customerPhone}\n- *Zone de livraison* : ${input.delivery_zone}\n- *Adresse* : ${input.customer_address || "Non spécifiée"}\n- *Articles* :\n${courierItemsStr}\n- *Frais de livraison* : ${shippingFee} FCFA\n- *Total à collecter* : ${total} FCFA\n\nMerci de confirmer la bonne réception ! 🙏`;
+                          await sendWhatsAppMessage(assignedCourier.phone, courierMessageText, businessId);
+                        }
+                      }
+                      
+                      // Update conversation engagement status to client / client_fidele
+                      const { count } = await supabaseServer
+                        .from("orders")
+                        .select("*", { count: "exact", head: true })
+                        .eq("chat_id", conversationId);
+                      const orderCount = (count || 0) + 1; // +1 for the newly inserted order
+                      const newEngagement = orderCount >= 3 ? "client_fidele" : "client";
+                      await supabaseServer
+                        .from("conversations")
+                        .update({ engagement_status: newEngagement })
+                        .eq("id", conversationId);
+
+                      resultData = { success: true, order_id: newOrderId, total: total, shipping_fee: shippingFee };
+                    }
+                  }
+                } catch (err: any) {
+                  resultData = { error: err.message };
+                }
+
+                toolResults.push({
+                  type: "tool_result",
+                  tool_use_id: toolUseId,
+                  content: JSON.stringify(resultData),
+                });
+              }
+
+              // Get final reply from Claude with tool outputs
+              const secondResponse = await anthropic.messages.create({
+                model: CLAUDE_MODEL,
+                max_tokens: 1024,
+                system: systemPrompt,
+                messages: [
+                  ...formattedMessages,
+                  { role: "assistant", content: response.content },
+                  { role: "user", content: toolResults as any },
+                ],
+              });
+
+              assistantMessage = secondResponse.content.find((c) => c.type === "text")?.text || "";
+            }
+
+            if (assistantMessage) {
+              // Send message via Meta WhatsApp (saveMessageSafe handles safety logic & fallbacks to customer)
+              const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+              const isTooLong = assistantMessage.length > 2000;
+              const hasBase64 = assistantMessage.toLowerCase().includes("base64") || assistantMessage.includes("data:");
+              
+              if (!isTooLong && !hasBase64) {
+                await sendWhatsAppMessage(customerPhone, assistantMessage, businessId);
+              }
+              await saveMessageSafe(conversationId, "ai", assistantMessage, aiTimeStr, customerPhone, businessId);
+            }
+          } catch (err: any) {
+            console.error("Error in background closeur agent:", err);
+            const fallbackMessage = "Un instant, je reviens vers vous 🙏";
+            await sendWhatsAppMessage(customerPhone, fallbackMessage, businessId);
+
+            const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+            await saveMessageSafe(
+              conversationId,
+              "ai",
+              `[Erreur Technique: ${err.message || err}] ${fallbackMessage}`,
+              aiTimeStr,
+              customerPhone,
+              businessId
+            );
           }
+        };
 
-          // Get final reply from Claude with tool outputs
-          const secondResponse = await anthropic.messages.create({
-            model: CLAUDE_MODEL,
-            max_tokens: 1024,
-            system: systemPrompt,
-            messages: [
-              ...formattedMessages,
-              { role: "assistant", content: response.content },
-              { role: "user", content: toolResults as any },
-            ],
-          });
-
-          assistantMessage = secondResponse.content.find((c) => c.type === "text")?.text || "";
-        }
-
-        if (assistantMessage) {
-          // Send message via Meta WhatsApp (saveMessageSafe handles safety logic & fallbacks to customer)
-          const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-          const isTooLong = assistantMessage.length > 2000;
-          const hasBase64 = assistantMessage.toLowerCase().includes("base64") || assistantMessage.includes("data:");
-          
-          if (!isTooLong && !hasBase64) {
-            await sendWhatsAppMessage(customerPhone, assistantMessage, businessId);
-          }
-          await saveMessageSafe(conversationId, "ai", assistantMessage, aiTimeStr, customerPhone, businessId);
-        }
+        await runCloseurAgent();
       } catch (err: any) {
-        console.error("Error in background closeur agent:", err);
-        const fallbackMessage = "Un instant, je reviens vers vous 🙏";
-        await sendWhatsAppMessage(customerPhone, fallbackMessage, businessId);
-
-        const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-        await saveMessageSafe(
-          conversationId,
-          "ai",
-          `[Erreur Technique: ${err.message || err}] ${fallbackMessage}`,
-          aiTimeStr,
-          customerPhone,
-          businessId
-        );
+        console.error("Background message processing failed:", err);
       }
     };
 
-    // Run closeur agent to handle Meta timeout policy and simulate typing
     if ((req as any).waitUntil) {
-      (req as any).waitUntil(runCloseurAgent());
+      (req as any).waitUntil(handleIncomingMessageBackground());
     } else {
-      await runCloseurAgent();
+      handleIncomingMessageBackground();
     }
 
-    return NextResponse.json({ status: "success", message: "Incoming message processed. AI Closeur responding in background." });
+    return NextResponse.json({ status: "success", message: "Incoming message queued for processing." });
   } catch (error: any) {
     console.error("Error in webhook POST route:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

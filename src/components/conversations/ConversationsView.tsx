@@ -378,6 +378,14 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   };
 
   const renderMessageContent = (text: string) => {
+    let cleanText = text || "";
+    if (cleanText.startsWith("[WA_MSG_ID: ")) {
+      const index = cleanText.indexOf("]");
+      if (index !== -1) {
+        cleanText = cleanText.substring(index + 1).trim();
+      }
+    }
+
     // Detect media formats
     const imageRegex = /\[Image\s*(?:reçue|envoyée)?\s*:\s*([^\]\s]+)\]/i;
     const audioRegex = /\[Audio\s*(?:reçu|envoyé)?\s*:\s*([^\]\s]+)\]/i;
@@ -389,9 +397,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
     let match: RegExpMatchArray | null;
 
-    if ((match = text.match(webhookImageRegex))) {
+    if ((match = cleanText.match(webhookImageRegex))) {
       const url = match[1].trim();
-      const restText = text.replace(match[0], "").trim();
+      const restText = cleanText.replace(match[0], "").trim();
       return (
         <div className="flex flex-col gap-2">
           <img src={url} alt="Visuel" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />
@@ -400,9 +408,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       );
     }
 
-    if ((match = text.match(imageRegex))) {
+    if ((match = cleanText.match(imageRegex))) {
       const url = match[1].trim();
-      const restText = text.replace(match[0], "").trim();
+      const restText = cleanText.replace(match[0], "").trim();
       
       // If the matched URL is a base64 image, we render it directly
       const isBase64 = url.startsWith("data:image/");
@@ -414,9 +422,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       );
     }
 
-    if ((match = text.match(audioRegex))) {
+    if ((match = cleanText.match(audioRegex))) {
       const url = match[1].trim();
-      const restText = text.replace(match[0], "").trim();
+      const restText = cleanText.replace(match[0], "").trim();
       return (
         <div className="flex flex-col gap-2 min-w-[200px] md:min-w-[260px]">
           <audio src={url} controls className="w-full h-10 rounded-lg bg-neige" />
@@ -425,9 +433,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       );
     }
 
-    if ((match = text.match(videoRegex))) {
+    if ((match = cleanText.match(videoRegex))) {
       const url = match[1].trim();
-      const restText = text.replace(match[0], "").trim();
+      const restText = cleanText.replace(match[0], "").trim();
       return (
         <div className="flex flex-col gap-2">
           <video src={url} controls className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />
@@ -436,9 +444,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       );
     }
 
-    if ((match = text.match(documentRegex))) {
+    if ((match = cleanText.match(documentRegex))) {
       const url = match[1].trim();
-      const restText = text.replace(match[0], "").trim();
+      const restText = cleanText.replace(match[0], "").trim();
       return (
         <div className="flex flex-col gap-2">
           <a href={url} target="_blank" rel="noopener noreferrer" className="underline font-bold text-xs flex items-center gap-1">
@@ -450,24 +458,23 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     }
 
     // Direct url checking
-    const cleanText = text.trim();
-    if (cleanText.startsWith("http://") || cleanText.startsWith("https://")) {
-      const lower = cleanText.toLowerCase();
+    const trimmedText = cleanText.trim();
+    if (trimmedText.startsWith("http://") || trimmedText.startsWith("https://")) {
+      const lower = trimmedText.toLowerCase();
       if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".gif") || lower.endsWith(".webp")) {
-        return <img src={cleanText} alt="Image" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
+        return <img src={trimmedText} alt="Image" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
       }
       if (lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".ogg") || lower.endsWith(".m4a") || lower.endsWith(".oga") || lower.includes("audio")) {
-        return <audio src={cleanText} controls className="w-full h-10 rounded-lg bg-neige" />;
+        return <audio src={trimmedText} controls className="w-full h-10 rounded-lg bg-neige" />;
       }
       if (lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mov")) {
-        return <video src={cleanText} controls className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
+        return <video src={trimmedText} controls className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
       }
-    } else if (cleanText.startsWith("data:image/")) {
-      // Split base64 image if there is additional text, or display directly
-      return <img src={cleanText} alt="Image" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
+    } else if (trimmedText.startsWith("data:image/")) {
+      return <img src={trimmedText} alt="Image" className="max-w-full max-h-60 rounded-lg object-contain shadow-sm border border-graphite/10" />;
     }
 
-    return <span>{text}</span>;
+    return <span>{cleanText}</span>;
   };
   
   const sidebarRef = useRef<HTMLDivElement>(null);

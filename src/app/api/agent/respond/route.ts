@@ -201,12 +201,21 @@ ${JSON.stringify(zones || [], null, 2)}
 
     // 5. Build conversation history for Claude
     const rawHistory = [
-      ...(messages || []).map((m: any) => ({
-        role: m.sender === "customer" ? "user" : "assistant",
-        content: m.text || "",
-      })),
+      ...(messages || []).map((m: any) => {
+        let cleanText = m.text || "";
+        if (cleanText.startsWith("[WA_MSG_ID: ")) {
+          const index = cleanText.indexOf("]");
+          if (index !== -1) {
+            cleanText = cleanText.substring(index + 1).trim();
+          }
+        }
+        return {
+          role: m.sender === "customer" ? ("user" as const) : ("assistant" as const),
+          content: cleanText,
+        };
+      }),
       {
-        role: "user",
+        role: "user" as const,
         content: text,
       }
     ];

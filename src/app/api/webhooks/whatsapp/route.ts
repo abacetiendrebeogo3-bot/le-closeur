@@ -630,8 +630,8 @@ export async function POST(req: NextRequest) {
             // Send typing indicator to WhatsApp to show the AI is active/typing
             await sendWhatsAppTypingIndicator(customerPhone, businessId);
 
-            // Sleep 2.5 seconds to simulate human typing delay
-            await new Promise((resolve) => setTimeout(resolve, 2500));
+            // Sleep 1 second to simulate human typing delay
+            await new Promise((resolve) => setTimeout(resolve, 1000));
 
             // Fetch Products
             const { data: rawProducts } = await supabaseServer
@@ -1221,13 +1221,12 @@ ${formattedRules}
       }
     };
 
-    if ((req as any).waitUntil) {
-      (req as any).waitUntil(handleIncomingMessageBackground());
-    } else {
-      handleIncomingMessageBackground();
-    }
+    // In Vercel serverless functions, we must await the background processing completely.
+    // Otherwise, Vercel freezes the container immediately after sending the response,
+    // which results in messages arriving hours/minutes later (or only when next container is active).
+    await handleIncomingMessageBackground();
 
-    return NextResponse.json({ status: "success", message: "Incoming message queued for processing." });
+    return NextResponse.json({ status: "success", message: "Incoming message processed." });
   } catch (error: any) {
     console.error("Error in webhook POST route:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -765,6 +765,108 @@ ${isReturningCustomer ? `Note: Ce client a déjà commandé. Son ancienne adress
 ${formattedRules}
 `;
 
+            const webhookTools = [
+              {
+                name: "search_products",
+                description: "Rechercher des produits du catalogue par mot-clé.",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    query: { type: "string", description: "Le terme de recherche (ex: minceur, thé)." },
+                  },
+                  required: ["query"],
+                },
+              },
+              {
+                name: "check_delivery_zone",
+                description: "Vérifier le tarif et délai de livraison pour une zone géographique donnée.",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    zone_name: { type: "string", description: "Nom du quartier ou de la zone (ex: Tanghin, Patte d'oie)." },
+                  },
+                  required: ["zone_name"],
+                },
+              },
+              {
+                name: "get_order_status",
+                description: "Consulter le statut en temps réel d'une commande par son ID.",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    order_id: { type: "integer", description: "ID numérique unique de la commande." },
+                  },
+                  required: ["order_id"],
+                },
+              },
+              {
+                name: "update_engagement_status",
+                description: "Met à jour le statut d'engagement de la conversation avec le client (ex: 'interesse', 'hesitant', 'chaud', 'reclamation').",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    status: {
+                      type: "string",
+                      enum: ["interesse", "hesitant", "chaud", "reclamation"],
+                      description: "Le nouveau statut d'engagement."
+                    }
+                  },
+                  required: ["status"]
+                }
+              },
+              {
+                name: "escalate_to_human",
+                description: "Transférer la conversation à un agent humain en cas de demande spécifique complexe ou plainte.",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    reason: { type: "string", description: "La raison du transfert." }
+                  },
+                  required: ["reason"]
+                }
+              },
+              {
+                name: "send_product_visual",
+                description: "Envoyer l'image/photo d'un produit (catalogue ou témoignages clients) via WhatsApp.",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    product_name: { type: "string", description: "Le nom précis ou partiel du produit." },
+                    image_type: { type: "string", enum: ["catalog", "testimonials"], description: "Type de visuel : 'catalog' pour la photo du produit, 'testimonials' pour des avant/après ou avis clients." },
+                    image_url: { type: "string", description: "L'URL de l'image directe à envoyer si déjà identifiée." },
+                    caption: { type: "string", description: "Légende optionnelle accompagnant l'image." },
+                  },
+                  required: ["product_name", "image_type"],
+                },
+              },
+              {
+                name: "create_order",
+                description: "Enregistrer une commande ferme confirmée par le client.",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    customer_name: { type: "string", description: "Nom complet du client." },
+                    customer_phone: { type: "string", description: "Numéro de téléphone WhatsApp." },
+                    customer_address: { type: "string", description: "Adresse physique de livraison (quartier, repères)." },
+                    delivery_zone: { type: "string", description: "Nom précis de la zone de livraison validée." },
+                    items: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          product_name: { type: "string", description: "Nom exact du produit commandé." },
+                          quantity: { type: "integer", minimum: 1, description: "Quantité commandée." },
+                        },
+                        required: ["product_name", "quantity"],
+                      },
+                    },
+                  },
+                  required: ["customer_name", "customer_phone", "customer_address", "delivery_zone", "items"],
+                },
+                cache_control: { type: "ephemeral" }
+              } as any,
+            ];
+
             // Call Claude with explicit prompt caching
             const response = await anthropic.messages.create({
               model: CLAUDE_MODEL,
@@ -773,108 +875,7 @@ ${formattedRules}
                 { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }
               ] as any,
               messages: formattedMessages as any,
-              tools: [
-                {
-                  name: "search_products",
-                  description: "Rechercher des produits du catalogue par mot-clé.",
-                  input_schema: {
-                    type: "object",
-                    properties: {
-                      query: { type: "string", description: "Le terme de recherche (ex: minceur, thé)." },
-                    },
-                    required: ["query"],
-                  },
-                },
-                {
-                  name: "check_delivery_zone",
-                  description: "Vérifier le tarif et délai de livraison pour une zone géographique donnée.",
-                  input_schema: {
-                    type: "object",
-                    properties: {
-                      zone_name: { type: "string", description: "Le nom du quartier ou de la commune." },
-                    },
-                    required: ["zone_name"],
-                  },
-                },
-                {
-                  name: "get_order_status",
-                  description: "Consulter l'avancement d'une commande existante via son ID.",
-                  input_schema: {
-                    type: "object",
-                    properties: {
-                      order_id: { type: "string", description: "L'identifiant de la commande (ex: CMD-2026-X)." },
-                    },
-                    required: ["order_id"],
-                  },
-                },
-                {
-                  name: "update_engagement_status",
-                  description: "Mettre à jour la classification de la relation avec le prospect.",
-                  input_schema: {
-                    type: "object",
-                    properties: {
-                      status: { 
-                        type: "string", 
-                        enum: ["nouveau", "interesse", "hesitant", "chaud", "client", "client_fidele", "moins_interesse", "froid", "reclamation"],
-                        description: "Le nouveau statut de la conversation." 
-                      },
-                    },
-                    required: ["status"],
-                  },
-                },
-                {
-                  name: "escalate_to_human",
-                  description: "Transférer la conversation à un agent commercial humain en cas de demande spécifique, négociation de prix, ou réclamation complexe.",
-                  input_schema: {
-                    type: "object",
-                    properties: {},
-                  },
-                },
-                {
-                  name: "send_product_visual",
-                  description: "Envoyer l'image, le visuel ou le rendu graphique d'un produit spécifique au client via WhatsApp.",
-                  input_schema: {
-                    type: "object",
-                    properties: {
-                      product_name: { type: "string", description: "Nom exact ou approchant du produit." },
-                      image_type: { 
-                        type: "string", 
-                        enum: ["visual", "ingredients", "usage", "results"], 
-                        description: "Type de visuel : visual (produit principal), ingredients (composition), usage (mode d'emploi), results (témoignages/avant-après)." 
-                      },
-                      image_url: { type: "string", description: "URL de l'image (si déjà connue, optionnel)." },
-                      caption: { type: "string", description: "Légende optionnelle accompagnant l'image." },
-                    },
-                    required: ["product_name", "image_type"],
-                  },
-                },
-                {
-                  name: "create_order",
-                  description: "Enregistrer une commande ferme confirmée par le client.",
-                  input_schema: {
-                    type: "object",
-                    properties: {
-                      customer_name: { type: "string", description: "Nom complet du client." },
-                      customer_phone: { type: "string", description: "Numéro de téléphone WhatsApp." },
-                      customer_address: { type: "string", description: "Adresse physique de livraison (quartier, repères)." },
-                      delivery_zone: { type: "string", description: "Nom précis de la zone de livraison validée." },
-                      items: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            product_name: { type: "string", description: "Nom exact du produit commandé." },
-                            quantity: { type: "integer", minimum: 1, description: "Quantité commandée." },
-                          },
-                          required: ["product_name", "quantity"],
-                        },
-                      },
-                    },
-                    required: ["customer_name", "customer_phone", "customer_address", "delivery_zone", "items"],
-                  },
-                  cache_control: { type: "ephemeral" }
-                } as any,
-              ],
+              tools: webhookTools,
             });
 
             console.log("[USAGE]", {
@@ -1192,6 +1193,7 @@ ${formattedRules}
                   { role: "assistant", content: response.content },
                   { role: "user", content: toolResults as any },
                 ],
+                tools: webhookTools,
               } as any);
 
               console.log("[USAGE]", {

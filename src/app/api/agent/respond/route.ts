@@ -657,6 +657,7 @@ ${JSON.stringify(zones || [], null, 2)}
           { role: "assistant", content: response.content },
           { role: "user", content: toolResults as any },
         ],
+        tools: tools,
       } as any);
 
       console.log("[USAGE]", {

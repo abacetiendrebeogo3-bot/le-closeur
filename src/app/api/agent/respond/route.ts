@@ -199,9 +199,10 @@ ${JSON.stringify(products || [], null, 2)}
 ${JSON.stringify(zones || [], null, 2)}
 `;
 
-    // 5. Build conversation history for Claude
+    // 5. Build conversation history for Claude (server-side safety limit to 20 messages)
+    const limitedMessages = (messages || []).slice(-20);
     const rawHistory = [
-      ...(messages || []).map((m: any) => {
+      ...limitedMessages.map((m: any) => {
         let cleanText = m.text || "";
         if (cleanText.startsWith("[WA_MSG_ID: ")) {
           const index = cleanText.indexOf("]");

@@ -153,7 +153,7 @@ export const AgentConfigView: React.FC<AgentConfigViewProps> = ({
     fetchConvs();
   }, [businessId, selectedConversationId]);
 
-  // Fetch selected conversation messages
+  // Fetch selected conversation messages (limit 20)
   useEffect(() => {
     if (!selectedConversationId) return;
     const fetchMessages = async () => {
@@ -161,10 +161,11 @@ export const AgentConfigView: React.FC<AgentConfigViewProps> = ({
         .from("messages")
         .select("*")
         .eq("conversation_id", selectedConversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(20);
 
       if (data) {
-        setChatMessages(data);
+        setChatMessages([...data].reverse());
       }
     };
     fetchMessages();
@@ -488,6 +489,36 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
     }
   };
 
+  // Create a quick new test conversation (random credentials to prevent bloat)
+  const handleQuickNewTestConversation = async () => {
+    if (!businessId) return;
+    const randomId = Math.floor(Math.random() * 9000 + 1000);
+    const testName = `Client Test #${randomId}`;
+    const testPhone = `22177${Math.floor(Math.random() * 9000000 + 1000000)}`;
+
+    const { data: newConv, error } = await supabase
+      .from("conversations")
+      .insert({
+        business_id: businessId,
+        customer_name: testName,
+        customer_phone: testPhone,
+        status: "ai_active",
+        avatar: "TT",
+        unread: false
+      })
+      .select()
+      .single();
+
+    if (error) {
+      triggerToast(`Erreur : ${error.message}`, "warning");
+    } else if (newConv) {
+      setSelectedConversationId(newConv.id);
+      setChatMessages([]);
+      setLastToolsCalled([]);
+      triggerToast(`Nouvelle conversation de test créée : ${testName}`, "success");
+    }
+  };
+
   // Send message to agent API
   const handleSendSimMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -525,7 +556,7 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
           conversationId: selectedConversationId,
           text: userText,
           businessId,
-          messages: chatMessages
+          messages: chatMessages.slice(-20)
         })
       });
 
@@ -1015,7 +1046,16 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
           {/* Selector or simulation initializer */}
           <div className="flex flex-col gap-3 p-3 bg-neige rounded-2xl border border-graphite/5">
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] uppercase font-bold text-encre/50">Choisir une conversation de test</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[9px] uppercase font-bold text-encre/50">Choisir une conversation de test</label>
+                <button
+                  onClick={handleQuickNewTestConversation}
+                  className="text-[9px] font-extrabold text-menthe hover:text-menthe-dark bg-transparent border-none p-0 cursor-pointer"
+                  type="button"
+                >
+                  + Nouvelle conversation de test
+                </button>
+              </div>
               <select
                 value={selectedConversationId || ""}
                 onChange={(e) => setSelectedConversationId(Number(e.target.value))}

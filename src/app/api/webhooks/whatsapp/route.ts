@@ -877,6 +877,13 @@ ${formattedRules}
               ],
             });
 
+            console.log("[USAGE]", {
+              input: response.usage.input_tokens,
+              output: response.usage.output_tokens,
+              cache_write: response.usage.cache_creation_input_tokens,
+              cache_read: response.usage.cache_read_input_tokens,
+            });
+
             let assistantMessage = "";
             const toolCalls = response.content.filter((c) => c.type === "tool_use");
 
@@ -1186,6 +1193,13 @@ ${formattedRules}
                   { role: "user", content: toolResults as any },
                 ],
               } as any);
+
+              console.log("[USAGE]", {
+                input: secondResponse.usage.input_tokens,
+                output: secondResponse.usage.output_tokens,
+                cache_write: secondResponse.usage.cache_creation_input_tokens,
+                cache_read: secondResponse.usage.cache_read_input_tokens,
+              });
 
               assistantMessage = secondResponse.content.find((c) => c.type === "text")?.text || "";
             }

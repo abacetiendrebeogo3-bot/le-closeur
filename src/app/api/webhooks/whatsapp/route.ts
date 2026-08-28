@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTypingIndicator } from "@/lib/whatsapp/send";
+import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTypingIndicator, sendWhatsAppInteractiveButtons } from "@/lib/whatsapp/send";
 import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, CLAUDE_MODEL } from "@/lib/ai/anthropic";
 import crypto from "crypto";
@@ -136,6 +136,107 @@ export async function POST(req: NextRequest) {
 
     const customerPhone = messageObject.from; // e.g. "221776543210" or formatted phone
     const contactName = value?.contacts?.[0]?.profile?.name || customerPhone;
+
+    // Detect if this is an interactive button reply from a courier
+    const cleanFrom = customerPhone.replace(/[^0-9]/g, "");
+    
+    // Fetch couriers to check if sender is a known courier
+    const { data: couriersList } = await supabaseServer
+      .from("couriers")
+      .select("*");
+
+    const matchedCourier = (couriersList || []).find(c => {
+      const cleanC = (c.phone || "").replace(/[^0-9]/g, "");
+      return cleanC === cleanFrom;
+    });
+
+    if (matchedCourier && messageObject.type === "interactive" && messageObject.interactive?.type === "button_reply") {
+      const buttonReply = messageObject.interactive.button_reply;
+      const buttonId = buttonReply?.id || "";
+      console.log(`[COURIER REPLY] Courier ${matchedCourier.name} clicked button: ${buttonId}`);
+
+      let matchedStatus = "";
+      let orderId = "";
+      
+      if (buttonId.startsWith("livre_")) {
+        matchedStatus = "delivered";
+        orderId = buttonId.substring("livre_".length);
+      } else if (buttonId.startsWith("annule_")) {
+        matchedStatus = "cancelled";
+        orderId = buttonId.substring("annule_".length);
+      } else if (buttonId.startsWith("reprogramme_")) {
+        matchedStatus = "reprogramme";
+        orderId = buttonId.substring("reprogramme_".length);
+      }
+
+      if (orderId && matchedStatus) {
+        // Update Order Status in Supabase
+        if (matchedStatus === "reprogramme") {
+          const { data: orderData } = await supabaseServer
+            .from("orders")
+            .select("customer_address, chat_id")
+            .eq("id", orderId)
+            .maybeSingle();
+
+          let newAddress = orderData?.customer_address || "";
+          if (newAddress && !newAddress.includes("(Reprogrammé)")) {
+            newAddress += " (Reprogrammé)";
+          }
+
+          await supabaseServer
+            .from("orders")
+            .update({
+              status: "sent_to_courier",
+              customer_address: newAddress
+            })
+            .eq("id", orderId);
+
+          // Add a message note to the conversation if chat_id exists
+          if (orderData?.chat_id) {
+            const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+            await saveMessageSafe(
+              String(orderData.chat_id),
+              "system",
+              `🔄 [Livreur ${matchedCourier.name}] Livraison reprogrammée.`,
+              timeStr,
+              customerPhone,
+              matchedCourier.business_id
+            );
+          }
+        } else {
+          const { data: orderData } = await supabaseServer
+            .from("orders")
+            .select("chat_id")
+            .eq("id", orderId)
+            .maybeSingle();
+
+          await supabaseServer
+            .from("orders")
+            .update({ status: matchedStatus })
+            .eq("id", orderId);
+
+          // Add a message note to the conversation if chat_id exists
+          if (orderData?.chat_id) {
+            const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+            const statusLabel = matchedStatus === "delivered" ? "✅ Livrée" : "❌ Annulée";
+            await saveMessageSafe(
+              String(orderData.chat_id),
+              "system",
+              `📦 [Livreur ${matchedCourier.name}] Commande mise à jour : ${statusLabel}.`,
+              timeStr,
+              customerPhone,
+              matchedCourier.business_id
+            );
+          }
+        }
+
+        // Respond to courier with confirmation
+        const replyText = "C'est noté, merci ! 🙏";
+        await sendWhatsAppMessage(customerPhone, replyText, matchedCourier.business_id);
+
+        return NextResponse.json({ status: "success", message: "Courier button reply processed." });
+      }
+    }
 
     const messageId = messageObject?.id;
     if (messageId) {
@@ -1025,11 +1126,21 @@ ${formattedRules}
                           .update({ load: (assignedCourier.load || 0) + 1 })
                           .eq("id", assignedCourier.id);
 
-                        // Notify courier via WhatsApp
+                        // Notify courier via WhatsApp with interactive buttons
                         if (assignedCourier.phone) {
                           const courierItemsStr = input.items.map((item: any) => `- ${item.product_name} (x${item.quantity})`).join("\n");
-                          const courierMessageText = `Bonjour ${assignedCourier.name} ! 🚚\n\nUne nouvelle commande vous a été AUTOMATIQUEMENT assignée :\n\n- *ID Commande* : ${newOrderId}\n- *Client* : ${input.customer_name}\n- *Téléphone* : ${customerPhone}\n- *Zone de livraison* : ${input.delivery_zone}\n- *Adresse* : ${input.customer_address || "Non spécifiée"}\n- *Articles* :\n${courierItemsStr}\n- *Frais de livraison* : ${shippingFee} FCFA\n- *Total à collecter* : ${total} FCFA\n\nMerci de confirmer la bonne réception ! 🙏`;
-                          await sendWhatsAppMessage(assignedCourier.phone, courierMessageText, businessId);
+                          const courierMessageText = `Bonjour ${assignedCourier.name} ! 🚚\n\nUne nouvelle commande vous a été AUTOMATIQUEMENT assignée :\n\n- *ID Commande* : ${newOrderId}\n- *Client* : ${input.customer_name}\n- *Téléphone* : ${customerPhone}\n- *Zone de livraison* : ${input.delivery_zone}\n- *Adresse* : ${input.customer_address || "Non spécifiée"}\n- *Articles* :\n${courierItemsStr}\n- *Frais de livraison* : ${shippingFee} FCFA\n- *Total à collecter* : ${total} FCFA`;
+                          
+                          await sendWhatsAppInteractiveButtons(
+                            assignedCourier.phone,
+                            courierMessageText,
+                            [
+                              { id: `livre_${newOrderId}`, title: "✅ Livré" },
+                              { id: `annule_${newOrderId}`, title: "❌ Annulé" },
+                              { id: `reprogramme_${newOrderId}`, title: "🔄 Reprogrammé" }
+                            ],
+                            businessId
+                          );
                         }
                       }
                       

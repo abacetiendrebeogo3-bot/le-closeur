@@ -399,3 +399,88 @@ export async function sendWhatsAppDocument(to: string, documentUrl: string, file
     return false;
   }
 }
+
+/**
+ * Helper to send an interactive button message to a WhatsApp number.
+ */
+export async function sendWhatsAppInteractiveButtons(
+  to: string,
+  bodyText: string,
+  buttons: { id: string; title: string }[],
+  businessId?: string
+): Promise<boolean> {
+  let token = process.env.WHATSAPP_ACCESS_TOKEN;
+  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (businessId) {
+    try {
+      const { data: business, error } = await supabaseServer
+        .from("businesses")
+        .select("whatsapp_access_token, whatsapp_phone_number_id")
+        .eq("id", businessId)
+        .maybeSingle();
+
+      if (error) {
+        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
+      } else if (business) {
+        if (business.whatsapp_access_token) {
+          token = business.whatsapp_access_token;
+        }
+        if (business.whatsapp_phone_number_id) {
+          phoneNumberId = business.whatsapp_phone_number_id;
+        }
+      }
+    } catch (err) {
+      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
+    }
+  }
+
+  if (!token || !phoneNumberId) {
+    console.error("WhatsApp credentials missing.");
+    return false;
+  }
+
+  const cleanTo = to.replace(/[^0-9]/g, "");
+
+  try {
+    const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: cleanTo,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: {
+            text: bodyText
+          },
+          action: {
+            buttons: buttons.map((b) => ({
+              type: "reply",
+              reply: {
+                id: b.id,
+                title: b.title
+              }
+            }))
+          }
+        }
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("Error sending WhatsApp interactive buttons via Meta API:", data);
+    }
+    return response.ok;
+  } catch (error) {
+    console.error("Error in sendWhatsAppInteractiveButtons:", error);
+    return false;
+  }
+}
+

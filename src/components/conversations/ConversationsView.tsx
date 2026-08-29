@@ -90,32 +90,36 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     }
   };
 
-  useEffect(() => {
-    import("mic-recorder-to-mp3").then((mod) => {
-      const MicRecorder = mod.default || mod;
-      recorderRef.current = new MicRecorder({ bitRate: 128 });
-    }).catch(err => {
-      console.error("Error initializing mic-recorder-to-mp3:", err);
-    });
-  }, []);
-
   const startRecording = async () => {
-    if (!recorderRef.current) {
-      try {
-        const mod = await import("mic-recorder-to-mp3");
-        const MicRecorder = mod.default || mod;
-        recorderRef.current = new MicRecorder({ bitRate: 128 });
-      } catch (err) {
-        console.error("Error initializing mic-recorder-to-mp3 on-demand:", err);
-        triggerToast("Le micro-enregistreur n'est pas initialisé", "warning");
-        return;
-      }
-    }
     try {
-      await recorderRef.current.start();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      recorderRef.current = mediaRecorder;
+      
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Stop all tracks on the stream to release the mic icon in the browser
+        stream.getTracks().forEach(track => track.stop());
+
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const file = new File([blob], `${Date.now()}.mp3`, {
+          type: "audio/mpeg",
+          lastModified: Date.now()
+        });
+
+        await uploadAndSendAudioBlob(file);
+      };
+
+      mediaRecorder.start();
       setIsRecording(true);
       setRecordingDuration(0);
-      
+
       recordingTimerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
@@ -129,38 +133,30 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
   const stopRecording = () => {
     if (recorderRef.current && isRecording) {
-      recorderRef.current.stop().getMp3().then(async ([buffer, blob]: any) => {
-        setIsRecording(false);
-        if (recordingTimerRef.current) {
-          clearInterval(recordingTimerRef.current);
-          recordingTimerRef.current = null;
-        }
-
-        const file = new File(buffer, `${Date.now()}.mp3`, {
-          type: blob.type,
-          lastModified: Date.now()
-        });
-
-        await uploadAndSendAudioBlob(file);
-      }).catch((e: any) => {
-        console.error("Error stopping recording:", e);
-        triggerToast("Erreur lors de l'enregistrement", "warning");
-      });
+      recorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
     }
   };
 
   const cancelRecording = () => {
     if (recorderRef.current && isRecording) {
-      recorderRef.current.stop().getMp3().then(() => {
-        setIsRecording(false);
-        if (recordingTimerRef.current) {
-          clearInterval(recordingTimerRef.current);
-          recordingTimerRef.current = null;
+      recorderRef.current.onstop = () => {
+        // Just stop stream tracks and do not upload
+        if (recorderRef.current.stream) {
+          recorderRef.current.stream.getTracks().forEach((track: any) => track.stop());
         }
-        triggerToast("Enregistrement annulé", "info");
-      }).catch((e: any) => {
-        console.error("Error cancelling recording:", e);
-      });
+      };
+      recorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      triggerToast("Enregistrement annulé", "info");
     }
   };
 

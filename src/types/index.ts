@@ -83,4 +83,5 @@ export interface FollowupStep {
   name: string;
   messageText: string;
   metaTemplateName: string;
+  active?: boolean;
 }

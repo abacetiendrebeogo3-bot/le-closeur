@@ -155,65 +155,105 @@ export async function GET(req: NextRequest) {
           }
         }
       }
-
-      // --- RULE C: RELANCE PROSPECT NON-CONVERTI LE LENDEMAIN MATIN (9h-10h UTC) ---
+      // --- RULE C: RELANCES PROSPECTS MULTI-PALIERS (9h-10h UTC) ---
       const isMorningTime = currentUTCHour >= 9 && currentUTCHour <= 10;
       if (isMorningTime && !order) {
-        // Check if last message was sent yesterday (between 12 and 36 hours ago)
-        const lastMsgTime = new Date(lastMsg.created_at).getTime();
-        const twelveHoursAgo = Date.now() - 12 * 60 * 60 * 1000;
-        const thirtySixHoursAgo = Date.now() - 36 * 60 * 60 * 1000;
+        const lastCustomerMsg = [...history].reverse().find((m) => m.sender === "customer");
+        if (lastCustomerMsg) {
+          const lastCustomerTime = new Date(lastCustomerMsg.created_at).getTime();
+          const elapsedMs = Date.now() - lastCustomerTime;
+          const elapsedDays = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
 
-        if (lastMsgTime > thirtySixHoursAgo && lastMsgTime < twelveHoursAgo) {
-          // Check if already sent next_morning followup today
-          const { data: followupSent } = await supabaseServer
-            .from("followup_runs")
-            .select("id")
-            .eq("conversation_id", conversationId)
-            .eq("type", "next_morning")
-            .eq("target_date", todayStr)
-            .maybeSingle();
+          const daySteps = [
+            { days: 21, type: "day_21" },
+            { days: 15, type: "day_15" },
+            { days: 12, type: "day_12" },
+            { days: 7, type: "day_7" },
+            { days: 5, type: "day_5" },
+            { days: 3, type: "day_3" },
+            { days: 1, type: "next_morning" }, // Keep next_morning for backward compatibility (J1)
+          ];
 
-          if (!followupSent) {
-            console.log(`Generating Personalized Morning followup to ${customerPhone} for conv ${conversationId}`);
+          // Find the highest step matching elapsedDays
+          const activeStepToTrigger = daySteps.find(step => elapsedDays >= step.days);
 
-            // Use Claude to generate a personalized draft based on discussed products
-            const formattedHistory = history.map((m) => `${m.sender === "customer" ? "Client" : "Agent"}: ${m.text}`).join("\n");
+          if (activeStepToTrigger) {
+            // Check if already sent this followup
+            const { data: followupSent } = await supabaseServer
+              .from("followup_runs")
+              .select("id")
+              .eq("conversation_id", conversationId)
+              .eq("type", activeStepToTrigger.type)
+              .maybeSingle();
 
-            try {
-              const response = await anthropic.messages.create({
-                model: CLAUDE_MODEL,
-                max_tokens: 150,
-                system: "Tu es un agent commercial de suivi client par messagerie. Rédige un message court (1-2 phrases maximum, style WhatsApp, ton naturel, amical et chaleureux) pour reprendre des nouvelles concernant le produit dont le client a discuté hier. Ne dis JAMAIS que tu es une IA ou un robot. Exemple : 'Bonjour, je voulais juste prendre de vos nouvelles concernant le [nom du produit] — je reste à votre disposition si vous avez des questions !'",
-                messages: [
-                  {
-                    role: "user",
-                    content: `Voici l'historique de notre conversation d'hier :\n\n${formattedHistory}\n\nRédige uniquement le message de suivi personnalisé prêt à être envoyé au client. Pas de salutations d'en-tête ou de formatage superflu, juste le message brut.`
-                  }
-                ]
-              });
+            if (!followupSent) {
+              let followupText = "";
+              const delayValue = activeStepToTrigger.days;
 
-              const morningText = response.content.find((c) => c.type === "text")?.text || "Bonjour, je voulais juste prendre de vos nouvelles — je reste à votre disposition si vous avez des questions ! 😊";
-              
-              const sent = await sendWhatsAppMessage(customerPhone, morningText, businessId);
-              if (sent) {
-                const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-                await supabaseServer.from("messages").insert({
-                  conversation_id: conversationId,
-                  sender: "ai",
-                  text: morningText,
-                  time: timeStr,
-                });
+              // Query supabase for active template for this delay
+              const { data: dbTemplate } = await supabaseServer
+                .from("followup_steps")
+                .select("message_text")
+                .eq("business_id", businessId)
+                .eq("delay_value", delayValue)
+                .eq("delay_unit", "days")
+                .eq("active", true)
+                .maybeSingle();
 
-                await supabaseServer.from("followup_runs").insert({
-                  conversation_id: conversationId,
-                  type: "next_morning",
-                  target_date: todayStr
-                });
-                processedCount++;
+              if (dbTemplate && dbTemplate.message_text) {
+                const firstName = conv.customer_name ? conv.customer_name.split(" ")[0] : "client";
+                followupText = dbTemplate.message_text
+                  .replace(/\{name\}/g, firstName)
+                  .replace(/\{\{name\}\}/g, firstName);
+                console.log(`Using active database template for J${delayValue} followup to ${customerPhone}`);
+              } else {
+                // Fallback to Claude personalized generation
+                console.log(`No active DB template for J${delayValue}. Generating personalized followup via Claude.`);
+                const formattedHistory = history.map((m) => `${m.sender === "customer" ? "Client" : "Agent"}: ${m.text}`).join("\n");
+                
+                try {
+                  const systemPrompt = delayValue === 1 
+                    ? "Tu es un agent commercial de suivi client par messagerie. Rédige un message court (1-2 phrases maximum, style WhatsApp, ton naturel, amical et chaleureux) pour reprendre des nouvelles concernant le produit dont le client a discuté hier. Ne dis JAMAIS que tu es une IA ou un robot. Exemple : 'Bonjour, je voulais juste prendre de vos nouvelles concernant le [nom du produit] — je reste à votre disposition si vous avez des questions !'"
+                    : `Tu es un agent commercial de suivi client par messagerie. Rédige un message court (1-2 phrases maximum, style WhatsApp, ton naturel, amical et chaleureux) pour relancer gentiment un prospect qui n'a pas répondu depuis ${delayValue} jours concernant les produits de notre catalogue. Ne dis JAMAIS que tu es une IA.`;
+
+                  const userContent = delayValue === 1
+                    ? `Voici l'historique de notre conversation d'hier :\n\n${formattedHistory}\n\nRédige uniquement le message de suivi personnalisé prêt à être envoyé au client. Pas de salutations d'en-tête ou de formatage superflu, juste le message brut.`
+                    : `Voici l'historique de la conversation :\n\n${formattedHistory}\n\nRédige uniquement le message de relance amical et court, sans en-tête ni fioritures.`;
+
+                  const response = await anthropic.messages.create({
+                    model: CLAUDE_MODEL,
+                    max_tokens: 150,
+                    system: systemPrompt,
+                    messages: [
+                      { role: "user", content: userContent }
+                    ]
+                  });
+                  
+                  followupText = response.content.find((c) => c.type === "text")?.text || "";
+                } catch (err) {
+                  console.error(`Error running Claude for J${delayValue} followup fallback:`, err);
+                }
               }
-            } catch (err) {
-              console.error("Error running Claude for next_morning followup:", err);
+
+              if (followupText) {
+                const sent = await sendWhatsAppMessage(customerPhone, followupText, businessId);
+                if (sent) {
+                  const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+                  await supabaseServer.from("messages").insert({
+                    conversation_id: conversationId,
+                    sender: "ai",
+                    text: followupText,
+                    time: timeStr,
+                  });
+
+                  await supabaseServer.from("followup_runs").insert({
+                    conversation_id: conversationId,
+                    type: activeStepToTrigger.type,
+                    target_date: todayStr
+                  });
+                  processedCount++;
+                }
+              }
             }
           }
         }

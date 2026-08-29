@@ -108,7 +108,8 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
           delayUnit: fs.delay_unit,
           name: fs.name,
           messageText: fs.message_text,
-          metaTemplateName: fs.meta_template_name
+          metaTemplateName: fs.meta_template_name,
+          active: fs.active
         })));
       }
     };
@@ -258,6 +259,96 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
     return days % 1 === 0 ? days : parseFloat(days.toFixed(1));
   };
 
+  // Add template for specific tier
+  const handleAddTemplateForTier = async (value: number, unit: "hours" | "days") => {
+    if (!businessId) return;
+    const newId = `STEP-${Date.now()}`;
+    const newStep: FollowupStep = {
+      id: newId,
+      delayValue: value,
+      delayUnit: unit,
+      name: `Modèle ${unit === "days" ? "J" + value : value + "h"} - Option ${steps.filter(s => s.delayValue === value && s.delayUnit === unit).length + 1}`,
+      messageText: "Bonjour {{name}}, ...",
+      metaTemplateName: "custom_template",
+      active: false
+    };
+
+    const { error } = await supabase.from("followup_steps").insert({
+      id: newId,
+      business_id: businessId,
+      delay_value: newStep.delayValue,
+      delay_unit: newStep.delayUnit,
+      name: newStep.name,
+      message_text: newStep.messageText,
+      meta_template_name: newStep.metaTemplateName,
+      active: false
+    });
+
+    if (error) {
+      triggerToast(`Erreur Supabase: ${error.message}`, "warning");
+      return;
+    }
+
+    setSteps(prev => [...prev, newStep]);
+    triggerToast("Nouveau modèle de relance ajouté pour ce palier.", "success");
+  };
+
+  // Activate a specific template and deactivate others of the same step
+  const handleActivateStep = async (stepId: string, delayValue: number, delayUnit: string) => {
+    setSteps(prev => prev.map(step => {
+      if (step.delayValue === delayValue && step.delayUnit === delayUnit) {
+        return { ...step, active: step.id === stepId };
+      }
+      return step;
+    }));
+
+    await supabase.from("followup_steps")
+      .update({ active: false })
+      .eq("business_id", businessId)
+      .eq("delay_value", delayValue)
+      .eq("delay_unit", delayUnit);
+
+    const { error } = await supabase.from("followup_steps")
+      .update({ active: true })
+      .eq("id", stepId);
+
+    if (error) {
+      triggerToast(`Erreur d'activation: ${error.message}`, "warning");
+    } else {
+      triggerToast("Modèle activé avec succès pour ce palier.", "success");
+    }
+  };
+
+  // Get all unique delay tiers present in the steps, sorted chronologically
+  const getUniqueTiers = () => {
+    const tiersMap = new Map<string, { value: number; unit: "hours" | "days" }>();
+    
+    // Always include the default J1, J3, J5, J7, J12, J15, J21 tiers
+    const defaultTiers: { value: number; unit: "hours" | "days" }[] = [
+      { value: 1, unit: "days" },
+      { value: 3, unit: "days" },
+      { value: 5, unit: "days" },
+      { value: 7, unit: "days" },
+      { value: 12, unit: "days" },
+      { value: 15, unit: "days" },
+      { value: 21, unit: "days" },
+    ];
+    
+    defaultTiers.forEach(t => {
+      tiersMap.set(`${t.value}_${t.unit}`, t);
+    });
+
+    steps.forEach(s => {
+      tiersMap.set(`${s.delayValue}_${s.delayUnit}`, { value: s.delayValue, unit: s.delayUnit });
+    });
+
+    return Array.from(tiersMap.values()).sort((a, b) => {
+      const aVal = a.unit === "hours" ? a.value : a.value * 24;
+      const bVal = b.unit === "hours" ? b.value : b.value * 24;
+      return aVal - bVal;
+    });
+  };
+
   // Add step
   const handleAddStep = async () => {
     if (!businessId) return;
@@ -268,7 +359,8 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
       delayUnit: "days",
       name: `Nouvelle Étape ${steps.length + 1}`,
       messageText: "Bonjour {{name}}, ...",
-      metaTemplateName: "custom_template"
+      metaTemplateName: "custom_template",
+      active: false
     };
 
     const { error } = await supabase.from("followup_steps").insert({
@@ -278,7 +370,8 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
       delay_unit: newStep.delayUnit,
       name: newStep.name,
       message_text: newStep.messageText,
-      meta_template_name: newStep.metaTemplateName
+      meta_template_name: newStep.metaTemplateName,
+      active: false
     });
 
     if (error) {
@@ -404,104 +497,125 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
           </div>
         </div>
 
-        {/* Steps List */}
-        <div ref={stepsContainerRef} className="flex flex-col gap-6 pl-4 border-l-2 border-menthe/20">
-          {steps.map((step, idx) => (
-            <div key={step.id} className="followup-row relative flex flex-col gap-3.5 bg-neige/30 p-4 sm:p-5 rounded-[1.5rem] border border-graphite/5 shadow-xs">
-              
-              {/* Chronological Dot badge */}
-              <span className="absolute -left-[25px] top-5 w-3 h-3 bg-menthe rounded-full border-2 border-white shadow-xs"></span>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-graphite/5 pb-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-black uppercase text-menthe">Étape {idx + 1}</span>
-                  
-                  {/* Delay fields */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-encre/40 font-semibold">après</span>
-                    <input 
-                      type="number" 
-                      min={1}
-                      value={step.delayValue}
-                      onChange={(e) => handleUpdateStepField(step.id, "delayValue", parseInt(e.target.value) || 1)}
-                      className="w-10 bg-white border border-graphite/10 rounded-lg py-0.5 text-center text-xs font-bold text-encre"
-                    />
-                    <select
-                      value={step.delayUnit}
-                      onChange={(e) => handleUpdateStepField(step.id, "delayUnit", e.target.value)}
-                      className="bg-white border border-graphite/10 rounded-lg py-0.5 px-1 text-[10px] font-bold text-encre"
-                    >
-                      <option value="hours">Heure(s)</option>
-                      <option value="days">Jour(s)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Delete step button */}
-                <button
-                  onClick={() => handleDeleteStep(step.id, idx)}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-lg border border-transparent hover:border-red-100 transition-colors self-end sm:self-auto"
-                  title="Supprimer cette étape"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Form details inline */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] uppercase font-bold text-encre/45">Nom de l&apos;action</label>
-                  <input
-                    type="text"
-                    value={step.name}
-                    onChange={(e) => handleUpdateStepField(step.id, "name", e.target.value)}
-                    placeholder="Ex: Rappel panier..."
-                    className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] uppercase font-bold text-encre/45">Nom du Template Meta (WhatsApp Business)</label>
-                  <input
-                    type="text"
-                    value={step.metaTemplateName}
-                    onChange={(e) => handleUpdateStepField(step.id, "metaTemplateName", e.target.value)}
-                    placeholder="Ex: cart_recovery_fr..."
-                    className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe font-mono text-encre"
-                  />
-                </div>
-              </div>
-
-              {/* Message text details */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] uppercase font-bold text-encre/45">Texte du message de relance</label>
-                <textarea
-                  rows={2}
-                  value={step.messageText}
-                  onChange={(e) => handleUpdateStepField(step.id, "messageText", e.target.value)}
-                  placeholder="Écrivez le message ici..."
-                  className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-menthe leading-relaxed text-encre font-medium"
-                />
+        {/* Grouped Steps List by Delay Tiers */}
+        <div ref={stepsContainerRef} className="flex flex-col gap-8 pl-4 border-l-2 border-menthe/20">
+          {getUniqueTiers().map((tier, idx) => {
+            const templates = steps.filter(s => s.delayValue === tier.value && s.delayUnit === tier.unit);
+            const tierLabel = tier.unit === "days" ? `Relance J${tier.value} (${tier.value} jour${tier.value > 1 ? "s" : ""})` : `Relance ${tier.value} heure${tier.value > 1 ? "s" : ""}`;
+            
+            return (
+              <div key={`${tier.value}_${tier.unit}`} className="relative flex flex-col gap-4">
+                {/* Chronological Dot badge */}
+                <span className="absolute -left-[25px] top-1.5 w-3.5 h-3.5 bg-menthe rounded-full border-2 border-white shadow-xs"></span>
                 
-                {/* Available variables label */}
-                <div className="flex gap-1.5 items-center mt-1 text-[9px] text-encre/40 font-semibold">
-                  <AlertCircle className="w-3.5 h-3.5 text-menthe shrink-0" />
-                  <span>Variables autorisées : <code className="font-mono text-encre font-black bg-neige px-1 rounded">{"{{name}}"}</code>, <code className="font-mono text-encre font-black bg-neige px-1 rounded">{"{{total_amount}}"}</code>, <code className="font-mono text-encre font-black bg-neige px-1 rounded">{"{{delivery_zone}}"}</code></span>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase text-menthe tracking-wider">{tierLabel}</h4>
+                  <button
+                    onClick={() => handleAddTemplateForTier(tier.value, tier.unit)}
+                    className="text-[10px] font-bold text-menthe hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Ajouter un modèle
+                  </button>
                 </div>
+
+                {templates.length === 0 ? (
+                  <div className="bg-neige/20 p-4 rounded-2xl border border-dashed border-graphite/10 text-center text-xs text-encre/40 font-medium">
+                    Aucun modèle configuré pour ce palier. L&apos;agent utilisera la génération automatique par Claude.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {templates.map((step) => {
+                      const isActive = step.active === true;
+                      return (
+                        <div 
+                          key={step.id} 
+                          className={`followup-row flex flex-col gap-3 p-4 sm:p-5 rounded-[1.5rem] border transition-all ${
+                            isActive 
+                              ? "bg-menthe/5 border-menthe/40 shadow-sm" 
+                              : "bg-neige/30 border-graphite/5 hover:border-graphite/10"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between border-b border-graphite/5 pb-2">
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="radio" 
+                                checked={isActive}
+                                onChange={() => handleActivateStep(step.id, step.delayValue, step.delayUnit)}
+                                className="w-3.5 h-3.5 text-menthe accent-menthe cursor-pointer"
+                              />
+                              <span className="text-xs font-bold text-encre">{step.name}</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1.5">
+                              {isActive ? (
+                                <span className="bg-menthe/10 text-menthe text-[8px] font-black uppercase px-2 py-0.5 rounded-full">
+                                  Actif
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleActivateStep(step.id, step.delayValue, step.delayUnit)}
+                                  className="text-[9px] font-bold text-encre/50 hover:text-menthe transition-colors"
+                                >
+                                  Activer
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteStep(step.id, idx)}
+                                className="text-red-500 hover:text-red-700 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                                title="Supprimer ce modèle"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Editable fields */}
+                          <div className="flex flex-col gap-2.5">
+                            <div className="flex flex-col gap-0.5">
+                              <label className="text-[8px] uppercase font-black text-encre/45">Nom de l&apos;option</label>
+                              <input
+                                type="text"
+                                value={step.name}
+                                onChange={(e) => handleUpdateStepField(step.id, "name", e.target.value)}
+                                className="bg-white/80 border border-graphite/10 rounded-xl px-2.5 py-1 text-xs focus:outline-none focus:border-menthe font-semibold text-encre"
+                              />
+                            </div>
+
+                            <div className="flex flex-col gap-0.5">
+                              <label className="text-[8px] uppercase font-black text-encre/45">Template Meta</label>
+                              <input
+                                type="text"
+                                value={step.metaTemplateName || ""}
+                                onChange={(e) => handleUpdateStepField(step.id, "metaTemplateName", e.target.value)}
+                                className="bg-white/80 border border-graphite/10 rounded-xl px-2.5 py-1 text-[11px] focus:outline-none focus:border-menthe font-mono text-encre"
+                              />
+                            </div>
+
+                            <div className="flex flex-col gap-0.5">
+                              <label className="text-[8px] uppercase font-black text-encre/45">Message</label>
+                              <textarea
+                                rows={3}
+                                value={step.messageText}
+                                onChange={(e) => handleUpdateStepField(step.id, "messageText", e.target.value)}
+                                className="bg-white/80 border border-graphite/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-menthe leading-relaxed text-encre font-medium"
+                              />
+                            </div>
+
+                            {/* Available variables label */}
+                            <div className="flex gap-1 mt-1 text-[8px] text-encre/40 font-semibold">
+                              <AlertCircle className="w-3 h-3 text-menthe shrink-0" />
+                              <span>Variables : <code className="font-mono bg-neige px-0.5 rounded">{"{{name}}"}</code></span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-
-            </div>
-          ))}
+            );
+          })}
         </div>
-
-        {/* Add Step Action */}
-        <button
-          onClick={handleAddStep}
-          className="magnetic-btn border border-dashed border-menthe/40 text-menthe hover:bg-menthe/5 hover:border-menthe/60 font-bold py-3.5 rounded-2xl text-center text-xs transition-all flex items-center justify-center gap-2 mt-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Ajouter une étape de relance</span>
-        </button>
 
       </div>
 

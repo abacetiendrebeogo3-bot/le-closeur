@@ -16,7 +16,8 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  BarChart3
 } from "lucide-react";
 
 interface SidebarProps {
@@ -78,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: "PILOTAGE",
       items: [
         { id: "pilotage", label: "Pilotage", icon: TrendingUp },
+        { id: "stats", label: "Statistiques", icon: BarChart3 },
         { id: "journal", label: "Journal", icon: BookOpen }
       ]
     },

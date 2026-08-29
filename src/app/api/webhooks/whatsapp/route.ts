@@ -1183,13 +1183,16 @@ ${formattedRules}
             }
 
             if (assistantMessage) {
+              // Strip any database-only "[Image envoyée : ...]" placeholders from the text sent to the customer on WhatsApp
+              let clientMessage = assistantMessage.replace(/\[Image envoyée\s*:[^\]]*\]\s*(https?:\/\/\S+)?/gi, '').trim();
+
               // Send message via Meta WhatsApp (saveMessageSafe handles safety logic & fallbacks to customer)
               const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-              const isTooLong = assistantMessage.length > 2000;
-              const hasBase64 = assistantMessage.toLowerCase().includes("base64") || assistantMessage.includes("data:");
+              const isTooLong = clientMessage.length > 2000;
+              const hasBase64 = clientMessage.toLowerCase().includes("base64") || clientMessage.includes("data:");
               
-              if (!isTooLong && !hasBase64) {
-                await sendWhatsAppMessage(customerPhone, assistantMessage, businessId);
+              if (clientMessage && !isTooLong && !hasBase64) {
+                await sendWhatsAppMessage(customerPhone, clientMessage, businessId);
               }
               await saveMessageSafe(conversationId, "ai", assistantMessage, aiTimeStr, customerPhone, businessId);
             }

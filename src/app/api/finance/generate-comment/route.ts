@@ -77,6 +77,24 @@ export async function POST(req: NextRequest) {
     const totalDepenses = pubDep + stockDep + livrDep + salDep + autDep;
     const beneficeNet = entry.ca_realise - totalDepenses;
 
+    // 4.5 Fetch Caisse transactions and calculate cash balance
+    const { data: txs } = await supabaseServer
+      .from("caisse_transactions")
+      .select("type, montant")
+      .eq("business_id", businessId);
+
+    const caisseSolde = (txs || []).reduce((acc: number, t: any) => {
+      const amt = Number(t.montant) || 0;
+      return acc + (t.type === "entree" ? amt : -amt);
+    }, 0);
+
+    // Fetch active cash objectives targeting current or future dates
+    const { data: objs } = await supabaseServer
+      .from("caisse_objectifs")
+      .select("montant_cible, label, target_date")
+      .eq("business_id", businessId)
+      .gte("target_date", date);
+
     // 5. Construct context for Claude
     const contextPayload = {
       date: date,
@@ -92,20 +110,20 @@ export async function POST(req: NextRequest) {
       },
       benefice_net: beneficeNet,
       historique_recents_benefices: historyList,
-      seuils_alerte: seuils
+      seuils_alerte: seuils,
+      caisse_solde: caisseSolde,
+      objectifs_caisse: objs || []
     };
 
-    const systemPrompt = `Tu es le directeur financier de ${businessName}. Chaque soir, tu reçois les chiffres réels de la journée et de l'historique récent. Ton rôle : donner une lecture honnête et directe de la situation, comme un DG s'adresserait à son fondateur — pas un chatbot motivant, pas de langue de bois.
+    const systemPrompt = `Tu es le directeur financier de ${businessName}. Chaque soir, tu reçois les chiffres réels de la journée, le solde actuel de la caisse (liquidités réelles), les objectifs financiers, et l'historique récent. Ton rôle : donner une lecture honnête, directe et factuelle de la situation, comme un DG s'adresserait à son fondateur — pas de langue de bois, pas de flatterie ni de dramatisation.
 
 RÈGLES STRICTES :
-- Tu ne commentes que les chiffres fournis dans le contexte (CA du jour, dépenses par catégorie, bénéfice net, objectif, historique des 7-30 derniers jours, seuils d'alerte définis par l'utilisateur). Tu ne inventes jamais un chiffre, une tendance ou une comparaison que les données ne permettent pas de calculer.
-- Si l'objectif n'est pas atteint, dis-le clairement et identifie la cause la plus probable dans les données (ex. dépenses pub en hausse sans hausse de CA correspondante) plutôt qu'un encouragement générique.
-- Si l'entreprise est en zone rouge/orange selon les seuils définis, le dis en premier, sans minimiser.
-- Reste bref : 3 à 5 phrases maximum, format lisible en 20 secondes le soir.
-- Pas de conseil financier générique de manuel ("épargnez 20% de vos revenus") — uniquement des observations liées aux chiffres réels de cette entreprise.
-- Ton factuel et direct, pas de flatterie ni de dramatisation.`;
+- Tu ne commentes que les chiffres fournis dans le contexte (CA, dépenses, bénéfice net, solde de caisse actuel, objectifs de caisse et progression). Tu n'inventes jamais de données.
+- Analyse le solde de caisse actuel (disponible en cash réel) par rapport aux objectifs de caisse définis dans "objectifs_caisse" (montant cible et date de fin). Commente si les liquidités réelles permettent d'envisager sereinement l'avenir ou si des coupures de dépenses s'imposent.
+- Si un objectif (CA, bénéfice ou caisse) n'est pas atteint, identifie la cause dans les chiffres (ex. hausse des salaires ou du transport, sous-performance des ventes, etc.).
+- Reste bref : 3 à 5 phrases maximum, format direct et lisible en 20 secondes.`;
 
-    const userMessage = `Voici les données financières du jour à analyser :
+    const userMessage = `Voici les données financières réelles du jour à analyser :
 \`\`\`json
 ${JSON.stringify(contextPayload, null, 2)}
 \`\`\``;

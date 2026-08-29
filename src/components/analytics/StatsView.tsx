@@ -96,24 +96,24 @@ export const StatsView: React.FC<StatsViewProps> = ({ businessId }) => {
         const parts = text.split("**");
         return parts.map((part, i) => {
           if (i % 2 === 1) {
-            return <strong key={i} className="font-extrabold text-encre">{part}</strong>;
+            return <strong key={i} className="font-extrabold text-white">{part}</strong>;
           }
           return part;
         });
       };
 
       if (line.startsWith("### ")) {
-        return <h4 key={idx} className="text-xs font-bold text-encre mt-4 mb-2">{processBold(line.replace("### ", ""))}</h4>;
+        return <h4 key={idx} className="text-xs font-bold text-neige mt-4 mb-2">{processBold(line.replace("### ", ""))}</h4>;
       }
       if (line.startsWith("## ")) {
-        return <h3 key={idx} className="text-sm font-extrabold text-encre mt-5 mb-2 border-b border-graphite/5 pb-1">{processBold(line.replace("## ", ""))}</h3>;
+        return <h3 key={idx} className="text-sm font-extrabold text-neige mt-5 mb-2 border-b border-white/10 pb-1">{processBold(line.replace("## ", ""))}</h3>;
       }
       if (line.startsWith("# ")) {
-        return <h2 key={idx} className="text-base font-black text-encre mt-6 mb-3">{processBold(line.replace("# ", ""))}</h2>;
+        return <h2 key={idx} className="text-base font-black text-neige mt-6 mb-3">{processBold(line.replace("# ", ""))}</h2>;
       }
       if (line.startsWith("- ") || line.startsWith("* ")) {
         return (
-          <li key={idx} className="ml-4 list-disc text-xs text-encre/70 font-semibold leading-relaxed my-1">
+          <li key={idx} className="ml-4 list-disc text-xs text-neige/70 font-semibold leading-relaxed my-1">
             {processBold(line.substring(2))}
           </li>
         );
@@ -121,7 +121,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ businessId }) => {
       if (line.trim() === "") {
         return <div key={idx} className="h-2" />;
       }
-      return <p key={idx} className="text-xs text-encre/70 font-semibold leading-relaxed mb-2">{processBold(line)}</p>;
+      return <p key={idx} className="text-xs text-neige/70 font-semibold leading-relaxed mb-2">{processBold(line)}</p>;
     });
   };
 
@@ -300,7 +300,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ businessId }) => {
                 {loadingAnalysis ? (
                   <div className="h-full flex flex-col items-center justify-center gap-3 text-neige/40 py-10">
                     <RefreshCw className="w-6 h-6 animate-spin text-menthe" />
-                    <span className="text-[10px] font-bold">Lecture de vos conversations...</span>
+                    <span className="text-[10px] font-bold text-neige/60">Lecture de vos conversations...</span>
                   </div>
                 ) : coachAnalysis ? (
                   <div className="text-neige/90 overflow-x-hidden">

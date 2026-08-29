@@ -960,16 +960,31 @@ ${formattedRules}
                       if (matchedProduct) {
                         // 1. Try to find product_media matching BOTH product_id AND label (imgType)
                         if (imgType) {
-                          const { data: exactMedia } = await supabaseServer
-                            .from("product_media")
-                            .select("url")
-                            .eq("business_id", businessId)
-                            .eq("product_id", matchedProduct.id)
-                            .eq("label", imgType)
-                            .limit(1)
-                            .maybeSingle();
-                          if (exactMedia && exactMedia.url && !exactMedia.url.startsWith("data:")) {
-                            imageUrl = exactMedia.url;
+                          let exactMediaList: any[] = [];
+                          if (imgType === "testimonials") {
+                            const { data } = await supabaseServer
+                              .from("product_media")
+                              .select("url")
+                              .eq("business_id", businessId)
+                              .eq("product_id", matchedProduct.id)
+                              .ilike("label", "testimonials%");
+                            exactMediaList = data || [];
+                          } else {
+                            const { data } = await supabaseServer
+                              .from("product_media")
+                              .select("url")
+                              .eq("business_id", businessId)
+                              .eq("product_id", matchedProduct.id)
+                              .eq("label", imgType);
+                            exactMediaList = data || [];
+                          }
+
+                          if (exactMediaList.length > 0) {
+                            const randomIndex = Math.floor(Math.random() * exactMediaList.length);
+                            const pickedMedia = exactMediaList[randomIndex];
+                            if (pickedMedia && pickedMedia.url && !pickedMedia.url.startsWith("data:")) {
+                              imageUrl = pickedMedia.url;
+                            }
                           }
                         }
 
@@ -996,14 +1011,29 @@ ${formattedRules}
 
                     // 4. Fallback if still no image, search product_media by label only
                     if (!imageUrl && imgType) {
-                      const { data: labelMedia } = await supabaseServer
-                        .from("product_media")
-                        .select("url")
-                        .eq("business_id", businessId)
-                        .eq("label", imgType)
-                        .limit(1);
-                      if (labelMedia && labelMedia.length > 0 && labelMedia[0].url && !labelMedia[0].url.startsWith("data:")) {
-                        imageUrl = labelMedia[0].url;
+                      let labelMediaList: any[] = [];
+                      if (imgType === "testimonials") {
+                        const { data } = await supabaseServer
+                          .from("product_media")
+                          .select("url")
+                          .eq("business_id", businessId)
+                          .ilike("label", "testimonials%");
+                        labelMediaList = data || [];
+                      } else {
+                        const { data } = await supabaseServer
+                          .from("product_media")
+                          .select("url")
+                          .eq("business_id", businessId)
+                          .eq("label", imgType);
+                        labelMediaList = data || [];
+                      }
+
+                      if (labelMediaList.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * labelMediaList.length);
+                        const pickedMedia = labelMediaList[randomIndex];
+                        if (pickedMedia && pickedMedia.url && !pickedMedia.url.startsWith("data:")) {
+                          imageUrl = pickedMedia.url;
+                        }
                       }
                     }
 

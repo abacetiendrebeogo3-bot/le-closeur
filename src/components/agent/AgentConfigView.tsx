@@ -53,9 +53,10 @@ export const AgentConfigView: React.FC<AgentConfigViewProps> = ({
   const [newRuleAction, setNewRuleAction] = useState("");
   const [isAddingRule, setIsAddingRule] = useState(false);
 
-  const [newMediaKey, setNewMediaKey] = useState("");
+  const [newMediaType, setNewMediaType] = useState<"catalog" | "testimonials">("catalog");
   const [newMediaUrl, setNewMediaUrl] = useState("");
   const [isAddingMedia, setIsAddingMedia] = useState(false);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [productsList, setProductsList] = useState<any[]>([]);
   const [newMediaProductId, setNewMediaProductId] = useState<string>("");
@@ -356,21 +357,63 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
     }
   };
 
+  const handleMediaFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    triggerToast("Téléchargement de l'image...", "info");
+    setIsUploadingMedia(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+      const filePath = `media-library/${businessId}/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("product-images")
+        .getPublicUrl(filePath);
+
+      if (publicUrl) {
+        setNewMediaUrl(publicUrl);
+        triggerToast("Image téléversée avec succès !", "success");
+      }
+    } catch (err: any) {
+      console.error("Storage upload error:", err);
+      triggerToast(`Erreur d'envoi image : ${err.message}`, "warning");
+    } finally {
+      setIsUploadingMedia(false);
+      e.target.value = "";
+    }
+  };
+
   // Add Media item
   const handleAddMedia = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMediaKey.trim() || !newMediaUrl.trim()) {
-      triggerToast("Le libellé et l'URL du média sont requis.", "warning");
+    if (!newMediaUrl.trim()) {
+      triggerToast("L'image du média est requise.", "warning");
       return;
     }
     setIsAddingMedia(true);
     try {
+      const label = newMediaType === "catalog"
+        ? "catalog"
+        : `testimonials_${Math.random().toString(36).substring(2, 7)}`;
+
       const { data, error } = await supabase
         .from("product_media")
         .insert({
           business_id: businessId,
           product_id: newMediaProductId || null,
-          label: newMediaKey.trim(),
+          label: label,
           url: newMediaUrl.trim(),
           media_type: "image"
         })
@@ -379,8 +422,8 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
 
       if (error) throw error;
       setMediaLibrary(prev => [...prev, data]);
-      setNewMediaKey("");
       setNewMediaUrl("");
+      setNewMediaType("catalog");
       setNewMediaProductId("");
       triggerToast("Média ajouté à la bibliothèque.", "success");
     } catch (err: any) {
@@ -898,22 +941,44 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                 <span className="text-[10px] uppercase font-bold text-encre/60 flex items-center gap-1.5">
                   <Plus className="w-3.5 h-3.5" /> Associer un visuel média
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Libellé / Type (ex: photo_face, temoignage_1)"
-                    value={newMediaKey}
-                    onChange={(e) => setNewMediaKey(e.target.value)}
-                    className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
-                  />
-                  <input
-                    type="text"
-                    placeholder="URL de l'image"
-                    value={newMediaUrl}
-                    onChange={(e) => setNewMediaUrl(e.target.value)}
-                    className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] uppercase font-bold text-encre/50">Libellé / Type *</label>
+                    <select
+                      value={newMediaType}
+                      onChange={(e) => setNewMediaType(e.target.value as "catalog" | "testimonials")}
+                      className="bg-white border border-graphite/10 rounded-xl px-3 py-2 text-xs font-semibold text-encre focus:outline-none focus:border-menthe"
+                    >
+                      <option value="catalog">Photo produit (catalog)</option>
+                      <option value="testimonials">Témoignage client (testimonials)</option>
+                    </select>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] uppercase font-bold text-encre/50">Image du média *</label>
+                    {newMediaUrl ? (
+                      <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-graphite/10 group bg-white flex items-center justify-center shrink-0">
+                        <img src={newMediaUrl} alt="Aperçu" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setNewMediaUrl("")}
+                          className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[8px] font-bold"
+                        >
+                          Changer
+                        </button>
+                      </div>
+                    ) : (
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleMediaFileChange}
+                        disabled={isUploadingMedia}
+                        className="bg-white border border-graphite/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none cursor-pointer file:mr-2 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:text-[9px] file:font-black file:bg-menthe/10 file:text-menthe w-full"
+                      />
+                    )}
+                  </div>
                 </div>
+
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] uppercase font-bold text-encre/50">Associer à un produit (Optionnel)</label>
                   <select
@@ -927,10 +992,11 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                     ))}
                   </select>
                 </div>
+                
                 <button
                   type="submit"
-                  disabled={isAddingMedia}
-                  className="bg-encre hover:bg-menthe text-neige text-[10px] font-bold py-2 rounded-xl transition-all self-end px-4"
+                  disabled={isAddingMedia || isUploadingMedia}
+                  className="bg-encre hover:bg-menthe text-neige text-[10px] font-bold py-2 rounded-xl transition-all self-end px-4 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isAddingMedia ? "Ajout..." : "Enregistrer dans la médiathèque"}
                 </button>
@@ -945,7 +1011,7 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                     <button
                       onClick={() => {
                         setNewMediaProductId("");
-                        setNewMediaKey("");
+                        setNewMediaType("catalog");
                         triggerToast("Formulaire configuré pour ajouter un média générique", "info");
                       }}
                       className="text-[9px] bg-white border border-graphite/10 rounded-lg px-2 py-1 font-bold text-encre/60 hover:text-menthe transition-colors"
@@ -960,7 +1026,9 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                       mediaLibrary.filter(m => !m.product_id).map((m) => (
                         <div key={m.id} className="p-2.5 bg-white border border-graphite/10 rounded-xl flex items-center justify-between gap-2.5 shadow-xs">
                           <div className="flex items-center gap-2 overflow-hidden">
-                            <img src={m.url} alt={m.label} className="w-10 h-10 rounded-lg object-cover bg-neige border border-graphite/10 shrink-0" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                            <a href={m.url} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:opacity-80 transition-opacity">
+                              <img src={m.url} alt={m.label} className="w-10 h-10 rounded-lg object-cover bg-neige border border-graphite/10" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                            </a>
                             <div className="flex flex-col min-w-0">
                               <span className="text-[10px] font-extrabold text-encre truncate">{m.label}</span>
                               <span className="text-[8px] font-mono text-encre/40 truncate">{m.url}</span>
@@ -989,7 +1057,7 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                         <button
                           onClick={() => {
                             setNewMediaProductId(product.id);
-                            setNewMediaKey("");
+                            setNewMediaType("catalog");
                             triggerToast(`Formulaire pré-rempli pour : ${product.name}`, "info");
                           }}
                           className="text-[9px] bg-white border border-graphite/10 rounded-lg px-2 py-1 font-bold text-encre/60 hover:text-menthe transition-colors"
@@ -1004,7 +1072,9 @@ ${formattedKB || "(Aucune information supplémentaire)"}`;
                           productMedia.map((m) => (
                             <div key={m.id} className="p-2.5 bg-white border border-graphite/10 rounded-xl flex items-center justify-between gap-2.5 shadow-xs">
                               <div className="flex items-center gap-2 overflow-hidden">
-                                <img src={m.url} alt={m.label} className="w-10 h-10 rounded-lg object-cover bg-neige border border-graphite/10 shrink-0" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                                <a href={m.url} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:opacity-80 transition-opacity">
+                                  <img src={m.url} alt={m.label} className="w-10 h-10 rounded-lg object-cover bg-neige border border-graphite/10" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                                </a>
                                 <div className="flex flex-col min-w-0">
                                   <span className="text-[10px] font-extrabold text-encre truncate">{m.label}</span>
                                   <span className="text-[8px] font-mono text-encre/40 truncate">{m.url}</span>

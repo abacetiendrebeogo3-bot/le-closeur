@@ -142,6 +142,7 @@ export async function POST(req: NextRequest) {
     let fromMe = false;
     let evolutionInstance = "";
     let messageObject: any = null;
+    let assignedLabel = "Agent IA";
 
     if (isEvolution) {
       const msgData = payload.data;
@@ -173,13 +174,14 @@ export async function POST(req: NextRequest) {
       // Resolve businessId and coexistenceMode from instance
       const { data: customPhone } = await supabaseServer
         .from("business_phone_numbers")
-        .select("business_id, conversation_mode")
+        .select("business_id, conversation_mode, label")
         .eq("phone_number_id", evolutionInstance)
         .maybeSingle();
 
       if (customPhone) {
         businessId = customPhone.business_id;
         coexistenceMode = customPhone.conversation_mode === "human_coexistence";
+        assignedLabel = customPhone.label || "Commerciale 1";
       } else {
         const { data: bus } = await supabaseServer
           .from("businesses")
@@ -239,14 +241,15 @@ export async function POST(req: NextRequest) {
       if (phoneNumberId) {
         const { data: customPhone } = await supabaseServer
           .from("business_phone_numbers")
-          .select("business_id, conversation_mode")
+          .select("business_id, conversation_mode, label")
           .eq("phone_number_id", phoneNumberId)
           .maybeSingle();
 
         if (customPhone) {
           businessId = customPhone.business_id;
           coexistenceMode = customPhone.conversation_mode === "human_coexistence";
-          console.log(`Resolved from business_phone_numbers: business_id=${businessId}, conversation_mode=${customPhone.conversation_mode}`);
+          assignedLabel = customPhone.label || "Commerciale 1";
+          console.log(`Resolved from business_phone_numbers: business_id=${businessId}, label=${assignedLabel}`);
         } else {
           const { data: bus } = await supabaseServer
             .from("businesses")
@@ -460,6 +463,7 @@ export async function POST(req: NextRequest) {
               status: "ai_active",
               avatar: avatarLetters,
               unread: true,
+              assigned_label: assignedLabel,
             })
             .select()
             .single();
@@ -472,10 +476,10 @@ export async function POST(req: NextRequest) {
           conversation = newConv;
           conversationId = newConv.id;
         } else {
-          // Update conversation unread status
+          // Update conversation unread status & assigned_label
           await supabaseServer
             .from("conversations")
-            .update({ unread: true })
+            .update({ unread: true, assigned_label: assignedLabel })
             .eq("id", conversationId);
         }
 

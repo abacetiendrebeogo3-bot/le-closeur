@@ -65,6 +65,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [engagementFilter, setEngagementFilter] = useState<string>("all");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showDeleteConfirmChat, setShowDeleteConfirmChat] = useState<number | null>(null);
 
   const handleDeleteChat = async (id: number) => {
@@ -526,11 +527,20 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
   // Simulation client removed
 
-  // Filter conversations list by search query and engagement status
+  // Filter conversations list by search query, engagement status, and channel
   const filteredConversations = conversations.filter(conv => {
     const matchesSearch = conv.customerName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesEngagement = engagementFilter === "all" || (conv as any).engagementStatus === engagementFilter;
-    return matchesSearch && matchesEngagement;
+    
+    let matchesChannel = true;
+    const label = conv.assignedLabel || "Agent IA";
+    if (channelFilter === "agent") {
+      matchesChannel = label === "Agent IA" || label.toLowerCase().includes("agent");
+    } else if (channelFilter === "commercial") {
+      matchesChannel = label !== "Agent IA" && !label.toLowerCase().includes("agent");
+    }
+
+    return matchesSearch && matchesEngagement && matchesChannel;
   });
 
   return (
@@ -539,6 +549,34 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       {/* Left sidebar: ConversationList */}
       <div className={`w-full lg:w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shrink-0 shadow-sm ${activeChatId !== null ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 border-b border-graphite/10 flex flex-col gap-2">
+          {/* Channel Filter Tabs */}
+          <div className="flex bg-neige p-1 rounded-xl gap-1 mb-1">
+            <button
+              onClick={() => setChannelFilter("all")}
+              className={`flex-1 text-center py-1 text-[10px] font-bold rounded-lg transition-all ${
+                channelFilter === "all" ? "bg-white text-encre shadow-xs" : "text-encre/50 hover:text-encre"
+              }`}
+            >
+              Tous
+            </button>
+            <button
+              onClick={() => setChannelFilter("agent")}
+              className={`flex-1 text-center py-1 text-[10px] font-bold rounded-lg transition-all ${
+                channelFilter === "agent" ? "bg-purple-600 text-white shadow-xs" : "text-encre/50 hover:text-encre"
+              }`}
+            >
+              🤖 Agent IA
+            </button>
+            <button
+              onClick={() => setChannelFilter("commercial")}
+              className={`flex-1 text-center py-1 text-[10px] font-bold rounded-lg transition-all ${
+                channelFilter === "commercial" ? "bg-blue-600 text-white shadow-xs" : "text-encre/50 hover:text-encre"
+              }`}
+            >
+              👤 Commerciales
+            </button>
+          </div>
+
           <input 
             type="text" 
             value={searchQuery}
@@ -623,6 +661,14 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded-full font-bold border ${badgeStyles[conv.status]}`}>
                         {badgeLabels[conv.status]}
+                      </span>
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold border ${
+                        (conv.assignedLabel || "Agent IA").toLowerCase().includes("agent")
+                          ? "bg-purple-50 text-purple-700 border-purple-200"
+                          : "bg-blue-50 text-blue-700 border-blue-200"
+                      }`}>
+                        {(conv.assignedLabel || "Agent IA").toLowerCase().includes("agent") ? "🤖 " : "👤 "}
+                        {conv.assignedLabel || "Agent IA"}
                       </span>
                       <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded-full font-bold border ${engagementStyles[(conv as any).engagementStatus || "nouveau"]}`}>
                         {engagementLabels[(conv as any).engagementStatus || "nouveau"]}

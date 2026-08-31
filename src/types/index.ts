@@ -12,6 +12,7 @@ export interface Conversation {
   avatar: string;
   unread: boolean;
   engagementStatus?: string;
+  assignedLabel?: string;
   messages: Message[];
 }
 

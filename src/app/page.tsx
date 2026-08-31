@@ -182,6 +182,7 @@ export default function Home() {
             avatar: c.avatar,
             unread: c.unread,
             engagementStatus: c.engagement_status || "nouveau",
+            assignedLabel: c.assigned_label || "Agent IA",
             messages: (c.messages || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((m: any) => ({
               id: m.id,
               sender: m.sender,

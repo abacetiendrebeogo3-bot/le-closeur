@@ -85,6 +85,10 @@ BEGIN
     END IF;
 END $$;
 
+-- 5. Add assigned_label to conversations table
+ALTER TABLE public.conversations 
+ADD COLUMN IF NOT EXISTS assigned_label TEXT DEFAULT 'Agent IA';
+
 -- Reload Supabase Schema Cache
 NOTIFY pgrst, 'reload schema';
 

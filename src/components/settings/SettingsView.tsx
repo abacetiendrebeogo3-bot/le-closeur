@@ -293,6 +293,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
           business_id: businessId,
           phone_number: manualSecPhoneId.trim(),
           phone_number_id: manualSecPhoneId.trim(),
+          whatsapp_phone_number_id: manualSecPhoneId.trim(),
           waba_id: manualSecWabaId.trim() || null,
           access_token: manualSecToken.trim() || null,
           conversation_mode: "human_coexistence",

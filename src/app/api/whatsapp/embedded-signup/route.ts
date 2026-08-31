@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
           business_id: businessId,
           phone_number: displayPhoneNumber || phoneNumberId,
           phone_number_id: phoneNumberId,
+          whatsapp_phone_number_id: phoneNumberId,
           waba_id: wabaId,
           access_token: longLivedToken,
           conversation_mode: "human_coexistence",

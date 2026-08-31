@@ -287,7 +287,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
 
     setIsSavingManualSec(true);
     try {
-      const { error } = await supabase
+      const targetLabel = newSecondaryLabel.trim() || `Commerciale ${secondaryNumbers.length + 1}`;
+      const { data: savedData, error } = await supabase
         .from("business_phone_numbers")
         .upsert({
           business_id: businessId,
@@ -297,14 +298,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
           waba_id: manualSecWabaId.trim() || null,
           access_token: manualSecToken.trim() || null,
           conversation_mode: "human_coexistence",
-          label: newSecondaryLabel.trim() || "Commerciale 1"
+          label: targetLabel
         }, {
           onConflict: 'phone_number_id'
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
-      triggerToast("Numéro secondaire enregistré avec succès en mode Coexistence !", "success");
+      const newSecItem = savedData || {
+        id: String(Date.now()),
+        business_id: businessId,
+        phone_number_id: manualSecPhoneId.trim(),
+        whatsapp_phone_number_id: manualSecPhoneId.trim(),
+        label: targetLabel,
+        conversation_mode: "human_coexistence"
+      };
+
+      setSecondaryNumbers(prev => {
+        const filtered = prev.filter(n => n.phone_number_id !== manualSecPhoneId.trim());
+        return [...filtered, newSecItem];
+      });
+
+      triggerToast("Numéro secondaire enregistré avec succès !", "success");
       setManualSecPhoneId("");
       setManualSecWabaId("");
       setManualSecToken("");
@@ -321,6 +338,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
 
   const handleDeleteSecondaryNumber = async (id: string) => {
     try {
+      setSecondaryNumbers(prev => prev.filter(n => n.id !== id));
       const { error } = await supabase.from("business_phone_numbers").delete().eq("id", id);
       if (error) throw error;
       triggerToast("Numéro secondaire supprimé.", "info");

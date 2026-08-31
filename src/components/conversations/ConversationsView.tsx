@@ -66,7 +66,23 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
   const [engagementFilter, setEngagementFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [availableLabels, setAvailableLabels] = useState<string[]>(["Agent IA", "Commerciale 1", "Commerciale 2", "Commerciale 3"]);
   const [showDeleteConfirmChat, setShowDeleteConfirmChat] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchLabels = async () => {
+      try {
+        const { data } = await supabase.from("business_phone_numbers").select("label");
+        if (data && data.length > 0) {
+          const labels = Array.from(new Set(["Agent IA", ...data.map((d: any) => d.label || "Commerciale").filter(Boolean)]));
+          setAvailableLabels(labels);
+        }
+      } catch (err) {
+        console.error("Error fetching phone labels:", err);
+      }
+    };
+    fetchLabels();
+  }, []);
 
   const handleDeleteChat = async (id: number) => {
     try {
@@ -756,8 +772,12 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                         }}
                         className="bg-white border border-graphite/15 px-2 py-0.5 rounded-lg text-[9px] font-bold text-encre cursor-pointer focus:outline-none"
                       >
-                        <option value="Agent IA">🤖 Agent IA</option>
-                        <option value="Commerciale 1">👤 Commerciale 1</option>
+                        {availableLabels.map((lbl) => (
+                          <option key={lbl} value={lbl}>
+                            {lbl.toLowerCase().includes("agent") ? "🤖 " : "👤 "}
+                            {lbl}
+                          </option>
+                        ))}
                       </select>
                     </span>
                   </div>

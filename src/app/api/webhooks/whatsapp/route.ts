@@ -114,8 +114,10 @@ export async function POST(req: NextRequest) {
 
     console.log("Incoming Webhook body preview:", rawBody.substring(0, 500));
 
-    // Verify signature
-    if (!verifySignature(rawBody, signatureHeader)) {
+    const isEvolution = rawBody.includes('"event"') && rawBody.includes('"instance"') && rawBody.includes('"data"');
+
+    // Verify signature ONLY for Meta webhooks
+    if (!isEvolution && !verifySignature(rawBody, signatureHeader)) {
       console.warn("Signature verification failed.");
       return NextResponse.json({ error: "Unauthorized signature validation failed" }, { status: 401 });
     }
@@ -123,122 +125,204 @@ export async function POST(req: NextRequest) {
     const payload = JSON.parse(rawBody);
     console.log("Parsed Webhook payload:", JSON.stringify(payload, null, 2));
 
-    // Meta Webhook returns messages nested inside: entry -> changes -> value -> messages
-    const entry = payload.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
-    const messageObject = value?.messages?.[0];
+    let customerPhone = "";
+    let contactName = "";
+    let messageId = "";
+    let messageText = "";
+    let isAudio = false;
+    let audioId = "";
+    let isImage = false;
+    let imageId = "";
+    let coexistenceMode = false;
+    let businessId = DEFAULT_BUSINESS_ID;
+    let isCourierInteractive = false;
+    let courierStatus = "";
+    let courierOrderId = "";
+    let matchedCourier: any = null;
+    let fromMe = false;
+    let evolutionInstance = "";
+    let messageObject: any = null;
 
-    // If it's not a message (could be a status update, delivery report, etc.), return 200 OK immediately
-    if (!messageObject) {
-      return NextResponse.json({ status: "ignored_non_message_payload" });
-    }
+    if (isEvolution) {
+      const msgData = payload.data;
+      if (payload.event !== "messages.upsert" || !msgData?.key) {
+        return NextResponse.json({ status: "ignored_evolution_event" });
+      }
+      const remoteJid = msgData.key.remoteJid || "";
+      if (remoteJid.includes("@g.us")) {
+        return NextResponse.json({ status: "ignored_group_chat" });
+      }
+      customerPhone = remoteJid.split("@")[0];
+      contactName = msgData.pushName || customerPhone;
+      messageId = msgData.key.id;
+      fromMe = !!msgData.key.fromMe;
+      evolutionInstance = payload.instance;
 
-    const customerPhone = messageObject.from; // e.g. "221776543210" or formatted phone
-    const contactName = value?.contacts?.[0]?.profile?.name || customerPhone;
-
-    // Detect if this is an interactive button reply from a courier
-    const cleanFrom = customerPhone.replace(/[^0-9]/g, "");
-    
-    // Fetch couriers to check if sender is a known courier
-    const { data: couriersList } = await supabaseServer
-      .from("couriers")
-      .select("*");
-
-    const matchedCourier = (couriersList || []).find(c => {
-      const cleanC = (c.phone || "").replace(/[^0-9]/g, "");
-      return cleanC === cleanFrom;
-    });
-
-    if (matchedCourier && messageObject.type === "interactive" && messageObject.interactive?.type === "button_reply") {
-      const buttonReply = messageObject.interactive.button_reply;
-      const buttonId = buttonReply?.id || "";
-      console.log(`[COURIER REPLY] Courier ${matchedCourier.name} clicked button: ${buttonId}`);
-
-      let matchedStatus = "";
-      let orderId = "";
-      
-      if (buttonId.startsWith("livre_")) {
-        matchedStatus = "delivered";
-        orderId = buttonId.substring("livre_".length);
-      } else if (buttonId.startsWith("annule_")) {
-        matchedStatus = "cancelled";
-        orderId = buttonId.substring("annule_".length);
-      } else if (buttonId.startsWith("reprogramme_")) {
-        matchedStatus = "reprogramme";
-        orderId = buttonId.substring("reprogramme_".length);
+      if (msgData.message?.conversation) {
+        messageText = msgData.message.conversation;
+      } else if (msgData.message?.extendedTextMessage?.text) {
+        messageText = msgData.message.extendedTextMessage.text;
+      } else if (msgData.messageType === "imageMessage") {
+        messageText = "[Image]";
+        isImage = true;
+      } else if (msgData.messageType === "audioMessage") {
+        messageText = "[Vocale]";
+        isAudio = true;
       }
 
-      if (orderId && matchedStatus) {
-        // Update Order Status in Supabase
-        if (matchedStatus === "reprogramme") {
-          const { data: orderData } = await supabaseServer
-            .from("orders")
-            .select("customer_address, chat_id")
-            .eq("id", orderId)
-            .maybeSingle();
+      // Resolve businessId and coexistenceMode from instance
+      const { data: customPhone } = await supabaseServer
+        .from("business_phone_numbers")
+        .select("business_id, coexistence_mode")
+        .eq("whatsapp_phone_number_id", evolutionInstance)
+        .maybeSingle();
 
-          let newAddress = orderData?.customer_address || "";
-          if (newAddress && !newAddress.includes("(Reprogrammé)")) {
-            newAddress += " (Reprogrammé)";
-          }
+      if (customPhone) {
+        businessId = customPhone.business_id;
+        coexistenceMode = !!customPhone.coexistence_mode;
+      } else {
+        const { data: bus } = await supabaseServer
+          .from("businesses")
+          .select("id")
+          .eq("whatsapp_phone_number_id", evolutionInstance)
+          .maybeSingle();
+        if (bus) {
+          businessId = bus.id;
+        }
+      }
+    } else {
+      // Meta Webhook logic
+      const entry = payload.entry?.[0];
+      const change = entry?.changes?.[0];
+      const value = change?.value;
+      messageObject = value?.messages?.[0];
 
-          await supabaseServer
-            .from("orders")
-            .update({
-              status: "sent_to_courier",
-              customer_address: newAddress
-            })
-            .eq("id", orderId);
+      if (!messageObject) {
+        return NextResponse.json({ status: "ignored_non_message_payload" });
+      }
 
-          // Add a message note to the conversation if chat_id exists
-          if (orderData?.chat_id) {
-            const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-            await saveMessageSafe(
-              String(orderData.chat_id),
-              "system",
-              `🔄 [Livreur ${matchedCourier.name}] Livraison reprogrammée.`,
-              timeStr,
-              customerPhone,
-              matchedCourier.business_id
-            );
-          }
-        } else {
-          const { data: orderData } = await supabaseServer
-            .from("orders")
-            .select("chat_id")
-            .eq("id", orderId)
-            .maybeSingle();
+      customerPhone = messageObject.from;
+      contactName = value?.contacts?.[0]?.profile?.name || customerPhone;
+      messageId = messageObject.id;
 
-          await supabaseServer
-            .from("orders")
-            .update({ status: matchedStatus })
-            .eq("id", orderId);
+      if (messageObject.type === "text") {
+        messageText = messageObject.text?.body || "";
+      } else if (messageObject.type === "interactive" && messageObject.interactive?.type === "button_reply") {
+        const cleanFrom = customerPhone.replace(/[^0-9]/g, "");
+        const { data: couriersList } = await supabaseServer.from("couriers").select("*");
+        matchedCourier = (couriersList || []).find(c => c.phone?.replace(/[^0-9]/g, "") === cleanFrom);
 
-          // Add a message note to the conversation if chat_id exists
-          if (orderData?.chat_id) {
-            const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-            const statusLabel = matchedStatus === "delivered" ? "✅ Livrée" : "❌ Annulée";
-            await saveMessageSafe(
-              String(orderData.chat_id),
-              "system",
-              `📦 [Livreur ${matchedCourier.name}] Commande mise à jour : ${statusLabel}.`,
-              timeStr,
-              customerPhone,
-              matchedCourier.business_id
-            );
+        if (matchedCourier) {
+          isCourierInteractive = true;
+          const buttonId = messageObject.interactive.button_reply?.id || "";
+          if (buttonId.startsWith("livre_")) {
+            courierStatus = "delivered";
+            courierOrderId = buttonId.substring("livre_".length);
+          } else if (buttonId.startsWith("annule_")) {
+            courierStatus = "cancelled";
+            courierOrderId = buttonId.substring("annule_".length);
+          } else if (buttonId.startsWith("reprogramme_")) {
+            courierStatus = "reprogramme";
+            courierOrderId = buttonId.substring("reprogramme_".length);
           }
         }
+      } else if (messageObject.type === "audio") {
+        isAudio = true;
+        audioId = messageObject.audio?.id;
+      } else if (messageObject.type === "image") {
+        isImage = true;
+        imageId = messageObject.image?.id;
+      }
 
-        // Respond to courier with confirmation
-        const replyText = "C'est noté, merci ! 🙏";
-        await sendWhatsAppMessage(customerPhone, replyText, matchedCourier.business_id);
+      // Resolve businessId and coexistenceMode from Meta phone_number_id
+      const phoneNumberId = value?.metadata?.phone_number_id;
+      if (phoneNumberId) {
+        const { data: customPhone } = await supabaseServer
+          .from("business_phone_numbers")
+          .select("business_id, coexistence_mode")
+          .eq("whatsapp_phone_number_id", phoneNumberId)
+          .maybeSingle();
 
-        return NextResponse.json({ status: "success", message: "Courier button reply processed." });
+        if (customPhone) {
+          businessId = customPhone.business_id;
+          coexistenceMode = !!customPhone.coexistence_mode;
+        } else {
+          const { data: bus } = await supabaseServer
+            .from("businesses")
+            .select("id")
+            .eq("whatsapp_phone_number_id", phoneNumberId)
+            .maybeSingle();
+          if (bus) {
+            businessId = bus.id;
+          }
+        }
       }
     }
 
-    const messageId = messageObject?.id;
+    if (isCourierInteractive && matchedCourier && courierOrderId && courierStatus) {
+      if (courierStatus === "reprogramme") {
+        const { data: orderData } = await supabaseServer
+          .from("orders")
+          .select("customer_address, chat_id")
+          .eq("id", courierOrderId)
+          .maybeSingle();
+
+        let newAddress = orderData?.customer_address || "";
+        if (newAddress && !newAddress.includes("(Reprogrammé)")) {
+          newAddress += " (Reprogrammé)";
+        }
+
+        await supabaseServer
+          .from("orders")
+          .update({
+            status: "sent_to_courier",
+            customer_address: newAddress
+          })
+          .eq("id", courierOrderId);
+
+        if (orderData?.chat_id) {
+          const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+          await saveMessageSafe(
+            String(orderData.chat_id),
+            "system",
+            `🔄 [Livreur ${matchedCourier.name}] Livraison reprogrammée.`,
+            timeStr,
+            customerPhone,
+            matchedCourier.business_id
+          );
+        }
+      } else {
+        const { data: orderData } = await supabaseServer
+          .from("orders")
+          .select("chat_id")
+          .eq("id", courierOrderId)
+          .maybeSingle();
+
+        await supabaseServer
+          .from("orders")
+          .update({ status: courierStatus })
+          .eq("id", courierOrderId);
+
+        if (orderData?.chat_id) {
+          const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+          const statusLabel = courierStatus === "delivered" ? "✅ Livrée" : "❌ Annulée";
+          await saveMessageSafe(
+            String(orderData.chat_id),
+            "system",
+            `📦 [Livreur ${matchedCourier.name}] Commande mise à jour : ${statusLabel}.`,
+            timeStr,
+            customerPhone,
+            matchedCourier.business_id
+          );
+        }
+      }
+
+      const replyText = "C'est noté, merci ! 🙏";
+      await sendWhatsAppMessage(customerPhone, replyText, matchedCourier.business_id);
+
+      return NextResponse.json({ status: "success", message: "Courier button reply processed." });
+    }
+
     if (messageId) {
       const { data: existingMsg } = await supabaseServer
         .from("messages")
@@ -255,45 +339,6 @@ export async function POST(req: NextRequest) {
     // Define background processing promise
     const handleIncomingMessageBackground = async () => {
       try {
-        // Resolve businessId dynamically based on the receiving phone number ID
-        const phoneNumberId = value?.metadata?.phone_number_id;
-        let businessId = DEFAULT_BUSINESS_ID;
-        let coexistenceMode = false;
-
-        if (phoneNumberId) {
-          // Check custom registered numbers first
-          const { data: customPhone, error: phoneErr } = await supabaseServer
-            .from("business_phone_numbers")
-            .select("business_id, coexistence_mode")
-            .eq("whatsapp_phone_number_id", phoneNumberId)
-            .maybeSingle();
-
-          if (phoneErr) {
-            console.error("Error looking up custom business phone number:", phoneErr);
-          }
-
-          if (customPhone) {
-            businessId = customPhone.business_id;
-            coexistenceMode = !!customPhone.coexistence_mode;
-            console.log(`Resolved custom business phone: business_id=${businessId}, coexistence_mode=${coexistenceMode}`);
-          } else {
-            // Check primary business configuration
-            const { data: bus, error: busErr } = await supabaseServer
-              .from("businesses")
-              .select("id")
-              .eq("whatsapp_phone_number_id", phoneNumberId)
-              .maybeSingle();
-            
-            if (busErr) {
-              console.error("Error looking up primary business by phone number ID:", busErr);
-            } else if (bus) {
-              businessId = bus.id;
-              console.log(`Resolved primary business_id: ${businessId} for phone_number_id: ${phoneNumberId}`);
-            } else {
-              console.warn(`No business found matching phone number ID: ${phoneNumberId}. Falling back to default.`);
-            }
-          }
-        }
 
         // Fetch Business Config
         const { data: business } = await supabaseServer
@@ -438,172 +483,174 @@ export async function POST(req: NextRequest) {
         let imageMimeType = "image/jpeg";
         let isLocalLanguageAudio = false;
 
-        if (messageObject.type === "audio") {
-          const audioId = messageObject.audio?.id;
-          let transcribedText = "";
+        if (!isEvolution) {
+          if (messageObject.type === "audio") {
+            const audioId = messageObject.audio?.id;
+            let transcribedText = "";
 
-          if (audioId && token) {
-            try {
-              // Fetch media URL from Meta API
-              const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              const mediaMetadata = await mediaRes.json();
-              const downloadUrl = mediaMetadata.url;
-
-              if (downloadUrl) {
-                // Download audio file from Meta
-                const audioFileRes = await fetch(downloadUrl, {
+            if (audioId && token) {
+              try {
+                // Fetch media URL from Meta API
+                const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
                   headers: { Authorization: `Bearer ${token}` }
                 });
-                const arrayBuffer = await audioFileRes.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
+                const mediaMetadata = await mediaRes.json();
+                const downloadUrl = mediaMetadata.url;
 
-                // Upload audio file to Supabase Storage
-                let audioPublicUrl = "";
-                try {
-                  const audioUploadPath = `received-audio/${customerPhone}/${Date.now()}.ogg`;
-                  const { error: uploadAudioErr } = await supabaseServer.storage
+                if (downloadUrl) {
+                  // Download audio file from Meta
+                  const audioFileRes = await fetch(downloadUrl, {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  const arrayBuffer = await audioFileRes.arrayBuffer();
+                  const buffer = Buffer.from(arrayBuffer);
+
+                  // Upload audio file to Supabase Storage
+                  let audioPublicUrl = "";
+                  try {
+                    const audioUploadPath = `received-audio/${customerPhone}/${Date.now()}.ogg`;
+                    const { error: uploadAudioErr } = await supabaseServer.storage
+                      .from("product-images")
+                      .upload(audioUploadPath, buffer, {
+                        contentType: messageObject.audio.mime_type || "audio/ogg",
+                        upsert: true
+                      });
+
+                    if (uploadAudioErr) {
+                      console.error("Supabase storage upload audio error:", uploadAudioErr);
+                    } else {
+                      const { data: { publicUrl } } = supabaseServer.storage
+                        .from("product-images")
+                        .getPublicUrl(audioUploadPath);
+                      audioPublicUrl = publicUrl;
+                    }
+                  } catch (storageErr) {
+                    console.error("Error uploading audio to Supabase Storage:", storageErr);
+                  }
+
+                  // Check if OpenAI API Key is configured
+                  if (process.env.OPENAI_API_KEY) {
+                    const formData = new FormData();
+                    // Create a Blob from the audio buffer
+                    const blob = new Blob([buffer], { type: messageObject.audio.mime_type || "audio/ogg" });
+                    // Append the file with a generic filename that Whisper accepts
+                    formData.append("file", blob, "audio.ogg");
+                    formData.append("model", "whisper-1");
+                    formData.append("response_format", "verbose_json");
+
+                    const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                      method: "POST",
+                      headers: {
+                        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+                      },
+                      body: formData
+                    });
+
+                    if (whisperRes.ok) {
+                      const whisperData = await whisperRes.json();
+                      if (whisperData.text) {
+                        transcribedText = whisperData.text;
+                        const detectedLanguage = (whisperData.language || "").toLowerCase();
+                        const isFrench = detectedLanguage === "french" || detectedLanguage === "fr";
+                        
+                        if (!isFrench) {
+                          isLocalLanguageAudio = true;
+                        }
+
+                        messageText = audioPublicUrl 
+                          ? `[Audio: ${audioPublicUrl}] ${transcribedText}` 
+                          : transcribedText;
+                      }
+                    } else {
+                      const errData = await whisperRes.json().catch(() => ({}));
+                      console.error("Whisper API transcription error status:", whisperRes.status, errData);
+                    }
+                  }
+                }
+              } catch (err) {
+                console.error("Error transcribing audio via Whisper:", err);
+              }
+            }
+
+            // If transcription failed or OpenAI key is not configured, fall back to the old behavior
+            if (!transcribedText) {
+              const audioReply = "Je ne peux pas encore lire les messages vocaux. Pouvez-vous m'écrire par texte s'il vous plaît ?";
+              await sendWhatsAppMessage(customerPhone, audioReply, businessId);
+              
+              const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+              const cleanMsgText = `[WA_MSG_ID: ${messageId}] [Message vocal reçu (Non lu)]`;
+              await saveMessageSafe(conversationId, "customer", cleanMsgText, timeStr, customerPhone, businessId);
+              return;
+            }
+          } else if (messageObject.type === "image") {
+            const imageId = messageObject.image?.id;
+            if (imageId && token) {
+              try {
+                // Fetch media object from Meta API to get download URL
+                const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${imageId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                const mediaMetadata = await mediaRes.json();
+                const downloadUrl = mediaMetadata.url;
+
+                if (downloadUrl) {
+                  // Fetch raw image bytes from Meta
+                  const imgBlobRes = await fetch(downloadUrl, {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  const arrayBuffer = await imgBlobRes.arrayBuffer();
+                  const buffer = Buffer.from(arrayBuffer);
+                  base64Data = buffer.toString("base64");
+                  imageMimeType = messageObject.image.mime_type || "image/jpeg";
+
+                  // Upload image file to Supabase Storage
+                  const uploadPath = `received/${customerPhone}/${Date.now()}.jpg`;
+                  const { error: uploadErr } = await supabaseServer.storage
                     .from("product-images")
-                    .upload(audioUploadPath, buffer, {
-                      contentType: messageObject.audio.mime_type || "audio/ogg",
+                    .upload(uploadPath, buffer, {
+                      contentType: imageMimeType,
                       upsert: true
                     });
 
-                  if (uploadAudioErr) {
-                    console.error("Supabase storage upload audio error:", uploadAudioErr);
-                  } else {
-                    const { data: { publicUrl } } = supabaseServer.storage
-                      .from("product-images")
-                      .getPublicUrl(audioUploadPath);
-                    audioPublicUrl = publicUrl;
+                  if (uploadErr) {
+                    console.error("Supabase storage upload error:", uploadErr);
                   }
-                } catch (storageErr) {
-                  console.error("Error uploading audio to Supabase Storage:", storageErr);
-                }
 
-                // Check if OpenAI API Key is configured
-                if (process.env.OPENAI_API_KEY) {
-                  const formData = new FormData();
-                  // Create a Blob from the audio buffer
-                  const blob = new Blob([buffer], { type: messageObject.audio.mime_type || "audio/ogg" });
-                  // Append the file with a generic filename that Whisper accepts
-                  formData.append("file", blob, "audio.ogg");
-                  formData.append("model", "whisper-1");
-                  formData.append("response_format", "verbose_json");
+                  // Get public URL
+                  const { data: { publicUrl } } = supabaseServer.storage
+                    .from("product-images")
+                    .getPublicUrl(uploadPath);
 
-                  const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-                    method: "POST",
-                    headers: {
-                      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-                    },
-                    body: formData
-                  });
-
-                  if (whisperRes.ok) {
-                    const whisperData = await whisperRes.json();
-                    if (whisperData.text) {
-                      transcribedText = whisperData.text;
-                      const detectedLanguage = (whisperData.language || "").toLowerCase();
-                      const isFrench = detectedLanguage === "french" || detectedLanguage === "fr";
-                      
-                      if (!isFrench) {
-                        isLocalLanguageAudio = true;
-                      }
-
-                      messageText = audioPublicUrl 
-                        ? `[Audio: ${audioPublicUrl}] ${transcribedText}` 
-                        : transcribedText;
-                    }
-                  } else {
-                    const errData = await whisperRes.json().catch(() => ({}));
-                    console.error("Whisper API transcription error status:", whisperRes.status, errData);
+                  messageText = `[Image reçue : ${publicUrl}]`;
+                  if (messageObject.image.caption) {
+                    messageText += ` Caption: ${messageObject.image.caption}`;
                   }
                 }
+              } catch (err) {
+                console.error("Error processing incoming WhatsApp image:", err);
+                messageText = "[Image reçue (Erreur de traitement)]";
               }
-            } catch (err) {
-              console.error("Error transcribing audio via Whisper:", err);
+            } else {
+              messageText = "[Image reçue (Crédentiels manquants)]";
             }
-          }
+          } else if (messageObject.type !== "text") {
+            const fallbackReply = "Je ne peux pas encore traiter ce type de message, pouvez-vous m'écrire en texte ?";
+            await sendWhatsAppMessage(customerPhone, fallbackReply, businessId);
 
-          // If transcription failed or OpenAI key is not configured, fall back to the old behavior
-          if (!transcribedText) {
-            const audioReply = "Je ne peux pas encore lire les messages vocaux. Pouvez-vous m'écrire par texte s'il vous plaît ?";
-            await sendWhatsAppMessage(customerPhone, audioReply, businessId);
-            
             const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-            const cleanMsgText = `[WA_MSG_ID: ${messageId}] [Message vocal reçu (Non lu)]`;
-            await saveMessageSafe(conversationId, "customer", cleanMsgText, timeStr, customerPhone, businessId);
+            const cleanMsgText = `[WA_MSG_ID: ${messageId}] [Fichier reçu non pris en charge: ${messageObject.type}]`;
+            await saveMessageSafe(
+              conversationId,
+              "customer",
+              cleanMsgText,
+              timeStr,
+              customerPhone,
+              businessId
+            );
             return;
-          }
-        } else if (messageObject.type === "image") {
-          const imageId = messageObject.image?.id;
-          if (imageId && token) {
-            try {
-              // Fetch media object from Meta API to get download URL
-              const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${imageId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              const mediaMetadata = await mediaRes.json();
-              const downloadUrl = mediaMetadata.url;
-
-              if (downloadUrl) {
-                // Fetch raw image bytes from Meta
-                const imgBlobRes = await fetch(downloadUrl, {
-                  headers: { Authorization: `Bearer ${token}` }
-                });
-                const arrayBuffer = await imgBlobRes.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                base64Data = buffer.toString("base64");
-                imageMimeType = messageObject.image.mime_type || "image/jpeg";
-
-                // Upload image file to Supabase Storage
-                const uploadPath = `received/${customerPhone}/${Date.now()}.jpg`;
-                const { error: uploadErr } = await supabaseServer.storage
-                  .from("product-images")
-                  .upload(uploadPath, buffer, {
-                    contentType: imageMimeType,
-                    upsert: true
-                  });
-
-                if (uploadErr) {
-                  console.error("Supabase storage upload error:", uploadErr);
-                }
-
-                // Get public URL
-                const { data: { publicUrl } } = supabaseServer.storage
-                  .from("product-images")
-                  .getPublicUrl(uploadPath);
-
-                messageText = `[Image reçue : ${publicUrl}]`;
-                if (messageObject.image.caption) {
-                  messageText += ` Caption: ${messageObject.image.caption}`;
-                }
-              }
-            } catch (err) {
-              console.error("Error processing incoming WhatsApp image:", err);
-              messageText = "[Image reçue (Erreur de traitement)]";
-            }
           } else {
-            messageText = "[Image reçue (Crédentiels manquants)]";
+            messageText = messageObject.text?.body || "";
           }
-        } else if (messageObject.type !== "text") {
-          const fallbackReply = "Je ne peux pas encore traiter ce type de message, pouvez-vous m'écrire en texte ?";
-          await sendWhatsAppMessage(customerPhone, fallbackReply, businessId);
-
-          const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-          const cleanMsgText = `[WA_MSG_ID: ${messageId}] [Fichier reçu non pris en charge: ${messageObject.type}]`;
-          await saveMessageSafe(
-            conversationId,
-            "customer",
-            cleanMsgText,
-            timeStr,
-            customerPhone,
-            businessId
-          );
-          return;
-        } else {
-          messageText = messageObject.text?.body || "";
         }
 
         if (!messageText) {
@@ -635,6 +682,14 @@ export async function POST(req: NextRequest) {
         // Save incoming message in messages history safely with prefix
         const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
         const cleanMsgText = `[WA_MSG_ID: ${messageId}] ${messageText}`;
+
+        if (fromMe) {
+          // Sync outgoing message sent manually by the human from their WhatsApp app
+          await saveMessageSafe(conversationId, "ai", cleanMsgText, timeStr, customerPhone, businessId);
+          console.log(`Synced outgoing message fromMe for conversation ${conversationId}`);
+          return;
+        }
+
         await saveMessageSafe(conversationId, "customer", cleanMsgText, timeStr, customerPhone, businessId);
 
         // If human takeover is active, stop here (do not call Claude / send AI reply)

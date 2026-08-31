@@ -1,17 +1,24 @@
 import { supabaseServer } from "@/lib/supabase/server";
 
+interface Credentials {
+  token: string;
+  phoneNumberId: string;
+  wabaId: string;
+}
+
 /**
- * Helper to send an outgoing text message to a WhatsApp number using the WhatsApp Cloud API.
+ * Fetch WhatsApp credentials dynamically from DB or environment variables.
  */
-export async function sendWhatsAppMessage(to: string, text: string, businessId?: string): Promise<boolean> {
-  let token = process.env.WHATSAPP_ACCESS_TOKEN;
-  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+async function getCredentials(businessId?: string): Promise<Credentials> {
+  let token = process.env.WHATSAPP_ACCESS_TOKEN || "";
+  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
+  let wabaId = "";
 
   if (businessId) {
     try {
       const { data: business, error } = await supabaseServer
         .from("businesses")
-        .select("whatsapp_access_token, whatsapp_phone_number_id")
+        .select("whatsapp_access_token, whatsapp_phone_number_id, whatsapp_waba_id")
         .eq("id", businessId)
         .maybeSingle();
 
@@ -24,19 +31,61 @@ export async function sendWhatsAppMessage(to: string, text: string, businessId?:
         if (business.whatsapp_phone_number_id) {
           phoneNumberId = business.whatsapp_phone_number_id;
         }
+        if (business.whatsapp_waba_id) {
+          wabaId = business.whatsapp_waba_id;
+        }
       }
     } catch (err) {
       console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
     }
   }
 
-  if (!token || !phoneNumberId) {
-    console.error("WhatsApp credentials missing (neither in DB for business nor in environment variables).");
+  return { token, phoneNumberId, wabaId };
+}
+
+/**
+ * Helper to call Evolution API.
+ */
+async function sendEvolutionRequest(instance: string, apiKey: string, path: string, body: any): Promise<boolean> {
+  const apiUrl = process.env.EVOLUTION_API_URL || "http://localhost:8080";
+  try {
+    const res = await fetch(`${apiUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      console.error(`Evolution API error sending request to ${path}:`, await res.text().catch(() => ""));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`Evolution API fetch failed for ${path}:`, err);
     return false;
   }
+}
 
-  // Clean phone number (remove +, spaces, dashes, etc.)
+/**
+ * Helper to send an outgoing text message.
+ */
+export async function sendWhatsAppMessage(to: string, text: string, businessId?: string): Promise<boolean> {
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
   const cleanTo = to.replace(/[^0-9]/g, "");
+
+  if (wabaId === "evolution") {
+    return sendEvolutionRequest(phoneNumberId, token, `/message/sendText/${phoneNumberId}`, {
+      number: cleanTo,
+      textMessage: { text }
+    });
+  }
+
+  if (!token || !phoneNumberId) {
+    console.error("WhatsApp credentials missing.");
+    return false;
+  }
 
   try {
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
@@ -58,13 +107,7 @@ export async function sendWhatsAppMessage(to: string, text: string, businessId?:
       }),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("Error sending WhatsApp message via Meta API:", data);
-      return false;
-    }
-
-    return true;
+    return response.ok;
   } catch (error) {
     console.error("Error in sendWhatsAppMessage:", error);
     return false;
@@ -72,41 +115,27 @@ export async function sendWhatsAppMessage(to: string, text: string, businessId?:
 }
 
 /**
- * Helper to send an outgoing image message to a WhatsApp number using the WhatsApp Cloud API.
+ * Helper to send an outgoing image message.
  */
 export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: string, businessId?: string): Promise<boolean> {
-  let token = process.env.WHATSAPP_ACCESS_TOKEN;
-  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+  const cleanTo = to.replace(/[^0-9]/g, "");
 
-  if (businessId) {
-    try {
-      const { data: business, error } = await supabaseServer
-        .from("businesses")
-        .select("whatsapp_access_token, whatsapp_phone_number_id")
-        .eq("id", businessId)
-        .maybeSingle();
-
-      if (error) {
-        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
-      } else if (business) {
-        if (business.whatsapp_access_token) {
-          token = business.whatsapp_access_token;
-        }
-        if (business.whatsapp_phone_number_id) {
-          phoneNumberId = business.whatsapp_phone_number_id;
-        }
+  if (wabaId === "evolution") {
+    return sendEvolutionRequest(phoneNumberId, token, `/message/sendMedia/${phoneNumberId}`, {
+      number: cleanTo,
+      mediaMessage: {
+        mediatype: "image",
+        media: imageUrl,
+        caption: caption || ""
       }
-    } catch (err) {
-      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
-    }
+    });
   }
 
   if (!token || !phoneNumberId) {
-    console.error("WhatsApp credentials missing (neither in DB for business nor in environment variables).");
+    console.error("WhatsApp credentials missing.");
     return false;
   }
-
-  const cleanTo = to.replace(/[^0-9]/g, "");
 
   try {
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
@@ -128,13 +157,7 @@ export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: 
       }),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("Error sending WhatsApp image via Meta API:", data);
-      return false;
-    }
-
-    return true;
+    return response.ok;
   } catch (error) {
     console.error("Error in sendWhatsAppImage:", error);
     return false;
@@ -142,40 +165,23 @@ export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: 
 }
 
 /**
- * Helper to send a typing indicator to a WhatsApp number.
+ * Helper to send a typing indicator.
  */
 export async function sendWhatsAppTypingIndicator(to: string, businessId?: string): Promise<boolean> {
-  let token = process.env.WHATSAPP_ACCESS_TOKEN;
-  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+  const cleanTo = to.replace(/[^0-9]/g, "");
 
-  if (businessId) {
-    try {
-      const { data: business, error } = await supabaseServer
-        .from("businesses")
-        .select("whatsapp_access_token, whatsapp_phone_number_id")
-        .eq("id", businessId)
-        .maybeSingle();
-
-      if (error) {
-        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
-      } else if (business) {
-        if (business.whatsapp_access_token) {
-          token = business.whatsapp_access_token;
-        }
-        if (business.whatsapp_phone_number_id) {
-          phoneNumberId = business.whatsapp_phone_number_id;
-        }
-      }
-    } catch (err) {
-      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
-    }
+  if (wabaId === "evolution") {
+    return sendEvolutionRequest(phoneNumberId, token, `/chat/updatePresence/${phoneNumberId}`, {
+      number: cleanTo,
+      delay: 1200,
+      presence: "composing"
+    });
   }
 
   if (!token || !phoneNumberId) {
     return false;
   }
-
-  const cleanTo = to.replace(/[^0-9]/g, "");
 
   try {
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
@@ -201,41 +207,27 @@ export async function sendWhatsAppTypingIndicator(to: string, businessId?: strin
 }
 
 /**
- * Helper to send an outgoing video message to a WhatsApp number using the WhatsApp Cloud API.
+ * Helper to send an outgoing video message.
  */
 export async function sendWhatsAppVideo(to: string, videoUrl: string, caption?: string, businessId?: string): Promise<boolean> {
-  let token = process.env.WHATSAPP_ACCESS_TOKEN;
-  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+  const cleanTo = to.replace(/[^0-9]/g, "");
 
-  if (businessId) {
-    try {
-      const { data: business, error } = await supabaseServer
-        .from("businesses")
-        .select("whatsapp_access_token, whatsapp_phone_number_id")
-        .eq("id", businessId)
-        .maybeSingle();
-
-      if (error) {
-        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
-      } else if (business) {
-        if (business.whatsapp_access_token) {
-          token = business.whatsapp_access_token;
-        }
-        if (business.whatsapp_phone_number_id) {
-          phoneNumberId = business.whatsapp_phone_number_id;
-        }
+  if (wabaId === "evolution") {
+    return sendEvolutionRequest(phoneNumberId, token, `/message/sendMedia/${phoneNumberId}`, {
+      number: cleanTo,
+      mediaMessage: {
+        mediatype: "video",
+        media: videoUrl,
+        caption: caption || ""
       }
-    } catch (err) {
-      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
-    }
+    });
   }
 
   if (!token || !phoneNumberId) {
     console.error("WhatsApp credentials missing.");
     return false;
   }
-
-  const cleanTo = to.replace(/[^0-9]/g, "");
 
   try {
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
@@ -265,41 +257,26 @@ export async function sendWhatsAppVideo(to: string, videoUrl: string, caption?: 
 }
 
 /**
- * Helper to send an outgoing audio message to a WhatsApp number using the WhatsApp Cloud API.
+ * Helper to send an outgoing audio message.
  */
 export async function sendWhatsAppAudio(to: string, audioUrl: string, businessId?: string): Promise<boolean> {
-  let token = process.env.WHATSAPP_ACCESS_TOKEN;
-  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+  const cleanTo = to.replace(/[^0-9]/g, "");
 
-  if (businessId) {
-    try {
-      const { data: business, error } = await supabaseServer
-        .from("businesses")
-        .select("whatsapp_access_token, whatsapp_phone_number_id")
-        .eq("id", businessId)
-        .maybeSingle();
-
-      if (error) {
-        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
-      } else if (business) {
-        if (business.whatsapp_access_token) {
-          token = business.whatsapp_access_token;
-        }
-        if (business.whatsapp_phone_number_id) {
-          phoneNumberId = business.whatsapp_phone_number_id;
-        }
+  if (wabaId === "evolution") {
+    return sendEvolutionRequest(phoneNumberId, token, `/message/sendMedia/${phoneNumberId}`, {
+      number: cleanTo,
+      mediaMessage: {
+        mediatype: "audio",
+        media: audioUrl
       }
-    } catch (err) {
-      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
-    }
+    });
   }
 
   if (!token || !phoneNumberId) {
     console.error("WhatsApp credentials missing.");
     return false;
   }
-
-  const cleanTo = to.replace(/[^0-9]/g, "");
 
   try {
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
@@ -320,10 +297,6 @@ export async function sendWhatsAppAudio(to: string, audioUrl: string, businessId
       }),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("Error sending WhatsApp audio via Meta API:", data);
-    }
     return response.ok;
   } catch (error) {
     console.error("Error in sendWhatsAppAudio:", error);
@@ -332,41 +305,28 @@ export async function sendWhatsAppAudio(to: string, audioUrl: string, businessId
 }
 
 /**
- * Helper to send an outgoing document message to a WhatsApp number using the WhatsApp Cloud API.
+ * Helper to send an outgoing document message.
  */
 export async function sendWhatsAppDocument(to: string, documentUrl: string, filename?: string, caption?: string, businessId?: string): Promise<boolean> {
-  let token = process.env.WHATSAPP_ACCESS_TOKEN;
-  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+  const cleanTo = to.replace(/[^0-9]/g, "");
 
-  if (businessId) {
-    try {
-      const { data: business, error } = await supabaseServer
-        .from("businesses")
-        .select("whatsapp_access_token, whatsapp_phone_number_id")
-        .eq("id", businessId)
-        .maybeSingle();
-
-      if (error) {
-        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
-      } else if (business) {
-        if (business.whatsapp_access_token) {
-          token = business.whatsapp_access_token;
-        }
-        if (business.whatsapp_phone_number_id) {
-          phoneNumberId = business.whatsapp_phone_number_id;
-        }
+  if (wabaId === "evolution") {
+    return sendEvolutionRequest(phoneNumberId, token, `/message/sendMedia/${phoneNumberId}`, {
+      number: cleanTo,
+      mediaMessage: {
+        mediatype: "document",
+        media: documentUrl,
+        fileName: filename || "document.pdf",
+        caption: caption || ""
       }
-    } catch (err) {
-      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
-    }
+    });
   }
 
   if (!token || !phoneNumberId) {
     console.error("WhatsApp credentials missing.");
     return false;
   }
-
-  const cleanTo = to.replace(/[^0-9]/g, "");
 
   try {
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
@@ -389,10 +349,6 @@ export async function sendWhatsAppDocument(to: string, documentUrl: string, file
       }),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("Error sending WhatsApp document via Meta API:", data);
-    }
     return response.ok;
   } catch (error) {
     console.error("Error in sendWhatsAppDocument:", error);
@@ -401,7 +357,7 @@ export async function sendWhatsAppDocument(to: string, documentUrl: string, file
 }
 
 /**
- * Helper to send an interactive button message to a WhatsApp number.
+ * Helper to send an interactive button message.
  */
 export async function sendWhatsAppInteractiveButtons(
   to: string,
@@ -409,38 +365,29 @@ export async function sendWhatsAppInteractiveButtons(
   buttons: { id: string; title: string }[],
   businessId?: string
 ): Promise<boolean> {
-  let token = process.env.WHATSAPP_ACCESS_TOKEN;
-  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+  const cleanTo = to.replace(/[^0-9]/g, "");
 
-  if (businessId) {
-    try {
-      const { data: business, error } = await supabaseServer
-        .from("businesses")
-        .select("whatsapp_access_token, whatsapp_phone_number_id")
-        .eq("id", businessId)
-        .maybeSingle();
-
-      if (error) {
-        console.error(`Error fetching WhatsApp credentials for business ${businessId}:`, error);
-      } else if (business) {
-        if (business.whatsapp_access_token) {
-          token = business.whatsapp_access_token;
-        }
-        if (business.whatsapp_phone_number_id) {
-          phoneNumberId = business.whatsapp_phone_number_id;
-        }
-      }
-    } catch (err) {
-      console.error(`Unexpected error fetching WhatsApp credentials for business ${businessId}:`, err);
-    }
+  if (wabaId === "evolution") {
+    return sendEvolutionRequest(phoneNumberId, token, `/message/sendButtons/${phoneNumberId}`, {
+      number: cleanTo,
+      title: "Notification",
+      description: bodyText,
+      footer: "Le Closeur",
+      buttons: buttons.map((b) => ({
+        buttonId: b.id,
+        buttonText: {
+          displayText: b.title
+        },
+        type: 1
+      }))
+    });
   }
 
   if (!token || !phoneNumberId) {
     console.error("WhatsApp credentials missing.");
     return false;
   }
-
-  const cleanTo = to.replace(/[^0-9]/g, "");
 
   try {
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
@@ -473,14 +420,9 @@ export async function sendWhatsAppInteractiveButtons(
       }),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("Error sending WhatsApp interactive buttons via Meta API:", data);
-    }
     return response.ok;
   } catch (error) {
     console.error("Error in sendWhatsAppInteractiveButtons:", error);
     return false;
   }
 }
-

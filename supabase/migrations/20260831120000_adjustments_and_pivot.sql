@@ -67,6 +67,17 @@ CREATE TABLE IF NOT EXISTS public.business_phone_numbers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Ensure columns exist if table was created previously with older schema
+ALTER TABLE public.business_phone_numbers 
+ADD COLUMN IF NOT EXISTS phone_number_id TEXT,
+ADD COLUMN IF NOT EXISTS waba_id TEXT,
+ADD COLUMN IF NOT EXISTS access_token TEXT,
+ADD COLUMN IF NOT EXISTS conversation_mode TEXT DEFAULT 'human_coexistence',
+ADD COLUMN IF NOT EXISTS label TEXT;
+
+-- Reload Supabase Schema Cache
+NOTIFY pgrst, 'reload schema';
+
 -- Enable RLS & create policies for phone numbers
 ALTER TABLE public.business_phone_numbers ENABLE ROW LEVEL SECURITY;
 

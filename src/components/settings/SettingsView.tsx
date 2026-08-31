@@ -40,6 +40,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   
   const [isSavingManual, setIsSavingManual] = useState(false);
   const [isSavingManualAds, setIsSavingManualAds] = useState(false);
+  // Secondary Numbers state
+  const [secondaryNumbers, setSecondaryNumbers] = useState<BusinessPhoneNumber[]>([]);
+  const [newSecondaryLabel, setNewSecondaryLabel] = useState("");
+  const [isConnectingSecondary, setIsConnectingSecondary] = useState(false);
 
   const fetchWhatsAppConfig = useCallback(async () => {
     if (!businessId) return;

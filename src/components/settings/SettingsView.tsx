@@ -673,7 +673,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
 
           {showManualSecondary && (
             <form onSubmit={handleSaveManualSecondary} className="bg-neige p-3.5 rounded-2xl border border-graphite/10 flex flex-col gap-3">
-              <div className="text-[11px] font-bold text-encre">Ajout manuel d'un numéro secondaire</div>
+              <div className="text-[11px] font-bold text-encre">Ajout manuel d&apos;un numéro secondaire</div>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-bold text-encre/50">Phone Number ID *</label>
                 <input
@@ -696,7 +696,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Token d'accès (Optionnel)</label>
+                <label className="text-[10px] uppercase font-bold text-encre/50">Token d&apos;accès (Optionnel)</label>
                 <input
                   type="password"
                   placeholder="Jeton d'accès Meta (si spécifique)..."

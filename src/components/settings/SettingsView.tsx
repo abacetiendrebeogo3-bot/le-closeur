@@ -563,10 +563,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         <div className="pt-4 border-t border-graphite/10 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold text-encre flex items-center gap-2">
-              <Users className="w-4 h-4 text-bleu" />
+              <Users className="w-4 h-4 text-blue-600" />
               <span>Numéros Supplémentaires (Commerciales / Coexistence)</span>
             </h4>
-            <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold bg-bleu/10 text-bleu">
+            <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold bg-blue-50 text-blue-700 border border-blue-200">
               Mode Coexistence
             </span>
           </div>
@@ -575,25 +575,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
             Connectez vos numéros de commerciales (WhatsApp Business App existants). Leurs messages s’afficheront dans le SaaS, mais l’agent IA ne répondra pas automatiquement.
           </p>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2.5">
             <input
               type="text"
               placeholder="Ex: Commerciale 1 (Fatou)"
               value={newSecondaryLabel}
               onChange={(e) => setNewSecondaryLabel(e.target.value)}
-              className="flex-1 bg-neige border border-graphite/10 px-3 py-2 rounded-xl text-xs font-medium placeholder:text-encre/30 focus:outline-none"
+              className="flex-1 bg-neige border border-graphite/10 px-3.5 py-2.5 rounded-xl text-xs font-medium placeholder:text-encre/30 focus:outline-none focus:border-graphite/30"
             />
             <button
               onClick={handleConnectSecondaryWhatsApp}
               disabled={isConnectingSecondary || !businessId}
-              className="bg-bleu hover:bg-bleu/90 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50"
+              className="bg-graphite hover:opacity-90 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50 shrink-0"
             >
               {isConnectingSecondary ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Connexion en cours...</span>
+                </>
               ) : (
-                <Plus className="w-3.5 h-3.5" />
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Lier un numéro (Embedded Signup)</span>
+                </>
               )}
-              <span>Lier un numéro (Embedded Signup)</span>
             </button>
           </div>
 
@@ -603,7 +608,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
               {secondaryNumbers.map((sec) => (
                 <div key={sec.id} className="flex items-center justify-between bg-neige p-2.5 rounded-xl border border-graphite/10 text-xs">
                   <div className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-bleu" />
+                    <Phone className="w-3.5 h-3.5 text-blue-600" />
                     <div>
                       <span className="font-bold text-encre block">{sec.label || "Commerciale"}</span>
                       <span className="text-[10px] text-encre/50 font-mono">ID: {sec.phone_number_id}</span>

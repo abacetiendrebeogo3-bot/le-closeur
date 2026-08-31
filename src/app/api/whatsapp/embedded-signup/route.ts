@@ -110,22 +110,56 @@ export async function POST(req: NextRequest) {
     console.log(`Found Phone Number ID: ${phoneNumberId} (${displayPhoneNumber})`);
 
     // 5. Stocker ces informations dans Supabase liées au businessId
-    console.log(`Saving WhatsApp configuration to Supabase for business ${businessId}...`);
-    const { error: dbError } = await supabaseServer
+    console.log(`Checking existing WhatsApp configuration for business ${businessId}...`);
+    const { data: currentBus } = await supabaseServer
       .from("businesses")
-      .update({
-        whatsapp_access_token: longLivedToken,
-        whatsapp_phone_number_id: phoneNumberId,
-        whatsapp_waba_id: wabaId,
-      })
-      .eq("id", businessId);
+      .select("whatsapp_phone_number_id")
+      .eq("id", businessId)
+      .maybeSingle();
 
-    if (dbError) {
-      console.error("Error storing WhatsApp credentials in Supabase:", dbError);
-      return NextResponse.json(
-        { error: "Erreur lors de la sauvegarde dans la base de données", details: dbError },
-        { status: 500 }
-      );
+    if (currentBus && currentBus.whatsapp_phone_number_id && currentBus.whatsapp_phone_number_id !== phoneNumberId) {
+      // Primary is set to a different ID, store in business_phone_numbers
+      console.log(`Saving as secondary number in business_phone_numbers for business ${businessId}...`);
+      const cleanPhone = displayPhoneNumber ? displayPhoneNumber.replace(/[^0-9]/g, "") : "";
+      
+      const { error: dbError } = await supabaseServer
+        .from("business_phone_numbers")
+        .upsert({
+          business_id: businessId,
+          phone_number: cleanPhone || "Secondary",
+          whatsapp_phone_number_id: phoneNumberId,
+          whatsapp_waba_id: wabaId,
+          coexistence_mode: true // Default secondary connected numbers to human coexistence mode
+        }, {
+          onConflict: 'whatsapp_phone_number_id'
+        });
+
+      if (dbError) {
+        console.error("Error storing secondary WhatsApp credentials in Supabase:", dbError);
+        return NextResponse.json(
+          { error: "Erreur lors de la sauvegarde du numéro secondaire dans la base de données", details: dbError },
+          { status: 500 }
+        );
+      }
+    } else {
+      // Store as primary
+      console.log(`Saving as primary number in businesses for business ${businessId}...`);
+      const { error: dbError } = await supabaseServer
+        .from("businesses")
+        .update({
+          whatsapp_access_token: longLivedToken,
+          whatsapp_phone_number_id: phoneNumberId,
+          whatsapp_waba_id: wabaId,
+        })
+        .eq("id", businessId);
+
+      if (dbError) {
+        console.error("Error storing WhatsApp credentials in Supabase:", dbError);
+        return NextResponse.json(
+          { error: "Erreur lors de la sauvegarde dans la base de données", details: dbError },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({

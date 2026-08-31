@@ -258,21 +258,40 @@ export async function POST(req: NextRequest) {
         // Resolve businessId dynamically based on the receiving phone number ID
         const phoneNumberId = value?.metadata?.phone_number_id;
         let businessId = DEFAULT_BUSINESS_ID;
+        let coexistenceMode = false;
 
         if (phoneNumberId) {
-          const { data: bus, error: busErr } = await supabaseServer
-            .from("businesses")
-            .select("id")
+          // Check custom registered numbers first
+          const { data: customPhone, error: phoneErr } = await supabaseServer
+            .from("business_phone_numbers")
+            .select("business_id, coexistence_mode")
             .eq("whatsapp_phone_number_id", phoneNumberId)
             .maybeSingle();
-          
-          if (busErr) {
-            console.error("Error looking up business by phone number ID:", busErr);
-          } else if (bus) {
-            businessId = bus.id;
-            console.log(`Resolved dynamic business_id: ${businessId} for phone_number_id: ${phoneNumberId}`);
+
+          if (phoneErr) {
+            console.error("Error looking up custom business phone number:", phoneErr);
+          }
+
+          if (customPhone) {
+            businessId = customPhone.business_id;
+            coexistenceMode = !!customPhone.coexistence_mode;
+            console.log(`Resolved custom business phone: business_id=${businessId}, coexistence_mode=${coexistenceMode}`);
           } else {
-            console.warn(`No business found matching phone number ID: ${phoneNumberId}. Falling back to default.`);
+            // Check primary business configuration
+            const { data: bus, error: busErr } = await supabaseServer
+              .from("businesses")
+              .select("id")
+              .eq("whatsapp_phone_number_id", phoneNumberId)
+              .maybeSingle();
+            
+            if (busErr) {
+              console.error("Error looking up primary business by phone number ID:", busErr);
+            } else if (bus) {
+              businessId = bus.id;
+              console.log(`Resolved primary business_id: ${businessId} for phone_number_id: ${phoneNumberId}`);
+            } else {
+              console.warn(`No business found matching phone number ID: ${phoneNumberId}. Falling back to default.`);
+            }
           }
         }
 
@@ -621,6 +640,12 @@ export async function POST(req: NextRequest) {
         // If human takeover is active, stop here (do not call Claude / send AI reply)
         if (conversation.status === "human_takeover") {
           console.log("Conversation in human_takeover mode. AI response skipped.");
+          return;
+        }
+
+        // If coexistence mode is active, stop here (do not run AI auto-reply)
+        if (coexistenceMode) {
+          console.log("Coexistence mode active for this number. AI auto-reply skipped.");
           return;
         }
 

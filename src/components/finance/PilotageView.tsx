@@ -17,7 +17,12 @@ import {
   Trash2,
   PiggyBank,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Users,
+  UserPlus,
+  Briefcase,
+  CreditCard,
+  HandCoins
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -28,12 +33,13 @@ import {
   CartesianGrid, 
   Tooltip 
 } from "recharts";
-import { Order } from "../../types";
+import { Order, Product, Employee, Debt } from "../../types";
 
 interface PilotageViewProps {
   businessId: string;
   orders: Order[];
   formatFCFA: (val: number) => string;
+  products: Product[];
 }
 
 interface FinanceExpenses {
@@ -47,7 +53,8 @@ interface FinanceExpenses {
 export const PilotageView: React.FC<PilotageViewProps> = ({
   businessId,
   orders,
-  formatFCFA
+  formatFCFA,
+  products
 }) => {
   // Date State
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -92,7 +99,24 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" | "info" } | null>(null);
 
   // Caisse Sub-tab state
-  const [activeSubTab, setActiveSubTab] = useState<"bilan" | "caisse">("bilan");
+  const [activeSubTab, setActiveSubTab] = useState<"bilan" | "caisse" | "employees" | "debts">("bilan");
+
+  // Employees states
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [empName, setEmpName] = useState("");
+  const [empRole, setEmpRole] = useState("");
+  const [empSalary, setEmpSalary] = useState(0);
+  const [empPayDay, setEmpPayDay] = useState(1);
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+
+  // Debts states
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [debtLabel, setDebtLabel] = useState("");
+  const [debtAmount, setDebtAmount] = useState(0);
+  const [debtDueDate, setDebtDueDate] = useState("");
+  const [showAddDebt, setShowAddDebt] = useState(false);
+  const [selectedDebtId, setSelectedDebtId] = useState<string | null>(null);
+  const [refundAmount, setRefundAmount] = useState(0);
 
   // Caisse States
   const [caisseSolde, setCaisseSolde] = useState<number>(0);
@@ -277,6 +301,201 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
       loadCaisseData();
     }
   }, [businessId, activeSubTab, loadCaisseData]);
+
+  // Load Employees
+  const loadEmployees = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("name", { ascending: true });
+      if (error) throw error;
+      setEmployees(data || []);
+    } catch (err: any) {
+      console.error("Error loading employees:", err);
+    }
+  }, [businessId]);
+
+  // Save Employee
+  const handleSaveEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!empName.trim() || !empRole.trim()) return;
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .insert({
+          business_id: businessId,
+          name: empName.trim(),
+          role: empRole.trim(),
+          monthly_salary: empSalary,
+          pay_day: empPayDay
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setEmployees(prev => [...prev, data]);
+      setShowAddEmployee(false);
+      setEmpName("");
+      setEmpRole("");
+      setEmpSalary(0);
+      setEmpPayDay(1);
+      triggerToast("Employé ajouté avec succès !", "success");
+    } catch (err: any) {
+      triggerToast(`Erreur : ${err.message}`, "warning");
+    }
+  };
+
+  // Delete Employee
+  const handleDeleteEmployee = async (id: string) => {
+    try {
+      const { error } = await supabase.from("employees").delete().eq("id", id);
+      if (error) throw error;
+      setEmployees(prev => prev.filter(e => e.id !== id));
+      triggerToast("Employé retiré.", "info");
+    } catch (err: any) {
+      triggerToast(`Erreur : ${err.message}`, "warning");
+    }
+  };
+
+  // Pay Salary
+  const handlePaySalary = async (employee: any) => {
+    try {
+      const { error: txErr } = await supabase
+        .from("caisse_transactions")
+        .insert({
+          business_id: businessId,
+          date: new Date().toISOString().split("T")[0],
+          type: "sortie",
+          montant: employee.monthly_salary,
+          categorie: "salaire",
+          description: `Salaire mensuel payé à ${employee.name} (${employee.role})`
+        });
+      if (txErr) throw txErr;
+
+      loadCaisseData();
+      triggerToast(`Salaire de ${formatFCFA(employee.monthly_salary)} payé à ${employee.name} !`, "success");
+    } catch (err: any) {
+      triggerToast(`Erreur paiement : ${err.message}`, "warning");
+    }
+  };
+
+  // Load Debts
+  const loadDebts = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("debts")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("due_date", { ascending: true });
+      if (error) throw error;
+      setDebts(data || []);
+    } catch (err: any) {
+      console.error("Error loading debts:", err);
+    }
+  }, [businessId]);
+
+  // Save Debt
+  const handleSaveDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!debtLabel.trim() || !debtDueDate) return;
+    try {
+      const { data, error } = await supabase
+        .from("debts")
+        .insert({
+          business_id: businessId,
+          label: debtLabel.trim(),
+          amount: debtAmount,
+          due_date: debtDueDate,
+          paid_amount: 0
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setDebts(prev => [...prev, data]);
+      setShowAddDebt(false);
+      setDebtLabel("");
+      setDebtAmount(0);
+      setDebtDueDate("");
+      triggerToast("Dette enregistrée avec succès !", "success");
+    } catch (err: any) {
+      triggerToast(`Erreur : ${err.message}`, "warning");
+    }
+  };
+
+  // Delete Debt
+  const handleDeleteDebt = async (id: string) => {
+    try {
+      const { error } = await supabase.from("debts").delete().eq("id", id);
+      if (error) throw error;
+      setDebts(prev => prev.filter(d => d.id !== id));
+      triggerToast("Dette supprimée.", "info");
+    } catch (err: any) {
+      triggerToast(`Erreur : ${err.message}`, "warning");
+    }
+  };
+
+  // Reimburse Debt
+  const handleReimburseDebt = async (debt: any, refundVal: number) => {
+    if (refundVal <= 0) return;
+    const newPaidAmount = Number(debt.paid_amount || 0) + refundVal;
+    if (newPaidAmount > debt.amount) {
+      triggerToast("Le montant du remboursement dépasse le montant total de la dette.", "warning");
+      return;
+    }
+    try {
+      const { error: debtErr } = await supabase
+        .from("debts")
+        .update({ paid_amount: newPaidAmount })
+        .eq("id", debt.id);
+      if (debtErr) throw debtErr;
+
+      const { error: txErr } = await supabase
+        .from("caisse_transactions")
+        .insert({
+          business_id: businessId,
+          date: new Date().toISOString().split("T")[0],
+          type: "sortie",
+          montant: refundVal,
+          categorie: "facture",
+          description: `Remboursement de dette : ${debt.label} (${formatFCFA(refundVal)})`
+        });
+      if (txErr) throw txErr;
+
+      loadDebts();
+      loadCaisseData();
+      setSelectedDebtId(null);
+      setRefundAmount(0);
+      triggerToast(`Remboursement de ${formatFCFA(refundVal)} enregistré !`, "success");
+    } catch (err: any) {
+      triggerToast(`Erreur remboursement : ${err.message}`, "warning");
+    }
+  };
+
+  useEffect(() => {
+    if (businessId) {
+      if (activeSubTab === "employees") {
+        loadEmployees();
+      } else if (activeSubTab === "debts") {
+        loadDebts();
+      }
+    }
+  }, [businessId, activeSubTab, loadEmployees, loadDebts]);
+
+  // Compute automatic Stock cost (COGS)
+  const autoStockCost = useCallback(() => {
+    const dailyPaidOrders = orders.filter(
+      (o) => o.date === selectedDate && o.paymentStatus === "paid"
+    );
+    return dailyPaidOrders.reduce((sum, o) => {
+      const itemsCost = o.items.reduce((itemSum, item) => {
+        const prod = products.find(p => p.name === item.product);
+        const buyingPrice = prod?.buying_price ?? 0;
+        return itemSum + (buyingPrice * item.quantity);
+      }, 0);
+      return sum + itemsCost;
+    }, 0);
+  }, [orders, selectedDate, products]);
 
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -686,9 +905,29 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
         >
           Gestion de Caisse
         </button>
+        <button
+          onClick={() => setActiveSubTab("employees")}
+          className={`pb-2 px-1 text-xs font-black uppercase transition-all border-b-2 ${
+            activeSubTab === "employees" 
+              ? "border-menthe text-menthe" 
+              : "border-transparent text-encre/40 hover:text-encre/70"
+          }`}
+        >
+          Employés
+        </button>
+        <button
+          onClick={() => setActiveSubTab("debts")}
+          className={`pb-2 px-1 text-xs font-black uppercase transition-all border-b-2 ${
+            activeSubTab === "debts" 
+              ? "border-menthe text-menthe" 
+              : "border-transparent text-encre/40 hover:text-encre/70"
+          }`}
+        >
+          Dettes & Échéances
+        </button>
       </div>
 
-      {activeSubTab === "bilan" ? (
+      {activeSubTab === "bilan" && (
         loading ? (
           <div className="text-center text-xs py-8 text-encre/40 font-bold">Chargement du bilan journalier...</div>
         ) : (
@@ -774,14 +1013,29 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
                           className="w-28 bg-white border border-graphite/10 rounded-lg px-2 py-1 text-xs text-right font-semibold text-encre"
                         />
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] font-bold text-encre/60">Achat de stock</span>
-                        <input 
-                          type="number"
-                          value={depenses.stock}
-                          onChange={(e) => setDepenses(prev => ({ ...prev, stock: parseInt(e.target.value) || 0 }))}
-                          className="w-28 bg-white border border-graphite/10 rounded-lg px-2 py-1 text-xs text-right font-semibold text-encre"
-                        />
+                       <div className="flex flex-col gap-1 w-full">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-bold text-encre/60">Achat de stock</span>
+                          <input 
+                            type="number"
+                            value={depenses.stock}
+                            onChange={(e) => setDepenses(prev => ({ ...prev, stock: parseInt(e.target.value) || 0 }))}
+                            className="w-28 bg-white border border-graphite/10 rounded-lg px-2 py-1 text-xs text-right font-semibold text-encre"
+                          />
+                        </div>
+                        <div className="text-right text-[8px]">
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const cost = autoStockCost();
+                              setDepenses(prev => ({ ...prev, stock: cost }));
+                              triggerToast("Coût d'achat de stock mis à jour.", "info");
+                            }}
+                            className="text-menthe hover:underline font-semibold"
+                          >
+                            Calculer coût réel ({formatFCFA(autoStockCost())})
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[9px] font-bold text-encre/60">Logistique / Livreur</span>
@@ -1004,7 +1258,9 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
 
           </div>
         )
-      ) : (
+      )}
+
+      {activeSubTab === "caisse" && (
         caisseLoading ? (
           <div className="text-center text-xs py-8 text-encre/40 font-bold">Chargement de la caisse...</div>
         ) : (
@@ -1283,6 +1539,339 @@ export const PilotageView: React.FC<PilotageViewProps> = ({
 
           </div>
         )
+      )}
+
+      {/* EMPLOYEES SUBTAB */}
+      {activeSubTab === "employees" && (
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-black uppercase text-encre/70 flex items-center gap-1.5">
+                <Briefcase className="w-4 h-4 text-menthe" /> Gestion du Personnel
+              </span>
+              <span className="text-[10px] text-encre/40 font-semibold">Gérez les fiches des employés, les salaires et enregistrez les paiements en Caisse.</span>
+            </div>
+            <button
+              onClick={() => setShowAddEmployee(!showAddEmployee)}
+              className="magnetic-btn bg-menthe text-neige px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
+              type="button"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Recruter / Ajouter</span>
+            </button>
+          </div>
+
+          {/* Add Employee Form */}
+          {showAddEmployee && (
+            <form onSubmit={handleSaveEmployee} className="p-6 bg-white rounded-2xl border border-graphite/15 shadow-sm flex flex-col gap-4 max-w-xl animate-fade-in">
+              <span className="text-xs font-extrabold text-encre">Nouvel Employé</span>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] uppercase font-bold text-encre/50">Nom Complet *</label>
+                  <input
+                    type="text"
+                    required
+                    value={empName}
+                    onChange={(e) => setEmpName(e.target.value)}
+                    placeholder="Ex: Fatou Diop"
+                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs font-bold text-encre focus:outline-none focus:border-menthe"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] uppercase font-bold text-encre/50">Poste / Rôle *</label>
+                  <input
+                    type="text"
+                    required
+                    value={empRole}
+                    onChange={(e) => setEmpRole(e.target.value)}
+                    placeholder="Ex: Commerciale, Livreur..."
+                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs font-bold text-encre focus:outline-none focus:border-menthe"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] uppercase font-bold text-encre/50">Salaire Mensuel (FCFA) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={empSalary || ""}
+                    onChange={(e) => setEmpSalary(parseInt(e.target.value) || 0)}
+                    placeholder="Ex: 150000"
+                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs font-bold text-encre focus:outline-none focus:border-menthe text-right"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] uppercase font-bold text-encre/50">Jour de Paie (1-31) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={31}
+                    value={empPayDay}
+                    onChange={(e) => setEmpPayDay(Math.min(31, Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs font-bold text-encre focus:outline-none focus:border-menthe text-right"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-graphite/5 pt-3 mt-1">
+                <button type="button" onClick={() => setShowAddEmployee(false)} className="px-3.5 py-2 bg-neige border border-graphite/10 rounded-xl text-xs font-bold text-encre">Annuler</button>
+                <button type="submit" className="px-4.5 py-2 bg-menthe text-white rounded-xl text-xs font-black">Ajouter l&apos;employé</button>
+              </div>
+            </form>
+          )}
+
+          {/* Employees List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {employees.length === 0 ? (
+              <div className="bg-white p-8 rounded-[2rem] border border-graphite/10 shadow-sm text-center text-xs text-encre/40 italic col-span-full">
+                Aucun employé enregistré.
+              </div>
+            ) : (
+              employees.map(emp => {
+                const today = new Date();
+                const currentDay = today.getDate();
+                const isPaydaySoon = Math.abs(emp.pay_day - currentDay) <= 3 || currentDay >= emp.pay_day;
+
+                return (
+                  <div key={emp.id} className="p-6 bg-white rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col gap-4 relative group hover:border-graphite/20 transition-all">
+                    <div className="flex justify-between items-start">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-black text-encre">{emp.name}</span>
+                        <span className="text-[10px] text-encre/45 font-semibold capitalize">{emp.role}</span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteEmployee(emp.id)}
+                        className="text-red-400 hover:text-red-600 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Licencier / Supprimer"
+                        type="button"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex justify-between items-center bg-neige/50 p-3 rounded-xl border border-graphite/5 text-xs">
+                      <div>
+                        <span className="text-[8px] uppercase font-bold text-encre/40 block">Salaire Mensuel</span>
+                        <span className="font-extrabold text-encre">{formatFCFA(emp.monthly_salary)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[8px] uppercase font-bold text-encre/40 block">Jour de paie</span>
+                        <span className="font-extrabold text-encre">{emp.pay_day} de chaque mois</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-1">
+                      {isPaydaySoon ? (
+                        <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border bg-amber-50 text-amber-600 border-amber-200 animate-pulse">
+                          Jour de paie proche
+                        </span>
+                      ) : (
+                        <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border bg-neige text-encre/40 border-graphite/5">
+                          En attente
+                        </span>
+                      )}
+                      
+                      <button
+                        onClick={() => handlePaySalary(emp)}
+                        className="bg-menthe text-white text-[10px] font-black px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm hover:brightness-105 active:scale-95 transition-all"
+                        type="button"
+                      >
+                        <HandCoins className="w-3.5 h-3.5" />
+                        <span>Payer salaire</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* DEBTS SUBTAB */}
+      {activeSubTab === "debts" && (
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between bg-white p-5 rounded-[2rem] border border-graphite/10 shadow-sm">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-black uppercase text-encre/70 flex items-center gap-1.5">
+                <CreditCard className="w-4 h-4 text-menthe" /> Suivi des Dettes & Échéances
+              </span>
+              <span className="text-[10px] text-encre/40 font-semibold">Suivez vos dettes fournisseurs ou créances, configurez des alertes d&apos;échéance et remboursez en caisse.</span>
+            </div>
+            <button
+              onClick={() => setShowAddDebt(!showAddDebt)}
+              className="magnetic-btn bg-menthe text-neige px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
+              type="button"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Enregistrer une dette</span>
+            </button>
+          </div>
+
+          {/* Add Debt Form */}
+          {showAddDebt && (
+            <form onSubmit={handleSaveDebt} className="p-6 bg-white rounded-2xl border border-graphite/15 shadow-sm flex flex-col gap-4 max-w-xl animate-fade-in">
+              <span className="text-xs font-extrabold text-encre">Nouvel Engagement Financier</span>
+              
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] uppercase font-bold text-encre/50">Libellé / Objet de la dette *</label>
+                <input
+                  type="text"
+                  required
+                  value={debtLabel}
+                  onChange={(e) => setDebtLabel(e.target.value)}
+                  placeholder="Ex: Facture fournisseur tissu, Achat matériel..."
+                  className="bg-neige border border-graphite/10 rounded-xl px-3.5 py-2 text-xs font-bold text-encre focus:outline-none focus:border-menthe"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] uppercase font-bold text-encre/50">Montant total (FCFA) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={debtAmount || ""}
+                    onChange={(e) => setDebtAmount(parseInt(e.target.value) || 0)}
+                    placeholder="Ex: 500000"
+                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-2 text-xs font-bold text-encre focus:outline-none focus:border-menthe text-right"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] uppercase font-bold text-encre/50">Date d&apos;Échéance *</label>
+                  <input
+                    type="date"
+                    required
+                    value={debtDueDate}
+                    onChange={(e) => setDebtDueDate(e.target.value)}
+                    className="bg-neige border border-graphite/10 rounded-xl px-3 py-1.5 text-xs font-bold text-encre focus:outline-none focus:border-menthe cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-graphite/5 pt-3 mt-1">
+                <button type="button" onClick={() => setShowAddDebt(false)} className="px-3.5 py-2 bg-neige border border-graphite/10 rounded-xl text-xs font-bold text-encre">Annuler</button>
+                <button type="submit" className="px-4.5 py-2 bg-menthe text-white rounded-xl text-xs font-black">Ajouter la dette</button>
+              </div>
+            </form>
+          )}
+
+          {/* Debts List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {debts.length === 0 ? (
+              <div className="bg-white p-8 rounded-[2rem] border border-graphite/10 shadow-sm text-center text-xs text-encre/40 italic col-span-full">
+                Aucune dette en cours.
+              </div>
+            ) : (
+              debts.map(debt => {
+                const total = Number(debt.amount) || 0;
+                const paid = Number(debt.paid_amount) || 0;
+                const remaining = total - paid;
+                const pctProgress = Math.min(100, (paid / total) * 100);
+                
+                const dueDateObj = new Date(debt.due_date);
+                const diffTime = dueDateObj.getTime() - Date.now();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const isOverdue = diffDays < 0 && remaining > 0;
+                const isSoon = diffDays >= 0 && diffDays <= 5 && remaining > 0;
+
+                return (
+                  <div key={debt.id} className="p-6 bg-white rounded-[2rem] border border-graphite/10 shadow-sm flex flex-col gap-4 relative group hover:border-graphite/20 transition-all">
+                    <div className="flex justify-between items-start">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-black text-encre">{debt.label}</span>
+                        <span className="text-[9px] text-encre/40 font-mono font-bold mt-0.5">Échéance : {debt.due_date}</span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteDebt(debt.id)}
+                        className="text-red-400 hover:text-red-600 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Supprimer"
+                        type="button"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex justify-between text-[10px] font-black text-encre/60">
+                        <span>Remboursé : {formatFCFA(paid)} / {formatFCFA(total)}</span>
+                        <span>{pctProgress.toFixed(0)}%</span>
+                      </div>
+                      <div className="w-full bg-graphite/10 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-menthe h-full rounded-full transition-all" style={{ width: `${pctProgress}%` }} />
+                      </div>
+                    </div>
+
+                    {selectedDebtId === debt.id ? (
+                      <div className="flex flex-col gap-2 p-3 bg-neige/50 rounded-xl border border-graphite/5">
+                        <label className="text-[9px] uppercase font-bold text-encre/50">Montant du Remboursement (FCFA)</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            max={remaining}
+                            value={refundAmount || ""}
+                            onChange={(e) => setRefundAmount(parseInt(e.target.value) || 0)}
+                            placeholder="Ex: 50000"
+                            className="flex-1 bg-white border border-graphite/10 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-encre"
+                          />
+                          <button
+                            onClick={() => handleReimburseDebt(debt, refundAmount)}
+                            className="bg-menthe text-white text-[10px] font-black px-3.5 py-1.5 rounded-lg"
+                            type="button"
+                          >
+                            Valider
+                          </button>
+                        </div>
+                        <button onClick={() => setSelectedDebtId(null)} className="text-center text-[9px] text-encre/40 hover:underline font-bold" type="button">Annuler</button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center mt-1">
+                        <div>
+                          {remaining === 0 ? (
+                            <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border bg-menthe/10 text-menthe border-menthe/20">
+                              Remboursé
+                            </span>
+                          ) : isOverdue ? (
+                            <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border bg-red-50 text-red-600 border-red-200 animate-pulse">
+                              Échu ({Math.abs(diffDays)}j de retard)
+                            </span>
+                          ) : isSoon ? (
+                            <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold border bg-amber-50 text-amber-600 border-amber-200">
+                              Échéance dans {diffDays}j
+                            </span>
+                          ) : (
+                            <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-semibold border bg-neige text-encre/40 border-graphite/5">
+                              {diffDays} jours restants
+                            </span>
+                          )}
+                        </div>
+
+                        {remaining > 0 && (
+                          <button
+                            onClick={() => {
+                              setSelectedDebtId(debt.id);
+                              setRefundAmount(remaining);
+                            }}
+                            className="bg-encre text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl hover:bg-graphite transition-colors shadow-xs"
+                            type="button"
+                          >
+                            Rembourser
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

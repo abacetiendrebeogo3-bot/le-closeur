@@ -45,6 +45,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [prodFormActive, setProdFormActive] = useState(true);
   const [prodFormStock, setProdFormStock] = useState<string>("");
   const [prodFormImageUrl, setProdFormImageUrl] = useState("");
+  const [prodFormBuyingPrice, setProdFormBuyingPrice] = useState(0);
   const [prodFormDescription, setProdFormDescription] = useState("");
   const [prodFormTestimonials, setProdFormTestimonials] = useState("");
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
@@ -96,12 +97,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       setProdFormActive(prod.active);
       setProdFormStock(prod.stock !== undefined ? prod.stock.toString() : "");
       setProdFormImageUrl(prod.imageUrls && prod.imageUrls.length > 0 ? JSON.stringify(prod.imageUrls) : (prod.imageUrl || ""));
+      setProdFormBuyingPrice(prod.buying_price || 0);
       setProdFormDescription(prod.description || "");
       setProdFormTestimonials(prod.testimonials || "");
     } else {
       setShowProductModal({ mode: "create" });
       setProdFormName("");
       setProdFormPrice(0);
+      setProdFormBuyingPrice(0);
       setProdFormCategory("");
       setProdFormActive(true);
       setProdFormStock("");
@@ -288,6 +291,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         stock: parsedStock,
         image_url: imageUrlsArray[0] || null,
         image_urls: imageUrlsArray,
+        buying_price: prodFormBuyingPrice,
         description: prodFormDescription.trim() || null,
         testimonials: prodFormTestimonials.trim() || null
       }).eq("id", showProductModal.productId).select();
@@ -306,6 +310,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         ...p,
         name: prodFormName.trim(),
         price: prodFormPrice,
+        buying_price: prodFormBuyingPrice,
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
@@ -327,6 +332,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         stock: parsedStock,
         image_url: imageUrlsArray[0] || null,
         image_urls: imageUrlsArray,
+        buying_price: prodFormBuyingPrice,
         description: prodFormDescription.trim() || null,
         testimonials: prodFormTestimonials.trim() || null
       }).select();
@@ -345,6 +351,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         id: newId,
         name: prodFormName.trim(),
         price: prodFormPrice,
+        buying_price: prodFormBuyingPrice,
         category: prodFormCategory.trim() || "Général",
         active: prodFormActive,
         stock: parsedStock,
@@ -949,9 +956,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   </div>
 
                   {/* Price & Stock Grid */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1">
-                      <label className="text-[10px] uppercase font-bold text-encre/50">Prix (FCFA) *</label>
+                      <label className="text-[10px] uppercase font-bold text-encre/50">Prix Vente (FCFA) *</label>
                       <input
                         type="number"
                         required
@@ -959,6 +966,18 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                         value={prodFormPrice}
                         onChange={(e) => setProdFormPrice(parseInt(e.target.value) || 0)}
                         className="bg-neige border border-graphite/10 rounded-xl px-3.5 py-3 text-xs focus:outline-none focus:border-menthe font-black text-encre text-right"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] uppercase font-bold text-encre/50">Prix Achat (FCFA) *</label>
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        value={prodFormBuyingPrice}
+                        onChange={(e) => setProdFormBuyingPrice(parseInt(e.target.value) || 0)}
+                        className="bg-neige border border-graphite/10 rounded-xl px-3.5 py-3 text-xs focus:outline-none focus:border-menthe font-black text-amber-600 text-right"
                       />
                     </div>
 

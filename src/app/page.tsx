@@ -1164,6 +1164,7 @@ export default function Home() {
               businessId={businessId}
               orders={orders}
               formatFCFA={formatFCFA}
+              products={products}
             />
           )}
 

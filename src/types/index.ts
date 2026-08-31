@@ -67,6 +67,7 @@ export interface Product {
   imageUrls?: string[];
   description?: string;
   testimonials?: string;
+  buying_price?: number;
 }
 
 export interface Zone {
@@ -84,4 +85,33 @@ export interface FollowupStep {
   messageText: string;
   metaTemplateName: string;
   active?: boolean;
+}
+
+export interface Employee {
+  id: string;
+  business_id: string;
+  name: string;
+  role: string;
+  monthly_salary: number;
+  pay_day: number;
+  created_at?: string;
+}
+
+export interface Debt {
+  id: string;
+  business_id: string;
+  label: string;
+  amount: number;
+  due_date: string;
+  paid_amount: number;
+  created_at?: string;
+}
+
+export interface BusinessPhoneNumber {
+  id: string;
+  business_id: string;
+  phone_number: string;
+  label: string;
+  coexistence_mode: boolean;
+  created_at?: string;
 }

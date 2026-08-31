@@ -654,86 +654,62 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
             Connectez vos numéros de commerciales (WhatsApp Business App existants). Leurs messages s’afficheront dans le SaaS, mais l’agent IA ne répondra pas automatiquement.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-2.5">
-            <input
-              type="text"
-              placeholder="Ex: Commerciale 1 (Fatou)"
-              value={newSecondaryLabel}
-              onChange={(e) => setNewSecondaryLabel(e.target.value)}
-              className="flex-1 bg-neige border border-graphite/10 px-3.5 py-2.5 rounded-xl text-xs font-medium placeholder:text-encre/30 focus:outline-none focus:border-graphite/30"
-            />
-            <button
-              onClick={handleConnectSecondaryWhatsApp}
-              disabled={isConnectingSecondary || !businessId}
-              className="bg-graphite hover:opacity-90 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50 shrink-0"
-            >
-              {isConnectingSecondary ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Connexion en cours...</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4" />
-                  <span>Lier un numéro (Embedded Signup)</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setShowManualSecondary(!showManualSecondary)}
-              className="text-[11px] text-blue-600 hover:underline font-semibold flex items-center gap-1"
-            >
-              {showManualSecondary ? "Masquer la saisie manuelle" : "Ou ajouter directement le Phone Number ID à la main →"}
-            </button>
-          </div>
-
-          {showManualSecondary && (
-            <form onSubmit={handleSaveManualSecondary} className="bg-neige p-3.5 rounded-2xl border border-graphite/10 flex flex-col gap-3">
-              <div className="text-[11px] font-bold text-encre">Ajout manuel d&apos;un numéro secondaire</div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Phone Number ID *</label>
-                <input
-                  type="text"
-                  placeholder="Ex: 109284719283749"
-                  value={manualSecPhoneId}
-                  onChange={(e) => setManualSecPhoneId(e.target.value)}
-                  className="w-full bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">WABA ID (Optionnel)</label>
-                <input
-                  type="text"
-                  placeholder="Ex: 109384729103984"
-                  value={manualSecWabaId}
-                  onChange={(e) => setManualSecWabaId(e.target.value)}
-                  className="w-full bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-bold text-encre/50">Token d&apos;accès (Optionnel)</label>
-                <input
-                  type="password"
-                  placeholder="Jeton d'accès Meta (si spécifique)..."
-                  value={manualSecToken}
-                  onChange={(e) => setManualSecToken(e.target.value)}
-                  className="w-full bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
-                />
-              </div>
+          <form onSubmit={handleSaveManualSecondary} className="bg-neige p-4 rounded-2xl border border-graphite/10 flex flex-col gap-3">
+            <div className="text-[11px] font-bold text-encre flex items-center justify-between">
+              <span>➕ Ajouter un numéro de commerciale</span>
               <button
-                type="submit"
-                disabled={isSavingManualSec}
-                className="w-full bg-graphite text-white font-bold py-2 rounded-xl text-xs hover:opacity-90 transition-all flex items-center justify-center gap-2"
+                type="button"
+                onClick={handleConnectSecondaryWhatsApp}
+                disabled={isConnectingSecondary || !businessId}
+                className="text-[10px] text-blue-600 hover:underline font-semibold flex items-center gap-1"
               >
-                {isSavingManualSec ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Enregistrer ce numéro secondaire"}
+                {isConnectingSecondary ? "Connexion Meta..." : "Ou se connecter via popup Meta →"}
               </button>
-            </form>
-          )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase font-bold text-encre/60">Nom de la commerciale / Libellé *</label>
+              <input
+                type="text"
+                placeholder="Ex: Yasmine ou Commerciale 2"
+                value={newSecondaryLabel}
+                onChange={(e) => setNewSecondaryLabel(e.target.value)}
+                className="w-full bg-white border border-graphite/10 px-3.5 py-2 rounded-xl text-xs font-medium placeholder:text-encre/30 focus:outline-none"
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase font-bold text-encre/60">Phone Number ID WhatsApp *</label>
+              <input
+                type="text"
+                placeholder="Ex: 109284719283749"
+                value={manualSecPhoneId}
+                onChange={(e) => setManualSecPhoneId(e.target.value)}
+                className="w-full bg-white border border-graphite/10 px-3.5 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase font-bold text-encre/40">Token d&apos;accès Meta (Optionnel)</label>
+              <input
+                type="password"
+                placeholder="Jeton d'accès (si différent)..."
+                value={manualSecToken}
+                onChange={(e) => setManualSecToken(e.target.value)}
+                className="w-full bg-white border border-graphite/10 px-3.5 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSavingManualSec}
+              className="w-full bg-graphite text-white font-bold py-2.5 rounded-xl text-xs hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-xs mt-1"
+            >
+              {isSavingManualSec ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Enregistrer ce numéro de commerciale"}
+            </button>
+          </form>
 
           {secondaryNumbers.length > 0 && (
             <div className="flex flex-col gap-2 mt-1">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Settings, AlertTriangle, Database, CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
+import { Settings, AlertTriangle, Database, CheckCircle2, RefreshCw, Sparkles, Phone, Plus, Trash2, Users } from "lucide-react";
 import { supabase } from "../../lib/supabase/client";
+import { BusinessPhoneNumber } from "../../types";
 
 declare global {
   interface Window {
@@ -65,6 +66,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         setMetaAdsAccountId(data.meta_ads_account_id || null);
         setInputMetaAdsToken(data.meta_ads_access_token || "");
         setInputMetaAdsAccountId(data.meta_ads_account_id || "");
+      }
+
+      // Fetch Secondary Numbers
+      const { data: secData, error: secErr } = await supabase
+        .from("business_phone_numbers")
+        .select("*")
+        .eq("business_id", businessId);
+
+      if (!secErr && secData) {
+        setSecondaryNumbers(secData);
       }
     } catch (err) {
       console.error("Error fetching WhatsApp configuration:", err);
@@ -175,6 +186,82 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       console.error("FB.login failed:", error);
       triggerToast("Impossible d'ouvrir la popup de connexion Meta. Vérifiez que votre navigateur autorise les fenêtres popups.", "warning");
       setIsConnecting(false);
+    }
+  };
+
+  const handleConnectSecondaryWhatsApp = () => {
+    if (!businessId) {
+      triggerToast("Erreur : Aucun ID de commerce identifié.", "warning");
+      return;
+    }
+
+    if (!window.FB) {
+      triggerToast("Le SDK Meta n'est pas encore chargé. Veuillez patienter ou recharger la page.", "warning");
+      return;
+    }
+
+    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
+    setIsConnectingSecondary(true);
+
+    try {
+      window.FB.login(
+        async (response: any) => {
+          if (response.authResponse) {
+            const code = response.authResponse.code;
+            try {
+              const res = await fetch("/api/whatsapp/embedded-signup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  code,
+                  businessId,
+                  redirectUri: window.location.origin + "/",
+                  isSecondary: true,
+                  label: newSecondaryLabel.trim() || "Commerciale 1",
+                }),
+              });
+
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.error || "Échec de l'intégration du numéro secondaire.");
+              }
+
+              triggerToast(`Numéro secondaire (${data.displayPhoneNumber || ""}) connecté en mode Coexistence !`, "success");
+              setNewSecondaryLabel("");
+              fetchWhatsAppConfig();
+            } catch (err: any) {
+              console.error("Error in secondary exchange:", err);
+              triggerToast(err.message || "Erreur de connexion WhatsApp secondaire", "warning");
+            } finally {
+              setIsConnectingSecondary(false);
+            }
+          } else {
+            triggerToast("Le processus de connexion Meta a été annulé.", "warning");
+            setIsConnectingSecondary(false);
+          }
+        },
+        {
+          config_id: configId,
+          response_type: "code",
+          override_default_response_type: true,
+          extras: { setup: {} },
+        }
+      );
+    } catch (error: any) {
+      console.error("FB.login failed:", error);
+      triggerToast("Impossible d'ouvrir la popup de connexion Meta.", "warning");
+      setIsConnectingSecondary(false);
+    }
+  };
+
+  const handleDeleteSecondaryNumber = async (id: string) => {
+    try {
+      const { error } = await supabase.from("business_phone_numbers").delete().eq("id", id);
+      if (error) throw error;
+      triggerToast("Numéro secondaire supprimé.", "info");
+      fetchWhatsAppConfig();
+    } catch (err: any) {
+      triggerToast(err.message || "Erreur lors de la suppression", "warning");
     }
   };
 
@@ -466,6 +553,74 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
             <span className="font-bold text-encre">Sécurité d’accès</span><br />
             L’API Meta requiert un jeton d’accès permanent stocké de manière isolée pour {ownerName || "Tiedrebeogo Wilfried"}.
           </div>
+        </div>
+
+        {/* Secondary Phone Numbers for Commercial Coexistence Mode */}
+        <div className="pt-4 border-t border-graphite/10 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-encre flex items-center gap-2">
+              <Users className="w-4 h-4 text-bleu" />
+              <span>Numéros Supplémentaires (Commerciales / Coexistence)</span>
+            </h4>
+            <span className="text-[9px] uppercase px-2 py-0.5 rounded-full font-bold bg-bleu/10 text-bleu">
+              Mode Coexistence
+            </span>
+          </div>
+
+          <p className="text-[11px] text-encre/60">
+            Connectez vos numéros de commerciales (WhatsApp Business App existants). Leurs messages s’afficheront dans le SaaS, mais l’agent IA ne répondra pas automatiquement.
+          </p>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Ex: Commerciale 1 (Fatou)"
+              value={newSecondaryLabel}
+              onChange={(e) => setNewSecondaryLabel(e.target.value)}
+              className="flex-1 bg-neige border border-graphite/10 px-3 py-2 rounded-xl text-xs font-medium placeholder:text-encre/30 focus:outline-none"
+            />
+            <button
+              onClick={handleConnectSecondaryWhatsApp}
+              disabled={isConnectingSecondary || !businessId}
+              className="bg-bleu hover:bg-bleu/90 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50"
+            >
+              {isConnectingSecondary ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Plus className="w-3.5 h-3.5" />
+              )}
+              <span>Lier un numéro (Embedded Signup)</span>
+            </button>
+          </div>
+
+          {secondaryNumbers.length > 0 && (
+            <div className="flex flex-col gap-2 mt-1">
+              <span className="text-[10px] font-bold uppercase text-encre/40">Numéros secondaires actifs</span>
+              {secondaryNumbers.map((sec) => (
+                <div key={sec.id} className="flex items-center justify-between bg-neige p-2.5 rounded-xl border border-graphite/10 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-bleu" />
+                    <div>
+                      <span className="font-bold text-encre block">{sec.label || "Commerciale"}</span>
+                      <span className="text-[10px] text-encre/50 font-mono">ID: {sec.phone_number_id}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] bg-menthe/10 text-menthe border border-menthe/20 font-semibold px-2 py-0.5 rounded-full">
+                      Coexistence
+                    </span>
+                    <button
+                      onClick={() => handleDeleteSecondaryNumber(sec.id)}
+                      className="text-red-500 hover:text-red-700 p-1 transition-colors"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

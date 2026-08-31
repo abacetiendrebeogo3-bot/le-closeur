@@ -173,13 +173,13 @@ export async function POST(req: NextRequest) {
       // Resolve businessId and coexistenceMode from instance
       const { data: customPhone } = await supabaseServer
         .from("business_phone_numbers")
-        .select("business_id, coexistence_mode")
-        .eq("whatsapp_phone_number_id", evolutionInstance)
+        .select("business_id, conversation_mode")
+        .eq("phone_number_id", evolutionInstance)
         .maybeSingle();
 
       if (customPhone) {
         businessId = customPhone.business_id;
-        coexistenceMode = !!customPhone.coexistence_mode;
+        coexistenceMode = customPhone.conversation_mode === "human_coexistence";
       } else {
         const { data: bus } = await supabaseServer
           .from("businesses")
@@ -239,13 +239,14 @@ export async function POST(req: NextRequest) {
       if (phoneNumberId) {
         const { data: customPhone } = await supabaseServer
           .from("business_phone_numbers")
-          .select("business_id, coexistence_mode")
-          .eq("whatsapp_phone_number_id", phoneNumberId)
+          .select("business_id, conversation_mode")
+          .eq("phone_number_id", phoneNumberId)
           .maybeSingle();
 
         if (customPhone) {
           businessId = customPhone.business_id;
-          coexistenceMode = !!customPhone.coexistence_mode;
+          coexistenceMode = customPhone.conversation_mode === "human_coexistence";
+          console.log(`Resolved from business_phone_numbers: business_id=${businessId}, conversation_mode=${customPhone.conversation_mode}`);
         } else {
           const { data: bus } = await supabaseServer
             .from("businesses")
@@ -254,6 +255,7 @@ export async function POST(req: NextRequest) {
             .maybeSingle();
           if (bus) {
             businessId = bus.id;
+            console.log(`Resolved from primary businesses table: business_id=${businessId}`);
           }
         }
       }

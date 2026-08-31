@@ -3,7 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, businessId, redirectUri } = await req.json();
+    const { code, businessId, redirectUri, isSecondary, label } = await req.json();
 
     if (!code || !businessId) {
       return NextResponse.json(
@@ -117,21 +117,21 @@ export async function POST(req: NextRequest) {
       .eq("id", businessId)
       .maybeSingle();
 
-    if (currentBus && currentBus.whatsapp_phone_number_id && currentBus.whatsapp_phone_number_id !== phoneNumberId) {
-      // Primary is set to a different ID, store in business_phone_numbers
+    if (isSecondary || (currentBus && currentBus.whatsapp_phone_number_id && currentBus.whatsapp_phone_number_id !== phoneNumberId)) {
+      // Primary is set to a different ID or explicit secondary requested, store in business_phone_numbers
       console.log(`Saving as secondary number in business_phone_numbers for business ${businessId}...`);
-      const cleanPhone = displayPhoneNumber ? displayPhoneNumber.replace(/[^0-9]/g, "") : "";
       
       const { error: dbError } = await supabaseServer
         .from("business_phone_numbers")
         .upsert({
           business_id: businessId,
-          phone_number: cleanPhone || "Secondary",
-          whatsapp_phone_number_id: phoneNumberId,
-          whatsapp_waba_id: wabaId,
-          coexistence_mode: true // Default secondary connected numbers to human coexistence mode
+          phone_number_id: phoneNumberId,
+          waba_id: wabaId,
+          access_token: longLivedToken,
+          conversation_mode: "human_coexistence",
+          label: label || "Commerciale 1"
         }, {
-          onConflict: 'whatsapp_phone_number_id'
+          onConflict: 'phone_number_id'
         });
 
       if (dbError) {

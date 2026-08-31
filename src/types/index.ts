@@ -110,8 +110,10 @@ export interface Debt {
 export interface BusinessPhoneNumber {
   id: string;
   business_id: string;
-  phone_number: string;
-  label: string;
-  coexistence_mode: boolean;
+  phone_number_id: string;
+  waba_id?: string;
+  access_token?: string;
+  conversation_mode?: string;
+  label?: string;
   created_at?: string;
 }

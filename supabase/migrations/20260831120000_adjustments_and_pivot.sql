@@ -59,10 +59,11 @@ CREATE POLICY "Allow debts access by business tenant" ON public.debts
 CREATE TABLE IF NOT EXISTS public.business_phone_numbers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID REFERENCES public.businesses(id) ON DELETE CASCADE NOT NULL,
-    phone_number TEXT NOT NULL,
-    whatsapp_phone_number_id TEXT NOT NULL UNIQUE,
-    whatsapp_waba_id TEXT,
-    coexistence_mode BOOLEAN NOT NULL DEFAULT FALSE,
+    phone_number_id TEXT NOT NULL UNIQUE,
+    waba_id TEXT,
+    access_token TEXT,
+    conversation_mode TEXT DEFAULT 'human_coexistence',
+    label TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

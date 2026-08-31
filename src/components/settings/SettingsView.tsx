@@ -44,6 +44,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   const [secondaryNumbers, setSecondaryNumbers] = useState<BusinessPhoneNumber[]>([]);
   const [newSecondaryLabel, setNewSecondaryLabel] = useState("");
   const [isConnectingSecondary, setIsConnectingSecondary] = useState(false);
+  
+  // Secondary Manual Fallback State
+  const [showManualSecondary, setShowManualSecondary] = useState(false);
+  const [manualSecPhoneId, setManualSecPhoneId] = useState("");
+  const [manualSecWabaId, setManualSecWabaId] = useState("");
+  const [manualSecToken, setManualSecToken] = useState("");
+  const [isSavingManualSec, setIsSavingManualSec] = useState(false);
 
   const fetchWhatsAppConfig = useCallback(async () => {
     if (!businessId) return;
@@ -207,9 +214,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
     setIsConnectingSecondary(true);
 
+    // Timeout safety to reset spinner if popup is blocked or closed without callback
+    const timeoutId = setTimeout(() => {
+      setIsConnectingSecondary((prev) => {
+        if (prev) {
+          triggerToast("Si la fenêtre de connexion Meta ne s'est pas ouverte, vérifiez que votre navigateur autorise les popups ou utilisez l'ajout manuel ci-dessous.", "warning");
+        }
+        return false;
+      });
+    }, 10000);
+
     try {
       window.FB.login(
         async (response: any) => {
+          clearTimeout(timeoutId);
           if (response.authResponse) {
             const code = response.authResponse.code;
             try {
@@ -240,7 +258,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
               setIsConnectingSecondary(false);
             }
           } else {
-            triggerToast("Le processus de connexion Meta a été annulé.", "warning");
+            triggerToast("Le processus de connexion Meta a été annulé ou bloqué par le navigateur.", "warning");
             setIsConnectingSecondary(false);
           }
         },
@@ -252,9 +270,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         }
       );
     } catch (error: any) {
+      clearTimeout(timeoutId);
       console.error("FB.login failed:", error);
       triggerToast("Impossible d'ouvrir la popup de connexion Meta.", "warning");
       setIsConnectingSecondary(false);
+    }
+  };
+
+  const handleSaveManualSecondary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessId) return;
+    if (!manualSecPhoneId.trim()) {
+      triggerToast("Veuillez saisir le Phone Number ID.", "warning");
+      return;
+    }
+
+    setIsSavingManualSec(true);
+    try {
+      const { error } = await supabase
+        .from("business_phone_numbers")
+        .upsert({
+          business_id: businessId,
+          phone_number_id: manualSecPhoneId.trim(),
+          waba_id: manualSecWabaId.trim() || null,
+          access_token: manualSecToken.trim() || null,
+          conversation_mode: "human_coexistence",
+          label: newSecondaryLabel.trim() || "Commerciale 1"
+        }, {
+          onConflict: 'phone_number_id'
+        });
+
+      if (error) throw error;
+
+      triggerToast("Numéro secondaire enregistré avec succès en mode Coexistence !", "success");
+      setManualSecPhoneId("");
+      setManualSecWabaId("");
+      setManualSecToken("");
+      setNewSecondaryLabel("");
+      setShowManualSecondary(false);
+      fetchWhatsAppConfig();
+    } catch (err: any) {
+      console.error("Error saving manual secondary number:", err);
+      triggerToast(err.message || "Erreur lors de l'enregistrement manuel", "warning");
+    } finally {
+      setIsSavingManualSec(false);
     }
   };
 
@@ -601,6 +660,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
               )}
             </button>
           </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowManualSecondary(!showManualSecondary)}
+              className="text-[11px] text-blue-600 hover:underline font-semibold flex items-center gap-1"
+            >
+              {showManualSecondary ? "Masquer la saisie manuelle" : "Ou ajouter directement le Phone Number ID à la main →"}
+            </button>
+          </div>
+
+          {showManualSecondary && (
+            <form onSubmit={handleSaveManualSecondary} className="bg-neige p-3.5 rounded-2xl border border-graphite/10 flex flex-col gap-3">
+              <div className="text-[11px] font-bold text-encre">Ajout manuel d'un numéro secondaire</div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Phone Number ID *</label>
+                <input
+                  type="text"
+                  placeholder="Ex: 109284719283749"
+                  value={manualSecPhoneId}
+                  onChange={(e) => setManualSecPhoneId(e.target.value)}
+                  className="w-full bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">WABA ID (Optionnel)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: 109384729103984"
+                  value={manualSecWabaId}
+                  onChange={(e) => setManualSecWabaId(e.target.value)}
+                  className="w-full bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-bold text-encre/50">Token d'accès (Optionnel)</label>
+                <input
+                  type="password"
+                  placeholder="Jeton d'accès Meta (si spécifique)..."
+                  value={manualSecToken}
+                  onChange={(e) => setManualSecToken(e.target.value)}
+                  className="w-full bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSavingManualSec}
+                className="w-full bg-graphite text-white font-bold py-2 rounded-xl text-xs hover:opacity-90 transition-all flex items-center justify-center gap-2"
+              >
+                {isSavingManualSec ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Enregistrer ce numéro secondaire"}
+              </button>
+            </form>
+          )}
 
           {secondaryNumbers.length > 0 && (
             <div className="flex flex-col gap-2 mt-1">

@@ -75,6 +75,16 @@ ADD COLUMN IF NOT EXISTS access_token TEXT,
 ADD COLUMN IF NOT EXISTS conversation_mode TEXT DEFAULT 'human_coexistence',
 ADD COLUMN IF NOT EXISTS label TEXT;
 
+-- Ensure UNIQUE constraint exists for ON CONFLICT upserts
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'business_phone_numbers_phone_number_id_key'
+    ) THEN
+        ALTER TABLE public.business_phone_numbers ADD CONSTRAINT business_phone_numbers_phone_number_id_key UNIQUE (phone_number_id);
+    END IF;
+END $$;
+
 -- Reload Supabase Schema Cache
 NOTIFY pgrst, 'reload schema';
 

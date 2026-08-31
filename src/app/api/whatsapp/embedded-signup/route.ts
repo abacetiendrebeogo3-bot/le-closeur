@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
         .from("business_phone_numbers")
         .upsert({
           business_id: businessId,
+          phone_number: displayPhoneNumber || phoneNumberId,
           phone_number_id: phoneNumberId,
           waba_id: wabaId,
           access_token: longLivedToken,

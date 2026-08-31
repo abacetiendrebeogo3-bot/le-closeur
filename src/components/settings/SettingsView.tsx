@@ -291,6 +291,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         .from("business_phone_numbers")
         .upsert({
           business_id: businessId,
+          phone_number: manualSecPhoneId.trim(),
           phone_number_id: manualSecPhoneId.trim(),
           waba_id: manualSecWabaId.trim() || null,
           access_token: manualSecToken.trim() || null,

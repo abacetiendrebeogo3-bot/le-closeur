@@ -737,7 +737,29 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                         <ChevronRight className="w-3.5 h-3.5 text-menthe group-hover:scale-110 transition-transform" />
                       )}
                     </div>
-                    <span className="text-[10px] text-encre/40 font-semibold">{activeChat.customerPhone}</span>
+                    <span className="text-[10px] text-encre/40 font-semibold flex items-center gap-2">
+                      {activeChat.customerPhone}
+                      <select
+                        value={activeChat.assignedLabel || "Agent IA"}
+                        onChange={async (e) => {
+                          const newLabel = e.target.value;
+                          try {
+                            const { error } = await supabase.from("conversations").update({ assigned_label: newLabel }).eq("id", activeChat.id);
+                            if (error) throw error;
+                            if (setConversations) {
+                              setConversations(prev => prev.map(c => c.id === activeChat.id ? { ...c, assignedLabel: newLabel } : c));
+                            }
+                            triggerToast(`Attribuée à : ${newLabel}`, "success");
+                          } catch (err: any) {
+                            triggerToast(err.message || "Erreur de réattribution", "warning");
+                          }
+                        }}
+                        className="bg-white border border-graphite/15 px-2 py-0.5 rounded-lg text-[9px] font-bold text-encre cursor-pointer focus:outline-none"
+                      >
+                        <option value="Agent IA">🤖 Agent IA</option>
+                        <option value="Commerciale 1">👤 Commerciale 1</option>
+                      </select>
+                    </span>
                   </div>
                 </div>
                 

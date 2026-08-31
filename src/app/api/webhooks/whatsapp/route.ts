@@ -172,10 +172,11 @@ export async function POST(req: NextRequest) {
       }
 
       // Resolve businessId and coexistenceMode from instance
+      const cleanInstance = String(evolutionInstance).trim();
       const { data: customPhone } = await supabaseServer
         .from("business_phone_numbers")
         .select("business_id, conversation_mode, label")
-        .eq("phone_number_id", evolutionInstance)
+        .or(`phone_number_id.eq.${cleanInstance},whatsapp_phone_number_id.eq.${cleanInstance}`)
         .maybeSingle();
 
       if (customPhone) {
@@ -186,7 +187,7 @@ export async function POST(req: NextRequest) {
         const { data: bus } = await supabaseServer
           .from("businesses")
           .select("id")
-          .eq("whatsapp_phone_number_id", evolutionInstance)
+          .eq("whatsapp_phone_number_id", cleanInstance)
           .maybeSingle();
         if (bus) {
           businessId = bus.id;
@@ -239,10 +240,11 @@ export async function POST(req: NextRequest) {
       // Resolve businessId and coexistenceMode from Meta phone_number_id
       const phoneNumberId = value?.metadata?.phone_number_id;
       if (phoneNumberId) {
+        const cleanPhoneId = String(phoneNumberId).trim();
         const { data: customPhone } = await supabaseServer
           .from("business_phone_numbers")
           .select("business_id, conversation_mode, label")
-          .eq("phone_number_id", phoneNumberId)
+          .or(`phone_number_id.eq.${cleanPhoneId},whatsapp_phone_number_id.eq.${cleanPhoneId}`)
           .maybeSingle();
 
         if (customPhone) {
@@ -254,7 +256,7 @@ export async function POST(req: NextRequest) {
           const { data: bus } = await supabaseServer
             .from("businesses")
             .select("id")
-            .eq("whatsapp_phone_number_id", phoneNumberId)
+            .eq("whatsapp_phone_number_id", cleanPhoneId)
             .maybeSingle();
           if (bus) {
             businessId = bus.id;

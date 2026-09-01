@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Settings, AlertTriangle, Database, CheckCircle2, RefreshCw, Sparkles, Phone, Plus, Trash2, Users } from "lucide-react";
 import { supabase } from "../../lib/supabase/client";
 import { BusinessPhoneNumber } from "../../types";
@@ -52,6 +52,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   const [manualSecToken, setManualSecToken] = useState("");
   const [isSavingManualSec, setIsSavingManualSec] = useState(false);
   const [isSubscribingWebhooks, setIsSubscribingWebhooks] = useState(false);
+
+  const pendingSignupData = useRef<{ waba_id?: string; phone_number_id?: string } | null>(null);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.origin.endsWith("facebook.com")) return;
+      try {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (data?.type === "WA_EMBEDDED_SIGNUP" && data?.event === "FINISH" && data?.data) {
+          pendingSignupData.current = {
+            waba_id: data.data.waba_id,
+            phone_number_id: data.data.phone_number_id,
+          };
+          console.log("Captured WA_EMBEDDED_SIGNUP selection:", pendingSignupData.current);
+        }
+      } catch (e) {
+        // Message non lié à l'Embedded Signup, on ignore
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   const handleSyncWebhooks = async () => {
     setIsSubscribingWebhooks(true);
@@ -175,6 +197,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     }
 
     setIsConnecting(true);
+    pendingSignupData.current = null;
 
     try {
       window.FB.login(
@@ -191,6 +214,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                   code,
                   businessId,
                   redirectUri: window.location.origin + "/",
+                  wabaId: pendingSignupData.current?.waba_id,
+                  phoneNumberId: pendingSignupData.current?.phone_number_id,
                 }),
               });
 
@@ -253,6 +278,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     }, 10000);
 
     try {
+      pendingSignupData.current = null;
       window.FB.login(
         async (response: any) => {
           clearTimeout(timeoutId);
@@ -268,6 +294,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                   redirectUri: window.location.origin + "/",
                   isSecondary: true,
                   label: newSecondaryLabel.trim() || "Commerciale 1",
+                  wabaId: pendingSignupData.current?.waba_id,
+                  phoneNumberId: pendingSignupData.current?.phone_number_id,
                 }),
               });
 

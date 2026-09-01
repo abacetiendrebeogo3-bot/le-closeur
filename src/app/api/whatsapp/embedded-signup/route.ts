@@ -3,7 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, businessId, redirectUri, isSecondary, label } = await req.json();
+    const { code, businessId, redirectUri, isSecondary, label, wabaId: explicitWabaId, phoneNumberId: explicitPhoneNumberId } = await req.json();
 
     if (!code || !businessId) {
       return NextResponse.json(
@@ -83,8 +83,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // On récupère le premier WABA partagé
-    const wabaId = wabaData.data[0].id;
+    // On récupère le premier WABA partagé ou le WABA sélectionné explicitement
+    const wabaId = explicitWabaId || wabaData.data[0].id;
     console.log(`Found WABA ID: ${wabaId}`);
 
     // 3bis. Abonner notre app aux webhooks de ce WABA (indispensable pour recevoir
@@ -125,9 +125,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // On récupère le premier numéro de téléphone disponible
-    const phoneNumberId = phoneData.data[0].id;
-    const displayPhoneNumber = phoneData.data[0].display_phone_number;
+    // On récupère le numéro de téléphone sélectionné explicitement ou le premier disponible
+    const phoneNumberId = explicitPhoneNumberId || phoneData.data[0].id;
+    const matchedPhoneEntry = phoneData.data.find((p: any) => p.id === phoneNumberId) || phoneData.data[0];
+    const displayPhoneNumber = matchedPhoneEntry.display_phone_number;
     console.log(`Found Phone Number ID: ${phoneNumberId} (${displayPhoneNumber})`);
 
     // 5. Stocker ces informations dans Supabase liées au businessId

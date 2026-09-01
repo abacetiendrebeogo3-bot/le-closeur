@@ -713,7 +713,22 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
               );
             })
           ) : (
-            <div className="p-8 text-center text-xs text-encre/40 italic">Aucune discussion trouvée.</div>
+            <div className="p-6 text-center text-xs text-encre/60 flex flex-col gap-2 items-center">
+              <span className="font-bold text-encre/70">Aucune discussion sous &quot;{channelFilter}&quot;</span>
+              <p className="text-[11px] text-encre/40 max-w-xs">
+                {channelFilter === "all"
+                  ? "Aucun message reçu pour le moment."
+                  : "Aucune conversation n'est attribuée à ce compte. Cliquez sur 'Tous' pour voir vos conversations actuelles et les attribuer à ce numéro."}
+              </p>
+              {channelFilter !== "all" && (
+                <button
+                  onClick={() => setChannelFilter("all")}
+                  className="mt-1 px-3.5 py-1.5 bg-graphite text-white text-[10px] font-bold rounded-xl hover:opacity-90 transition-all shadow-xs"
+                >
+                  Afficher toutes les conversations ({conversations.length})
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

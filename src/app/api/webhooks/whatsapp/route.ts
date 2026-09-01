@@ -237,14 +237,16 @@ export async function POST(req: NextRequest) {
         imageId = messageObject.image?.id;
       }
 
-      // Resolve businessId and coexistenceMode from Meta phone_number_id
+      // Resolve businessId and coexistenceMode from Meta phone_number_id or display_phone_number
       const phoneNumberId = value?.metadata?.phone_number_id;
-      if (phoneNumberId) {
-        const cleanPhoneId = String(phoneNumberId).trim();
+      const displayPhone = value?.metadata?.display_phone_number?.replace(/[^0-9]/g, "");
+
+      if (phoneNumberId || displayPhone) {
+        const cleanPhoneId = String(phoneNumberId || "").trim();
         const { data: customPhone } = await supabaseServer
           .from("business_phone_numbers")
-          .select("business_id, conversation_mode, label")
-          .or(`phone_number_id.eq.${cleanPhoneId},whatsapp_phone_number_id.eq.${cleanPhoneId}`)
+          .select("business_id, conversation_mode, label, phone_number_id, phone_number")
+          .or(`phone_number_id.eq.${cleanPhoneId},whatsapp_phone_number_id.eq.${cleanPhoneId},phone_number.eq.${cleanPhoneId}${displayPhone ? `,phone_number.eq.${displayPhone}` : ""}`)
           .maybeSingle();
 
         if (customPhone) {
@@ -253,14 +255,36 @@ export async function POST(req: NextRequest) {
           assignedLabel = customPhone.label || "Commerciale 1";
           console.log(`Resolved from business_phone_numbers: business_id=${businessId}, label=${assignedLabel}`);
         } else {
-          const { data: bus } = await supabaseServer
-            .from("businesses")
-            .select("id")
-            .eq("whatsapp_phone_number_id", cleanPhoneId)
-            .maybeSingle();
-          if (bus) {
-            businessId = bus.id;
-            console.log(`Resolved from primary businesses table: business_id=${businessId}`);
+          // Fallback search across all registered secondary numbers
+          const { data: allSecs } = await supabaseServer
+            .from("business_phone_numbers")
+            .select("business_id, conversation_mode, label, phone_number_id, phone_number");
+
+          if (allSecs && allSecs.length > 0) {
+            const matched = allSecs.find((sec: any) => {
+              const secId = String(sec.phone_number_id || "").trim();
+              const secNum = String(sec.phone_number || "").replace(/[^0-9]/g, "");
+              return (cleanPhoneId && secId === cleanPhoneId) || (displayPhone && secNum.length > 5 && (secNum.includes(displayPhone) || displayPhone.includes(secNum)));
+            });
+
+            if (matched) {
+              businessId = matched.business_id;
+              coexistenceMode = matched.conversation_mode === "human_coexistence";
+              assignedLabel = matched.label || "Commerciale 1";
+              console.log(`Resolved from fallback search: business_id=${businessId}, label=${assignedLabel}`);
+            }
+          }
+
+          if (!assignedLabel || assignedLabel === "Agent IA") {
+            const { data: bus } = await supabaseServer
+              .from("businesses")
+              .select("id")
+              .eq("whatsapp_phone_number_id", cleanPhoneId)
+              .maybeSingle();
+            if (bus) {
+              businessId = bus.id;
+              console.log(`Resolved from primary businesses table: business_id=${businessId}`);
+            }
           }
         }
       }

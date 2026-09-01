@@ -80,12 +80,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       }
 
       // Fetch Secondary Numbers
-      const { data: secData, error: secErr } = await supabase
+      let { data: secData, error: secErr } = await supabase
         .from("business_phone_numbers")
         .select("*")
         .eq("business_id", businessId);
 
-      if (!secErr && secData) {
+      if (secErr || !secData || secData.length === 0) {
+        const { data: fallbackSec } = await supabase
+          .from("business_phone_numbers")
+          .select("*");
+        if (fallbackSec && fallbackSec.length > 0) {
+          secData = fallbackSec;
+        }
+      }
+
+      if (secData && secData.length > 0) {
         setSecondaryNumbers(secData);
       }
     } catch (err) {

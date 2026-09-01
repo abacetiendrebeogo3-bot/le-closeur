@@ -199,43 +199,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     setIsConnecting(true);
     pendingSignupData.current = null;
 
+    const processLoginResponse = async (response: any) => {
+      if (response.authResponse) {
+        const code = response.authResponse.code;
+        try {
+          const res = await fetch("/api/whatsapp/embedded-signup", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              code,
+              businessId,
+              redirectUri: window.location.origin + "/",
+              wabaId: pendingSignupData.current?.waba_id,
+              phoneNumberId: pendingSignupData.current?.phone_number_id,
+            }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Échec de l'intégration WhatsApp.");
+          }
+
+          triggerToast(`WhatsApp connecté avec succès ! Numéro : ${data.displayPhoneNumber || ""}`, "success");
+          fetchWhatsAppConfig();
+        } catch (err: any) {
+          console.error("Error in exchange:", err);
+          triggerToast(err.message || "Erreur de connexion WhatsApp", "warning");
+        } finally {
+          setIsConnecting(false);
+        }
+      } else {
+        triggerToast("Le processus de connexion Meta a été annulé.", "warning");
+        setIsConnecting(false);
+      }
+    };
+
     try {
       window.FB.login(
-        async (response: any) => {
-          if (response.authResponse) {
-            const code = response.authResponse.code;
-            try {
-              const res = await fetch("/api/whatsapp/embedded-signup", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  code,
-                  businessId,
-                  redirectUri: window.location.origin + "/",
-                  wabaId: pendingSignupData.current?.waba_id,
-                  phoneNumberId: pendingSignupData.current?.phone_number_id,
-                }),
-              });
-
-              const data = await res.json();
-              if (!res.ok) {
-                throw new Error(data.error || "Échec de l'intégration WhatsApp.");
-              }
-
-              triggerToast(`WhatsApp connecté avec succès ! Numéro : ${data.displayPhoneNumber || ""}`, "success");
-              fetchWhatsAppConfig();
-            } catch (err: any) {
-              console.error("Error in exchange:", err);
-              triggerToast(err.message || "Erreur de connexion WhatsApp", "warning");
-            } finally {
-              setIsConnecting(false);
-            }
-          } else {
-            triggerToast("Le processus de connexion Meta a été annulé.", "warning");
-            setIsConnecting(false);
-          }
+        (response: any) => {
+          processLoginResponse(response);
         },
         {
           config_id: configId,
@@ -277,46 +281,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       });
     }, 10000);
 
+    const processSecondaryLoginResponse = async (response: any) => {
+      clearTimeout(timeoutId);
+      if (response.authResponse) {
+        const code = response.authResponse.code;
+        try {
+          const res = await fetch("/api/whatsapp/embedded-signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              code,
+              businessId,
+              redirectUri: window.location.origin + "/",
+              isSecondary: true,
+              label: newSecondaryLabel.trim() || "Commerciale 1",
+              wabaId: pendingSignupData.current?.waba_id,
+              phoneNumberId: pendingSignupData.current?.phone_number_id,
+            }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Échec de l'intégration du numéro secondaire.");
+          }
+
+          triggerToast(`Numéro secondaire (${data.displayPhoneNumber || ""}) connecté en mode Coexistence !`, "success");
+          setNewSecondaryLabel("");
+          fetchWhatsAppConfig();
+        } catch (err: any) {
+          console.error("Error in secondary exchange:", err);
+          triggerToast(err.message || "Erreur de connexion WhatsApp secondaire", "warning");
+        } finally {
+          setIsConnectingSecondary(false);
+        }
+      } else {
+        triggerToast("Le processus de connexion Meta a été annulé ou bloqué par le navigateur.", "warning");
+        setIsConnectingSecondary(false);
+      }
+    };
+
     try {
       pendingSignupData.current = null;
       window.FB.login(
-        async (response: any) => {
-          clearTimeout(timeoutId);
-          if (response.authResponse) {
-            const code = response.authResponse.code;
-            try {
-              const res = await fetch("/api/whatsapp/embedded-signup", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  code,
-                  businessId,
-                  redirectUri: window.location.origin + "/",
-                  isSecondary: true,
-                  label: newSecondaryLabel.trim() || "Commerciale 1",
-                  wabaId: pendingSignupData.current?.waba_id,
-                  phoneNumberId: pendingSignupData.current?.phone_number_id,
-                }),
-              });
-
-              const data = await res.json();
-              if (!res.ok) {
-                throw new Error(data.error || "Échec de l'intégration du numéro secondaire.");
-              }
-
-              triggerToast(`Numéro secondaire (${data.displayPhoneNumber || ""}) connecté en mode Coexistence !`, "success");
-              setNewSecondaryLabel("");
-              fetchWhatsAppConfig();
-            } catch (err: any) {
-              console.error("Error in secondary exchange:", err);
-              triggerToast(err.message || "Erreur de connexion WhatsApp secondaire", "warning");
-            } finally {
-              setIsConnectingSecondary(false);
-            }
-          } else {
-            triggerToast("Le processus de connexion Meta a été annulé ou bloqué par le navigateur.", "warning");
-            setIsConnectingSecondary(false);
-          }
+        (response: any) => {
+          processSecondaryLoginResponse(response);
         },
         {
           config_id: configId,

@@ -9,10 +9,29 @@ interface Credentials {
 /**
  * Fetch WhatsApp credentials dynamically from DB or environment variables.
  */
-async function getCredentials(businessId?: string): Promise<Credentials> {
+async function getCredentials(businessId?: string, targetPhoneIdOrLabel?: string): Promise<Credentials> {
   let token = process.env.WHATSAPP_ACCESS_TOKEN || "";
   let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
   let wabaId = "";
+
+  if (targetPhoneIdOrLabel) {
+    try {
+      const { data: customPhone } = await supabaseServer
+        .from("business_phone_numbers")
+        .select("access_token, phone_number_id, waba_id")
+        .or(`phone_number_id.eq.${targetPhoneIdOrLabel},label.eq.${targetPhoneIdOrLabel}`)
+        .maybeSingle();
+
+      if (customPhone) {
+        if (customPhone.access_token) token = customPhone.access_token;
+        if (customPhone.phone_number_id) phoneNumberId = customPhone.phone_number_id;
+        if (customPhone.waba_id) wabaId = customPhone.waba_id;
+        return { token, phoneNumberId, wabaId };
+      }
+    } catch (err) {
+      console.error("Error fetching secondary credentials:", err);
+    }
+  }
 
   if (businessId) {
     try {

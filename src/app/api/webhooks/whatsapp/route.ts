@@ -456,13 +456,14 @@ export async function POST(req: NextRequest) {
 
         if (!conversation) {
           const avatarLetters = contactName.substring(0, 2).toUpperCase();
+          const initialStatus = coexistenceMode ? "human_takeover" : "ai_active";
           const { data: newConv, error: createConvErr } = await supabaseServer
             .from("conversations")
             .insert({
               business_id: businessId,
               customer_name: contactName,
               customer_phone: customerPhone,
-              status: "ai_active",
+              status: initialStatus,
               avatar: avatarLetters,
               unread: true,
               assigned_label: assignedLabel,

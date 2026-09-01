@@ -554,6 +554,8 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       matchesChannel = label === "Agent IA" || label.toLowerCase().includes("agent");
     } else if (channelFilter === "commercial") {
       matchesChannel = label !== "Agent IA" && !label.toLowerCase().includes("agent");
+    } else if (channelFilter !== "all") {
+      matchesChannel = label === channelFilter;
     }
 
     return matchesSearch && matchesEngagement && matchesChannel;
@@ -565,32 +567,35 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
       {/* Left sidebar: ConversationList */}
       <div className={`w-full lg:w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shrink-0 shadow-sm ${activeChatId !== null ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 border-b border-graphite/10 flex flex-col gap-2">
-          {/* Channel Filter Tabs */}
-          <div className="flex bg-neige p-1 rounded-xl gap-1 mb-1">
+          {/* Dynamic Per-Account Channel Filter Tabs */}
+          <div className="flex bg-neige p-1 rounded-xl gap-1 mb-1 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setChannelFilter("all")}
-              className={`flex-1 text-center py-1 text-[10px] font-bold rounded-lg transition-all ${
+              className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all shrink-0 ${
                 channelFilter === "all" ? "bg-white text-encre shadow-xs" : "text-encre/50 hover:text-encre"
               }`}
             >
-              Tous
+              Tous ({conversations.length})
             </button>
-            <button
-              onClick={() => setChannelFilter("agent")}
-              className={`flex-1 text-center py-1 text-[10px] font-bold rounded-lg transition-all ${
-                channelFilter === "agent" ? "bg-purple-600 text-white shadow-xs" : "text-encre/50 hover:text-encre"
-              }`}
-            >
-              🤖 Agent IA
-            </button>
-            <button
-              onClick={() => setChannelFilter("commercial")}
-              className={`flex-1 text-center py-1 text-[10px] font-bold rounded-lg transition-all ${
-                channelFilter === "commercial" ? "bg-blue-600 text-white shadow-xs" : "text-encre/50 hover:text-encre"
-              }`}
-            >
-              👤 Commerciales
-            </button>
+            {availableLabels.map(lbl => {
+              const isAgent = lbl.toLowerCase().includes("agent");
+              const count = conversations.filter(c => (c.assignedLabel || "Agent IA") === lbl).length;
+              const active = channelFilter === lbl;
+              return (
+                <button
+                  key={lbl}
+                  onClick={() => setChannelFilter(lbl)}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all shrink-0 flex items-center gap-1 ${
+                    active
+                      ? isAgent ? "bg-purple-600 text-white shadow-xs" : "bg-blue-600 text-white shadow-xs"
+                      : "text-encre/50 hover:text-encre"
+                  }`}
+                >
+                  <span>{isAgent ? "🤖" : "👤"}</span>
+                  <span>{lbl} ({count})</span>
+                </button>
+              );
+            })}
           </div>
 
           <input 
@@ -787,16 +792,16 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                   {activeChat.status === "human_takeover" ? (
                     <button 
                       onClick={toggleTakeover} 
-                      className="magnetic-btn px-4 py-1.5 rounded-xl bg-menthe/10 hover:bg-menthe/20 text-menthe text-[10px] font-bold border border-menthe/20 shadow-sm transition-all"
+                      className="magnetic-btn px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold shadow-sm transition-all flex items-center gap-1.5"
                     >
-                      Repasser en mode IA
+                      <span>🤖 Activer l&apos;IA pour cette discussion</span>
                     </button>
                   ) : (
                     <button 
                       onClick={toggleTakeover} 
-                      className="magnetic-btn px-4 py-1.5 rounded-xl bg-white border border-graphite/20 hover:border-menthe text-[10px] font-bold shadow-sm transition-all"
+                      className="magnetic-btn px-3.5 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-[10px] font-bold shadow-sm transition-all flex items-center gap-1.5"
                     >
-                      Prendre la main
+                      <span>👤 Prendre la main (Désactiver l&apos;IA)</span>
                     </button>
                   )}
                 </div>

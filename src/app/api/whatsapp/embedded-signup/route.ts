@@ -87,6 +87,27 @@ export async function POST(req: NextRequest) {
     const wabaId = wabaData.data[0].id;
     console.log(`Found WABA ID: ${wabaId}`);
 
+    // 3bis. Abonner notre app aux webhooks de ce WABA (indispensable pour recevoir
+    // les messages entrants de ce numéro, notamment pour les numéros secondaires
+    // en mode Coexistence — sans cet appel, Meta n'envoie jamais les événements
+    // de ce WABA vers notre endpoint webhook).
+    console.log(`Subscribing app to webhooks for WABA ${wabaId}...`);
+    const subscribeRes = await fetch(
+      `https://graph.facebook.com/v19.0/${wabaId}/subscribed_apps`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${longLivedToken}`,
+        },
+      }
+    );
+    const subscribeData = await subscribeRes.json();
+    if (!subscribeRes.ok || !subscribeData.success) {
+      console.error(`Failed to subscribe app to WABA ${wabaId} webhooks:`, subscribeData);
+    } else {
+      console.log(`App successfully subscribed to WABA ${wabaId} webhooks.`);
+    }
+
     // 4. Récupérer le Phone Number ID associé à ce WABA
     console.log(`Retrieving phone numbers for WABA ${wabaId}...`);
     const phoneRes = await fetch(`https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`, {

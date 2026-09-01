@@ -288,7 +288,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
 
   const handleSaveManualSecondary = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!businessId) return;
+    const activeBusId = businessId || "00000000-0000-0000-0000-000000000001";
     if (!manualSecPhoneId.trim()) {
       triggerToast("Veuillez saisir le Phone Number ID.", "warning");
       return;
@@ -300,7 +300,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       const { data: savedData, error } = await supabase
         .from("business_phone_numbers")
         .upsert({
-          business_id: businessId,
+          business_id: activeBusId,
           phone_number: manualSecPhoneId.trim(),
           phone_number_id: manualSecPhoneId.trim(),
           whatsapp_phone_number_id: manualSecPhoneId.trim(),
@@ -677,14 +677,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-encre/60">Nom de la commerciale / Libellé *</label>
+              <label className="text-[10px] uppercase font-bold text-encre/60">Nom de la commerciale / Libellé (Optionnel)</label>
               <input
                 type="text"
                 placeholder="Ex: Yasmine ou Commerciale 2"
                 value={newSecondaryLabel}
                 onChange={(e) => setNewSecondaryLabel(e.target.value)}
                 className="w-full bg-white border border-graphite/10 px-3.5 py-2 rounded-xl text-xs font-medium placeholder:text-encre/30 focus:outline-none"
-                required
               />
             </div>
 

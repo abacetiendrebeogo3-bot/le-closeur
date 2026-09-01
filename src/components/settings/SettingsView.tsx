@@ -51,6 +51,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   const [manualSecWabaId, setManualSecWabaId] = useState("");
   const [manualSecToken, setManualSecToken] = useState("");
   const [isSavingManualSec, setIsSavingManualSec] = useState(false);
+  const [isSubscribingWebhooks, setIsSubscribingWebhooks] = useState(false);
+
+  const handleSyncWebhooks = async () => {
+    setIsSubscribingWebhooks(true);
+    try {
+      const res = await fetch("/api/whatsapp/subscribe-webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur de souscription");
+      triggerToast("Abonnement Webhook souscrit avec succès auprès de Meta pour tous vos numéros !", "success");
+    } catch (err: any) {
+      triggerToast(err.message || "Erreur de souscription Webhook", "warning");
+    } finally {
+      setIsSubscribingWebhooks(false);
+    }
+  };
 
   const fetchWhatsAppConfig = useCallback(async () => {
     if (!businessId) return;
@@ -662,6 +681,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
           <p className="text-[11px] text-encre/60">
             Connectez vos numéros de commerciales (WhatsApp Business App existants). Leurs messages s’afficheront dans le SaaS, mais l’agent IA ne répondra pas automatiquement.
           </p>
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleSyncWebhooks}
+              disabled={isSubscribingWebhooks}
+              className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1.5 transition-all"
+            >
+              {isSubscribingWebhooks ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "🔔 Activer la réception des Webhooks (Souscrire Meta)"}
+            </button>
+          </div>
 
           <form onSubmit={handleSaveManualSecondary} className="bg-neige p-4 rounded-2xl border border-graphite/10 flex flex-col gap-3">
             <div className="text-[11px] font-bold text-encre flex items-center justify-between">

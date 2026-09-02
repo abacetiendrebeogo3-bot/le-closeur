@@ -24,12 +24,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Échanger le code contre un token d'accès utilisateur (court terme)
+    // Pas de redirect_uri ici : avec le flow popup du SDK JS, aucune vraie
+    // redirection HTTP n'a eu lieu, donc envoyer ce paramètre fait échouer
+    // la validation du code côté Meta.
     const tokenExchangeUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
     tokenExchangeUrl.searchParams.set("client_id", appId);
     tokenExchangeUrl.searchParams.set("client_secret", appSecret);
     tokenExchangeUrl.searchParams.set("code", code);
-    // Le redirectUri de la popup ou de l'origine
-    tokenExchangeUrl.searchParams.set("redirect_uri", redirectUri || "");
 
     console.log("Exchanging auth code for user access token...");
     const tokenRes = await fetch(tokenExchangeUrl.toString());

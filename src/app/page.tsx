@@ -228,6 +228,27 @@ export default function Home() {
     };
 
     fetchSupabaseData();
+
+    // Supabase Realtime Listener for Instant Message Delivery
+    const channel = supabase
+      .channel("realtime-conversations-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
+        fetchSupabaseData();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
+        fetchSupabaseData();
+      })
+      .subscribe();
+
+    // 5-second Fallback Polling
+    const interval = setInterval(() => {
+      fetchSupabaseData();
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, [businessId]);
 
   // FORM STATES

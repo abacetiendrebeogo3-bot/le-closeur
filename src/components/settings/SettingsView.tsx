@@ -53,10 +53,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   const [isSavingManualSec, setIsSavingManualSec] = useState(false);
   const [isSubscribingWebhooks, setIsSubscribingWebhooks] = useState(false);
   
-  // Evolution QR Code State
+  // Evolution QR Code & Pairing Code State
   const [isGeneratingQR, setIsGeneratingQR] = useState(false);
-  const [evolutionQRModal, setEvolutionQRModal] = useState<{ open: boolean; instanceName: string; qrcode: string; label: string } | null>(null);
+  const [evolutionQRModal, setEvolutionQRModal] = useState<{ open: boolean; instanceName: string; qrcode: string; pairingCode: string; label: string } | null>(null);
   const [qrStatusText, setQrStatusText] = useState("En attente du scan...");
+  const [connectTabMode, setConnectTabMode] = useState<"pairing" | "qr">("pairing");
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [isRequestingPairing, setIsRequestingPairing] = useState(false);
 
   const handleGenerateEvolutionQR = async () => {
     if (!businessId) {
@@ -64,14 +67,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       return;
     }
     setIsGeneratingQR(true);
-    setQrStatusText("En attente du scan...");
+    setQrStatusText("En attente de connexion...");
     try {
       const res = await fetch("/api/whatsapp/evolution/create-instance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           businessId,
-          label: newSecondaryLabel.trim() || `Commerciale ${secondaryNumbers.length + 1}`
+          label: newSecondaryLabel.trim() || `Commerciale ${secondaryNumbers.length + 1}`,
+          phoneNumber: pairingPhone.trim()
         })
       });
       const data = await res.json();
@@ -82,14 +86,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         open: true,
         instanceName: data.instanceName,
         qrcode: data.qrcode,
+        pairingCode: data.pairingCode,
         label: data.label
       });
-      triggerToast(`QR Code généré pour ${data.label} ! Scannez-le avec WhatsApp Business.`, "success");
+      triggerToast(`Instance créée pour ${data.label} !`, "success");
       fetchWhatsAppConfig();
     } catch (err: any) {
       triggerToast(err.message || "Erreur de génération QR Code", "warning");
     } finally {
       setIsGeneratingQR(false);
+    }
+  };
+
+  const handleFetchPairingCode = async () => {
+    if (!evolutionQRModal?.instanceName || !pairingPhone.trim()) {
+      triggerToast("Veuillez saisir votre numéro de téléphone WhatsApp.", "warning");
+      return;
+    }
+    setIsRequestingPairing(true);
+    try {
+      const res = await fetch(`/api/whatsapp/evolution/refresh-qr?instanceName=${evolutionQRModal.instanceName}&phoneNumber=${pairingPhone.trim()}`);
+      const data = await res.json();
+      if (data.pairingCode) {
+        setEvolutionQRModal(prev => prev ? { ...prev, pairingCode: data.pairingCode, qrcode: data.qrcode || prev.qrcode } : null);
+        triggerToast("Code à 8 chiffres généré avec succès !", "success");
+      } else {
+        triggerToast("Impossible d'obtenir le code à 8 chiffres pour ce numéro.", "warning");
+      }
+    } catch (err) {
+      triggerToast("Erreur d'obtention du code à 8 chiffres", "warning");
+    } finally {
+      setIsRequestingPairing(false);
+    }
+  };
+
+  const refreshQRCode = async () => {
+    if (!evolutionQRModal?.instanceName) return;
+    try {
+      const res = await fetch(`/api/whatsapp/evolution/refresh-qr?instanceName=${evolutionQRModal.instanceName}&phoneNumber=${pairingPhone.trim()}`);
+      const data = await res.json();
+      if (data.qrcode || data.pairingCode) {
+        setEvolutionQRModal(prev => prev ? {
+          ...prev,
+          qrcode: data.qrcode || prev.qrcode,
+          pairingCode: data.pairingCode || prev.pairingCode
+        } : null);
+      }
+    } catch (err) {
+      console.error("Error refreshing QR:", err);
     }
   };
 
@@ -100,7 +144,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       const data = await res.json();
       if (data.connected) {
         setQrStatusText("🟢 Connecté avec succès !");
-        triggerToast("Félicitations ! Le compte WhatsApp est maintenant connecté.", "success");
+        triggerToast("Félicitations ! Le compte WhatsApp est connecté.", "success");
         setTimeout(() => {
           setEvolutionQRModal(null);
         }, 2000);
@@ -1021,32 +1065,117 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         </button>
       </div>
 
-      {/* Evolution QR Code Modal Overlay */}
+      {/* Evolution Connection Modal Overlay (Pairing Code & QR Code) */}
       {evolutionQRModal && evolutionQRModal.open && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full border border-graphite/10 shadow-2xl flex flex-col items-center text-center gap-4 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-[2rem] p-6 max-w-md w-full border border-graphite/10 shadow-2xl flex flex-col items-center text-center gap-4 animate-in fade-in zoom-in duration-200">
             <div className="w-12 h-12 rounded-full bg-menthe/10 text-menthe flex items-center justify-center font-bold text-xl">
               📲
             </div>
             
             <div>
-              <h3 className="text-sm font-bold text-encre">Scanner avec WhatsApp Business</h3>
+              <h3 className="text-sm font-bold text-encre">Connecter le WhatsApp de {evolutionQRModal.label}</h3>
               <p className="text-[11px] text-encre/60 mt-1">
-                Ouvrez WhatsApp sur le téléphone de <strong>{evolutionQRModal.label}</strong> &gt; Appareils connectés &gt; Connecter un appareil.
+                Choisissez la méthode de connexion ci-dessous :
               </p>
             </div>
 
-            {evolutionQRModal.qrcode ? (
-              <div className="p-3 bg-white border border-graphite/15 rounded-2xl shadow-inner flex flex-col items-center">
-                <img
-                  src={evolutionQRModal.qrcode.startsWith("data:") ? evolutionQRModal.qrcode : `data:image/png;base64,${evolutionQRModal.qrcode}`}
-                  alt="QR Code WhatsApp"
-                  className="w-56 h-56 object-contain"
-                />
+            {/* Mode Switcher Tabs */}
+            <div className="flex bg-neige p-1 rounded-xl w-full gap-1">
+              <button
+                type="button"
+                onClick={() => setConnectTabMode("pairing")}
+                className={`flex-1 text-center py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                  connectTabMode === "pairing" ? "bg-white text-encre shadow-xs" : "text-encre/50 hover:text-encre"
+                }`}
+              >
+                🔢 Code à 8 chiffres (Fiable)
+              </button>
+              <button
+                type="button"
+                onClick={() => setConnectTabMode("qr")}
+                className={`flex-1 text-center py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                  connectTabMode === "qr" ? "bg-white text-encre shadow-xs" : "text-encre/50 hover:text-encre"
+                }`}
+              >
+                📷 Scan QR Code
+              </button>
+            </div>
+
+            {/* TAB 1: PAIRING CODE (8 DIGITS) */}
+            {connectTabMode === "pairing" && (
+              <div className="w-full bg-neige/50 border border-graphite/10 p-4 rounded-2xl flex flex-col gap-3">
+                <div className="text-[11px] text-left text-encre/70 space-y-1">
+                  <p className="font-bold text-encre">Étape 1 : Saisissez le numéro de la commerciale</p>
+                  <p className="text-[10px] text-encre/50">WhatsApp &gt; Appareils connectés &gt; Connecter un appareil &gt; <em>Lier avec un numéro de téléphone à la place</em>.</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Numéro WhatsApp (Ex: 221771234567)"
+                    value={pairingPhone}
+                    onChange={(e) => setPairingPhone(e.target.value)}
+                    className="flex-1 bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleFetchPairingCode}
+                    disabled={isRequestingPairing || !pairingPhone.trim()}
+                    className="bg-menthe hover:bg-menthe/90 text-white font-bold px-3 py-2 rounded-xl text-xs shrink-0 transition-all cursor-pointer"
+                  >
+                    {isRequestingPairing ? "Génération..." : "Obtenir Code"}
+                  </button>
+                </div>
+
+                {evolutionQRModal.pairingCode ? (
+                  <div className="mt-2 bg-white border-2 border-menthe p-3 rounded-2xl flex flex-col items-center gap-1 shadow-sm">
+                    <span className="text-[9px] uppercase font-bold text-menthe tracking-wider">Votre Code de couplage WhatsApp :</span>
+                    <span className="text-2xl font-mono font-extrabold text-encre tracking-widest selection:bg-menthe selection:text-white">
+                      {evolutionQRModal.pairingCode}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(evolutionQRModal.pairingCode);
+                        triggerToast("Code copié dans le presse-papier !", "success");
+                      }}
+                      className="text-[10px] font-bold text-blue-600 hover:underline mt-1"
+                    >
+                      Copier le code
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-encre/40 italic">Entrez le numéro ci-dessus et cliquez sur "Obtenir Code".</p>
+                )}
               </div>
-            ) : (
-              <div className="w-56 h-56 bg-neige rounded-2xl flex items-center justify-center text-xs text-encre/40">
-                <RefreshCw className="w-6 h-6 animate-spin text-menthe" />
+            )}
+
+            {/* TAB 2: QR CODE SCAN */}
+            {connectTabMode === "qr" && (
+              <div className="w-full flex flex-col items-center gap-2">
+                {evolutionQRModal.qrcode ? (
+                  <div className="p-3 bg-white border border-graphite/15 rounded-2xl shadow-inner flex flex-col items-center relative">
+                    <img
+                      src={evolutionQRModal.qrcode.startsWith("data:") ? evolutionQRModal.qrcode : `data:image/png;base64,${evolutionQRModal.qrcode}`}
+                      alt="QR Code WhatsApp"
+                      className="w-52 h-52 object-contain"
+                    />
+                    <button
+                      type="button"
+                      onClick={refreshQRCode}
+                      className="mt-2 text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Rafraîchir le QR Code</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-52 h-52 bg-neige rounded-2xl flex flex-col items-center justify-center text-xs text-encre/40 gap-2">
+                    <RefreshCw className="w-6 h-6 animate-spin text-menthe" />
+                    <span>Chargement QR Code...</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1058,9 +1187,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
               <button
                 type="button"
                 onClick={checkQRStatus}
-                className="flex-1 bg-menthe hover:bg-menthe/90 text-white font-bold py-2 rounded-xl text-xs transition-all cursor-pointer"
+                className="flex-1 bg-menthe hover:bg-menthe/90 text-white font-bold py-2 rounded-xl text-xs transition-all cursor-pointer shadow-xs"
               >
-                Vérifier connexion
+                Vérifier la connexion
               </button>
               <button
                 type="button"

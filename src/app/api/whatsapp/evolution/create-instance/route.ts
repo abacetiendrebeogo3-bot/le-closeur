@@ -3,7 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { businessId, label } = await req.json();
+    const { businessId, label, phoneNumber } = await req.json();
 
     const cleanLabel = (label || "Commerciale 1").trim();
     const sanitizedLabel = cleanLabel.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -29,13 +29,6 @@ export async function POST(req: NextRequest) {
     });
 
     const createData = await createRes.json();
-    if (!createRes.ok && !createData.instance) {
-      console.error("Failed to create Evolution instance:", createData);
-      return NextResponse.json(
-        { error: "Échec de création de l'instance Evolution API", details: createData },
-        { status: 400 }
-      );
-    }
 
     // 2. Configure Webhooks for this instance
     const origin = req.headers.get("origin") || req.nextUrl.origin || "https://le-closeur.vercel.app";
@@ -61,23 +54,29 @@ export async function POST(req: NextRequest) {
           ]
         })
       });
-      console.log(`Webhook configured for instance ${instanceName}: ${webhookUrl}`);
     } catch (whErr) {
       console.warn("Failed to set webhook on instance:", whErr);
     }
 
-    // 3. Connect & Fetch QR Code
+    // 3. Connect & Fetch fresh QR Code or Pairing Code
     let qrcodeBase64 = "";
+    let pairingCode = "";
+
+    const cleanPhone = phoneNumber ? String(phoneNumber).replace(/[^0-9]/g, "") : "";
+    const connectPath = cleanPhone ? `/instance/connect/${instanceName}?number=${cleanPhone}` : `/instance/connect/${instanceName}`;
+
     try {
-      const connectRes = await fetch(`${apiUrl}/instance/connect/${instanceName}`, {
+      const connectRes = await fetch(`${apiUrl}${connectPath}`, {
         method: "GET",
         headers: { "apikey": apiKey }
       });
       const connectData = await connectRes.json();
       qrcodeBase64 = connectData.base64 || connectData.qrcode?.base64 || createData.qrcode?.base64 || "";
+      pairingCode = connectData.pairingCode || createData.qrcode?.pairingCode || "";
     } catch (qrErr) {
-      console.warn("Failed to fetch QR code from connect endpoint:", qrErr);
+      console.warn("Failed to fetch QR code or pairing code from connect endpoint:", qrErr);
       qrcodeBase64 = createData.qrcode?.base64 || "";
+      pairingCode = createData.qrcode?.pairingCode || "";
     }
 
     // 4. Save to business_phone_numbers DB table
@@ -104,6 +103,7 @@ export async function POST(req: NextRequest) {
       success: true,
       instanceName,
       qrcode: qrcodeBase64,
+      pairingCode,
       label: cleanLabel,
       record: newSec
     });

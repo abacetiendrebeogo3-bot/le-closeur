@@ -144,38 +144,50 @@ export async function POST(req: NextRequest) {
     let assignedLabel = "Agent IA";
 
     if (isEvolution) {
-      const msgData = payload.data;
-      if (payload.event !== "messages.upsert" || !msgData?.key) {
+      const eventName = String(payload.event || "").toLowerCase();
+      const isMessageEvent = eventName.includes("message") || eventName.includes("upsert");
+
+      if (!isMessageEvent) {
         return NextResponse.json({ status: "ignored_evolution_event" });
       }
+
+      let msgData = payload.data;
+      if (Array.isArray(msgData)) {
+        msgData = msgData[0];
+      }
+      if (!msgData || !msgData.key) {
+        return NextResponse.json({ status: "ignored_no_key" });
+      }
+
       const remoteJid = msgData.key.remoteJid || "";
       if (remoteJid.includes("@g.us")) {
         return NextResponse.json({ status: "ignored_group_chat" });
       }
+
       customerPhone = remoteJid.split("@")[0];
       contactName = msgData.pushName || customerPhone;
       messageId = msgData.key.id;
       fromMe = !!msgData.key.fromMe;
-      evolutionInstance = payload.instance;
+      evolutionInstance = payload.instance || payload.sender || "";
 
       if (msgData.message?.conversation) {
         messageText = msgData.message.conversation;
       } else if (msgData.message?.extendedTextMessage?.text) {
         messageText = msgData.message.extendedTextMessage.text;
-      } else if (msgData.messageType === "imageMessage") {
-        messageText = "[Image]";
+      } else if (msgData.messageType === "imageMessage" || msgData.message?.imageMessage) {
+        messageText = msgData.message?.imageMessage?.caption || "[Image]";
         isImage = true;
-      } else if (msgData.messageType === "audioMessage") {
+      } else if (msgData.messageType === "audioMessage" || msgData.message?.audioMessage) {
         messageText = "[Vocale]";
         isAudio = true;
       }
 
-      // Resolve businessId and coexistenceMode from instance
+      // Resolve businessId, coexistenceMode, and assignedLabel from instance
       const cleanInstance = String(evolutionInstance).trim();
       const { data: customPhone } = await supabaseServer
         .from("business_phone_numbers")
-        .select("business_id, conversation_mode, label")
-        .or(`phone_number_id.eq.${cleanInstance},whatsapp_phone_number_id.eq.${cleanInstance}`)
+        .select("business_id, conversation_mode, label, phone_number_id")
+        .or(`phone_number_id.eq.${cleanInstance},whatsapp_phone_number_id.eq.${cleanInstance},label.eq.${cleanInstance}`)
         .maybeSingle();
 
       if (customPhone) {
@@ -183,13 +195,27 @@ export async function POST(req: NextRequest) {
         coexistenceMode = customPhone.conversation_mode === "human_coexistence";
         assignedLabel = customPhone.label || "Commerciale 1";
       } else {
-        const { data: bus } = await supabaseServer
-          .from("businesses")
-          .select("id")
-          .eq("whatsapp_phone_number_id", cleanInstance)
-          .maybeSingle();
-        if (bus) {
-          businessId = bus.id;
+        const { data: allSecs } = await supabaseServer
+          .from("business_phone_numbers")
+          .select("business_id, conversation_mode, label, phone_number_id");
+        if (allSecs && allSecs.length > 0) {
+          const matched = allSecs.find((s: any) => cleanInstance.toLowerCase().includes(String(s.label || "").toLowerCase()) || String(s.phone_number_id || "").includes(cleanInstance));
+          if (matched) {
+            businessId = matched.business_id;
+            coexistenceMode = matched.conversation_mode === "human_coexistence";
+            assignedLabel = matched.label || "Commerciale 1";
+          }
+        }
+
+        if (!assignedLabel || assignedLabel === "Agent IA") {
+          const { data: bus } = await supabaseServer
+            .from("businesses")
+            .select("id")
+            .eq("whatsapp_phone_number_id", cleanInstance)
+            .maybeSingle();
+          if (bus) {
+            businessId = bus.id;
+          }
         }
       }
     } else {

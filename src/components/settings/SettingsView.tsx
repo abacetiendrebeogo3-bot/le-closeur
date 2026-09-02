@@ -247,7 +247,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
           response_type: "code",
           override_default_response_type: true,
           extras: {
-            setup: {},
+            setup: {
+              business: {
+                id: "367996209724981",
+              },
+            },
           },
         }
       );
@@ -333,7 +337,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
           response_type: "code",
           override_default_response_type: true,
           extras: {
-            setup: {},
+            setup: {
+              business: {
+                id: "367996209724981",
+              },
+            },
           },
         }
       );

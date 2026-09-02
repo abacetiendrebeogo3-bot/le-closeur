@@ -154,7 +154,10 @@ export async function POST(req: NextRequest) {
       let msgData = payload.data;
       if (Array.isArray(msgData)) {
         msgData = msgData[0];
+      } else if (msgData?.messages && Array.isArray(msgData.messages)) {
+        msgData = msgData.messages[0];
       }
+
       if (!msgData || !msgData.key) {
         return NextResponse.json({ status: "ignored_no_key" });
       }
@@ -164,9 +167,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ status: "ignored_group_chat" });
       }
 
-      customerPhone = remoteJid.split("@")[0];
+      // Extract raw digits for customer phone
+      const rawJidUser = remoteJid.split("@")[0].split(":")[0];
+      customerPhone = rawJidUser.replace(/[^0-9]/g, "");
+
       contactName = msgData.pushName || customerPhone;
-      messageId = msgData.key.id;
+      messageId = msgData.key.id || `EVO-${Date.now()}`;
       fromMe = !!msgData.key.fromMe;
       evolutionInstance = payload.instance || payload.sender || "";
 
@@ -204,17 +210,20 @@ export async function POST(req: NextRequest) {
             businessId = matched.business_id;
             coexistenceMode = matched.conversation_mode === "human_coexistence";
             assignedLabel = matched.label || "Commerciale 1";
+          } else {
+            // Fallback to first business_phone_number business_id
+            businessId = allSecs[0].business_id;
+            coexistenceMode = allSecs[0].conversation_mode === "human_coexistence";
+            assignedLabel = allSecs[0].label || "Commerciale 1";
           }
-        }
-
-        if (!assignedLabel || assignedLabel === "Agent IA") {
-          const { data: bus } = await supabaseServer
+        } else {
+          const { data: firstBus } = await supabaseServer
             .from("businesses")
             .select("id")
-            .eq("whatsapp_phone_number_id", cleanInstance)
+            .limit(1)
             .maybeSingle();
-          if (bus) {
-            businessId = bus.id;
+          if (firstBus) {
+            businessId = firstBus.id;
           }
         }
       }

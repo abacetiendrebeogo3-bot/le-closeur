@@ -99,19 +99,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   };
 
   const handleFetchPairingCode = async () => {
-    if (!evolutionQRModal?.instanceName || !pairingPhone.trim()) {
-      triggerToast("Veuillez saisir votre numéro de téléphone WhatsApp.", "warning");
+    const rawPhone = pairingPhone.trim().replace(/[^0-9]/g, "");
+    if (!evolutionQRModal?.instanceName || !rawPhone) {
+      triggerToast("Veuillez saisir le numéro complet avec l'indicatif pays (ex: 221771234567).", "warning");
       return;
     }
     setIsRequestingPairing(true);
     try {
-      const res = await fetch(`/api/whatsapp/evolution/refresh-qr?instanceName=${evolutionQRModal.instanceName}&phoneNumber=${pairingPhone.trim()}`);
+      const res = await fetch(`/api/whatsapp/evolution/refresh-qr?instanceName=${evolutionQRModal.instanceName}&phoneNumber=${rawPhone}`);
       const data = await res.json();
       if (data.pairingCode) {
         setEvolutionQRModal(prev => prev ? { ...prev, pairingCode: data.pairingCode, qrcode: data.qrcode || prev.qrcode } : null);
-        triggerToast("Code à 8 chiffres généré avec succès !", "success");
+        triggerToast(`Code à 8 chiffres généré pour +${rawPhone} !`, "success");
       } else {
-        triggerToast("Impossible d'obtenir le code à 8 chiffres pour ce numéro.", "warning");
+        triggerToast("Vérifiez le numéro avec l'indicatif pays (ex: 221771234567).", "warning");
       }
     } catch (err) {
       triggerToast("Erreur d'obtention du code à 8 chiffres", "warning");
@@ -123,7 +124,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   const refreshQRCode = async () => {
     if (!evolutionQRModal?.instanceName) return;
     try {
-      const res = await fetch(`/api/whatsapp/evolution/refresh-qr?instanceName=${evolutionQRModal.instanceName}&phoneNumber=${pairingPhone.trim()}`);
+      const rawPhone = pairingPhone.trim().replace(/[^0-9]/g, "");
+      const res = await fetch(`/api/whatsapp/evolution/refresh-qr?instanceName=${evolutionQRModal.instanceName}&phoneNumber=${rawPhone}`);
       const data = await res.json();
       if (data.qrcode || data.pairingCode) {
         setEvolutionQRModal(prev => prev ? {
@@ -136,6 +138,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       console.error("Error refreshing QR:", err);
     }
   };
+
+  // Auto-refresh QR code every 8 seconds while modal is open in QR mode
+  useEffect(() => {
+    if (!evolutionQRModal?.open || connectTabMode !== "qr") return;
+    const interval = setInterval(() => {
+      refreshQRCode();
+      checkQRStatus();
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [evolutionQRModal?.open, evolutionQRModal?.instanceName, connectTabMode]);
 
   const checkQRStatus = async () => {
     if (!evolutionQRModal?.instanceName) return;
@@ -1113,7 +1125,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Numéro WhatsApp (Ex: 221771234567)"
+                    placeholder="Indicatif + Numéro (Ex: 221771234567)"
                     value={pairingPhone}
                     onChange={(e) => setPairingPhone(e.target.value)}
                     className="flex-1 bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
@@ -1122,7 +1134,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                     type="button"
                     onClick={handleFetchPairingCode}
                     disabled={isRequestingPairing || !pairingPhone.trim()}
-                    className="bg-menthe hover:bg-menthe/90 text-white font-bold px-3 py-2 rounded-xl text-xs shrink-0 transition-all cursor-pointer"
+                    className="bg-menthe hover:bg-menthe/90 text-white font-bold px-3 py-2 rounded-xl text-xs shrink-0 transition-all cursor-pointer shadow-xs"
                   >
                     {isRequestingPairing ? "Génération..." : "Obtenir Code"}
                   </button>

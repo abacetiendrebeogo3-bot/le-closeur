@@ -52,6 +52,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
   const [manualSecToken, setManualSecToken] = useState("");
   const [isSavingManualSec, setIsSavingManualSec] = useState(false);
   const [isSubscribingWebhooks, setIsSubscribingWebhooks] = useState(false);
+  
+  // Evolution QR Code State
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [evolutionQRModal, setEvolutionQRModal] = useState<{ open: boolean; instanceName: string; qrcode: string; label: string } | null>(null);
+  const [qrStatusText, setQrStatusText] = useState("En attente du scan...");
+
+  const handleGenerateEvolutionQR = async () => {
+    if (!businessId) {
+      triggerToast("Erreur : Aucun ID de commerce identifié.", "warning");
+      return;
+    }
+    setIsGeneratingQR(true);
+    setQrStatusText("En attente du scan...");
+    try {
+      const res = await fetch("/api/whatsapp/evolution/create-instance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId,
+          label: newSecondaryLabel.trim() || `Commerciale ${secondaryNumbers.length + 1}`
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Échec de génération du QR Code");
+      }
+      setEvolutionQRModal({
+        open: true,
+        instanceName: data.instanceName,
+        qrcode: data.qrcode,
+        label: data.label
+      });
+      triggerToast(`QR Code généré pour ${data.label} ! Scannez-le avec WhatsApp Business.`, "success");
+      fetchWhatsAppConfig();
+    } catch (err: any) {
+      triggerToast(err.message || "Erreur de génération QR Code", "warning");
+    } finally {
+      setIsGeneratingQR(false);
+    }
+  };
+
+  const checkQRStatus = async () => {
+    if (!evolutionQRModal?.instanceName) return;
+    try {
+      const res = await fetch(`/api/whatsapp/evolution/status?instanceName=${evolutionQRModal.instanceName}`);
+      const data = await res.json();
+      if (data.connected) {
+        setQrStatusText("🟢 Connecté avec succès !");
+        triggerToast("Félicitations ! Le compte WhatsApp est maintenant connecté.", "success");
+        setTimeout(() => {
+          setEvolutionQRModal(null);
+        }, 2000);
+      } else {
+        setQrStatusText(`Statut actuel : ${data.state || "Non connecté"}`);
+      }
+    } catch (err) {
+      console.error("Error checking QR status:", err);
+    }
+  };
 
   const pendingSignupData = useRef<{ waba_id?: string; phone_number_id?: string } | null>(null);
 
@@ -754,7 +813,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-encre/60">Nom de la commerciale / Libellé (Optionnel)</label>
+              <label className="text-[10px] uppercase font-bold text-encre/60">Nom de la commerciale / Libellé *</label>
               <input
                 type="text"
                 placeholder="Ex: Yasmine ou Commerciale 2"
@@ -764,36 +823,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-encre/60">Phone Number ID WhatsApp *</label>
-              <input
-                type="text"
-                placeholder="Ex: 109284719283749"
-                value={manualSecPhoneId}
-                onChange={(e) => setManualSecPhoneId(e.target.value)}
-                className="w-full bg-white border border-graphite/10 px-3.5 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
-                required
-              />
+            <div className="flex flex-col sm:flex-row gap-2 mt-1">
+              <button
+                type="button"
+                onClick={handleGenerateEvolutionQR}
+                disabled={isGeneratingQR || !businessId}
+                className="flex-1 bg-menthe hover:bg-menthe/90 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+              >
+                {isGeneratingQR ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Génération du QR Code...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>📲 Scanner QR Code (Scanner depuis WhatsApp)</span>
+                  </>
+                )}
+              </button>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-encre/40">Token d&apos;accès Meta (Optionnel)</label>
-              <input
-                type="password"
-                placeholder="Jeton d'accès (si différent)..."
-                value={manualSecToken}
-                onChange={(e) => setManualSecToken(e.target.value)}
-                className="w-full bg-white border border-graphite/10 px-3.5 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
-              />
+            <div className="pt-2 border-t border-graphite/10 flex flex-col gap-2">
+              <span className="text-[10px] text-encre/50 font-semibold">Ou saisissez l&apos;ID manuellement (Meta Cloud API) :</span>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Phone Number ID Meta (Ex: 1092847...)"
+                  value={manualSecPhoneId}
+                  onChange={(e) => setManualSecPhoneId(e.target.value)}
+                  className="flex-1 bg-white border border-graphite/10 px-3 py-2 rounded-xl text-xs font-mono placeholder:text-encre/30 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingManualSec || !manualSecPhoneId.trim()}
+                  className="bg-graphite hover:opacity-90 text-white font-bold px-4 py-2 rounded-xl text-xs shrink-0 transition-all cursor-pointer"
+                >
+                  {isSavingManualSec ? "Enregistrement..." : "Ajouter ID"}
+                </button>
+              </div>
             </div>
-
-            <button
-              type="submit"
-              disabled={isSavingManualSec}
-              className="w-full bg-graphite text-white font-bold py-2.5 rounded-xl text-xs hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-xs mt-1"
-            >
-              {isSavingManualSec ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Enregistrer ce numéro de commerciale"}
-            </button>
           </form>
 
           {secondaryNumbers.length > 0 && (
@@ -953,6 +1021,58 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         </button>
       </div>
 
+      {/* Evolution QR Code Modal Overlay */}
+      {evolutionQRModal && evolutionQRModal.open && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full border border-graphite/10 shadow-2xl flex flex-col items-center text-center gap-4 animate-in fade-in zoom-in duration-200">
+            <div className="w-12 h-12 rounded-full bg-menthe/10 text-menthe flex items-center justify-center font-bold text-xl">
+              📲
+            </div>
+            
+            <div>
+              <h3 className="text-sm font-bold text-encre">Scanner avec WhatsApp Business</h3>
+              <p className="text-[11px] text-encre/60 mt-1">
+                Ouvrez WhatsApp sur le téléphone de <strong>{evolutionQRModal.label}</strong> &gt; Appareils connectés &gt; Connecter un appareil.
+              </p>
+            </div>
+
+            {evolutionQRModal.qrcode ? (
+              <div className="p-3 bg-white border border-graphite/15 rounded-2xl shadow-inner flex flex-col items-center">
+                <img
+                  src={evolutionQRModal.qrcode.startsWith("data:") ? evolutionQRModal.qrcode : `data:image/png;base64,${evolutionQRModal.qrcode}`}
+                  alt="QR Code WhatsApp"
+                  className="w-56 h-56 object-contain"
+                />
+              </div>
+            ) : (
+              <div className="w-56 h-56 bg-neige rounded-2xl flex items-center justify-center text-xs text-encre/40">
+                <RefreshCw className="w-6 h-6 animate-spin text-menthe" />
+              </div>
+            )}
+
+            <div className="text-[11px] font-bold text-encre/70 bg-neige px-3 py-1.5 rounded-xl border border-graphite/10 w-full">
+              {qrStatusText}
+            </div>
+
+            <div className="flex gap-2 w-full pt-1">
+              <button
+                type="button"
+                onClick={checkQRStatus}
+                className="flex-1 bg-menthe hover:bg-menthe/90 text-white font-bold py-2 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Vérifier connexion
+              </button>
+              <button
+                type="button"
+                onClick={() => setEvolutionQRModal(null)}
+                className="px-4 py-2 bg-neige hover:bg-graphite/10 text-encre/70 font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

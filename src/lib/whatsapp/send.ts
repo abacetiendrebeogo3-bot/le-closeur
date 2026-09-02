@@ -66,13 +66,15 @@ async function getCredentials(businessId?: string, targetPhoneIdOrLabel?: string
  * Helper to call Evolution API.
  */
 async function sendEvolutionRequest(instance: string, apiKey: string, path: string, body: any): Promise<boolean> {
-  const apiUrl = process.env.EVOLUTION_API_URL || "http://localhost:8080";
+  const apiUrl = process.env.EVOLUTION_API_URL || "https://evolution-api-production-8adef.up.railway.app";
+  const defaultKey = process.env.EVOLUTION_API_KEY || "8d4b022c7704fa18af3430e1bc12d90a2fa448f2329ff75157e2feb6f568a7b2";
+  const effectiveKey = apiKey || defaultKey;
   try {
     const res = await fetch(`${apiUrl}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": apiKey
+        "apikey": effectiveKey
       },
       body: JSON.stringify(body)
     });

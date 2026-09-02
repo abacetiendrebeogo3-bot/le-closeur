@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const createData = await createRes.json();
 
     // 2. Configure Webhooks for this instance
-    const origin = req.headers.get("origin") || req.nextUrl.origin || "https://le-closeur.vercel.app";
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://le-closeur-8vqe.vercel.app";
     const webhookUrl = `${origin}/api/webhooks/whatsapp`;
 
     try {

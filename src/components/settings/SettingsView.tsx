@@ -1146,7 +1146,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                     </button>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-encre/40 italic">Entrez le numéro ci-dessus et cliquez sur "Obtenir Code".</p>
+                  <p className="text-[10px] text-encre/40 italic">Entrez le numéro ci-dessus et cliquez sur &quot;Obtenir Code&quot;.</p>
                 )}
               </div>
             )}

@@ -200,6 +200,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     pendingSignupData.current = null;
 
     const processLoginResponse = async (response: any) => {
+      console.log("FB.login response:", JSON.stringify(response));
       if (response.authResponse) {
         const code = response.authResponse.code;
         try {
@@ -243,7 +244,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         },
         {
           config_id: configId,
-          scope: "whatsapp_business_management,whatsapp_business_messaging",
           response_type: "code",
           override_default_response_type: true,
           extras: {
@@ -288,6 +288,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
 
     const processSecondaryLoginResponse = async (response: any) => {
       clearTimeout(timeoutId);
+      console.log("FB.login response:", JSON.stringify(response));
       if (response.authResponse) {
         const code = response.authResponse.code;
         try {
@@ -333,7 +334,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
         },
         {
           config_id: configId,
-          scope: "whatsapp_business_management,whatsapp_business_messaging",
           response_type: "code",
           override_default_response_type: true,
           extras: {

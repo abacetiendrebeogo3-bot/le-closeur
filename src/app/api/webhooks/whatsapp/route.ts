@@ -10,7 +10,7 @@ const DEFAULT_BUSINESS_ID = "00000000-0000-0000-0000-000000000000";
 // Helper to save message safely to DB (preventing base64 or long messages from bloating DB / client)
 async function saveMessageSafe(
   conversationId: string,
-  sender: "ai" | "customer" | "system",
+  sender: "ai" | "customer" | "system" | "human",
   text: string,
   time: string,
   customerPhone?: string,

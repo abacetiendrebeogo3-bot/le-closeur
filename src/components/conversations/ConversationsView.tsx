@@ -555,7 +555,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     } else if (channelFilter === "commercial") {
       matchesChannel = label !== "Agent IA" && !label.toLowerCase().includes("agent");
     } else if (channelFilter !== "all") {
-      matchesChannel = label === channelFilter;
+      matchesChannel = label.trim().toLowerCase() === channelFilter.trim().toLowerCase();
     }
 
     return matchesSearch && matchesEngagement && matchesChannel;
@@ -763,8 +763,16 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
             <div className="p-6 text-center text-xs text-encre/60 flex flex-col gap-2 items-center">
               <span className="font-bold text-encre/70">Aucune discussion sous &quot;{channelFilter}&quot;</span>
               <p className="text-xs text-encre/50 text-center px-4">
-                Aucune conversation n&apos;est attribuée à ce compte. Clique sur &quot;Tous&quot; dans la colonne de gauche pour voir toutes tes conversations.
+                Aucune conversation n&apos;est actuellement attribuée à ce compte.
               </p>
+              {channelFilter !== "all" && (
+                <button
+                  onClick={() => setChannelFilter("all")}
+                  className="mt-2 px-4 py-2 bg-graphite hover:bg-graphite/90 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                >
+                  Afficher toutes les conversations ({conversations.length})
+                </button>
+              )}
             </div>
           )}
         </div>

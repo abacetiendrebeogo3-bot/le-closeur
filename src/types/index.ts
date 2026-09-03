@@ -13,6 +13,8 @@ export interface Conversation {
   unread: boolean;
   engagementStatus?: string;
   assignedLabel?: string;
+  businessPhoneNumberId?: string | null; // null = compte WhatsApp principal
+  promisedDate?: string | null; // date de relance programmée (manuelle ou détectée par l'IA)
   messages: Message[];
 }
 

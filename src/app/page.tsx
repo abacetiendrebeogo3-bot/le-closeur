@@ -183,6 +183,8 @@ export default function Home() {
             unread: c.unread,
             engagementStatus: c.engagement_status || "nouveau",
             assignedLabel: c.assigned_label || "Agent IA",
+            businessPhoneNumberId: c.business_phone_number_id || null,
+            promisedDate: c.promised_date || null,
             messages: (c.messages || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((m: any) => ({
               id: m.id,
               sender: m.sender,

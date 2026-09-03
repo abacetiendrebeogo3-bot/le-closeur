@@ -561,6 +561,48 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
     return matchesSearch && matchesEngagement && matchesChannel;
   });
 
+  const handleSetCustomFollowup = async (days: number) => {
+    if (!activeChat) return;
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + days);
+    const targetDateStr = targetDate.toISOString().substring(0, 10);
+
+    try {
+      const { error } = await supabase
+        .from("conversations")
+        .update({ promised_date: targetDateStr })
+        .eq("id", activeChat.id);
+      if (error) throw error;
+      if (setConversations) {
+        setConversations((prev) =>
+          prev.map((c) => (c.id === activeChat.id ? { ...c, promisedDate: targetDateStr } as any : c))
+        );
+      }
+      triggerToast(`Relance programmée dans ${days} jour${days > 1 ? "s" : ""} (${targetDateStr}).`, "success");
+    } catch (err: any) {
+      triggerToast(err.message || "Erreur lors de la programmation de la relance.", "warning");
+    }
+  };
+
+  const handleClearCustomFollowup = async () => {
+    if (!activeChat) return;
+    try {
+      const { error } = await supabase
+        .from("conversations")
+        .update({ promised_date: null })
+        .eq("id", activeChat.id);
+      if (error) throw error;
+      if (setConversations) {
+        setConversations((prev) =>
+          prev.map((c) => (c.id === activeChat.id ? { ...c, promisedDate: null } as any : c))
+        );
+      }
+      triggerToast("Relance personnalisée annulée.", "success");
+    } catch (err: any) {
+      triggerToast(err.message || "Erreur lors de l'annulation.", "warning");
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-8rem)] lg:h-[calc(100vh-10rem)] min-h-0">
 
@@ -794,6 +836,35 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                           </option>
                         ))}
                       </select>
+                      {(activeChat as any).promisedDate ? (
+                        <button
+                          onClick={handleClearCustomFollowup}
+                          className="bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1"
+                          title="Cliquer pour annuler cette relance programmée"
+                        >
+                          <span>⏰ Relance le {(activeChat as any).promisedDate}</span>
+                          <span className="opacity-60">✕</span>
+                        </button>
+                      ) : (
+                        <select
+                          defaultValue=""
+                          onChange={(e) => {
+                            const days = parseInt(e.target.value, 10);
+                            if (days > 0) handleSetCustomFollowup(days);
+                            e.target.value = "";
+                          }}
+                          className="bg-white border border-graphite/15 px-2 py-0.5 rounded-lg text-[9px] font-bold text-encre cursor-pointer focus:outline-none"
+                        >
+                          <option value="">⏰ Relancer dans...</option>
+                          <option value="1">1 jour</option>
+                          <option value="2">2 jours</option>
+                          <option value="3">3 jours</option>
+                          <option value="5">5 jours</option>
+                          <option value="7">7 jours</option>
+                          <option value="14">14 jours</option>
+                          <option value="21">21 jours</option>
+                        </select>
+                      )}
                     </span>
                   </div>
                 </div>

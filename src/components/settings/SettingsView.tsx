@@ -535,7 +535,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
       .eq("id", sec.id);
 
     if (error) {
-      triggerToast("Erreur lors du changement de mode.", "error");
+      triggerToast("Erreur lors du changement de mode.", "warning");
       console.error("Error toggling conversation_mode:", error);
       return;
     }

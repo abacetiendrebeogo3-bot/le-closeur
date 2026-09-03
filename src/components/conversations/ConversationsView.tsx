@@ -563,41 +563,46 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-8rem)] lg:h-[calc(100vh-10rem)] min-h-0">
-      
+
+      {/* Far-left: vertical account list */}
+      <div className={`w-full lg:w-44 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shrink-0 shadow-sm p-3 gap-1 ${activeChatId !== null ? 'hidden lg:flex' : 'flex'}`}>
+        <span className="text-[10px] font-bold uppercase text-encre/40 px-2 pb-1">Comptes WhatsApp</span>
+        <button
+          onClick={() => setChannelFilter("all")}
+          className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            channelFilter === "all" ? "bg-menthe/10 text-menthe" : "text-encre/60 hover:bg-neige"
+          }`}
+        >
+          <span>Tous</span>
+          <span className="text-[10px] font-semibold opacity-70">{conversations.length}</span>
+        </button>
+        {availableLabels.map(lbl => {
+          const isAgent = lbl.toLowerCase().includes("agent");
+          const count = conversations.filter(c => (c.assignedLabel || "Agent IA") === lbl).length;
+          const active = channelFilter === lbl;
+          return (
+            <button
+              key={lbl}
+              onClick={() => setChannelFilter(lbl)}
+              className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                active
+                  ? isAgent ? "bg-purple-600 text-white" : "bg-blue-600 text-white"
+                  : "text-encre/60 hover:bg-neige"
+              }`}
+            >
+              <span className="flex items-center gap-1.5 truncate">
+                <span>{isAgent ? "🤖" : "👤"}</span>
+                <span className="truncate">{lbl}</span>
+              </span>
+              <span className="text-[10px] font-semibold opacity-70 shrink-0 ml-1">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Left sidebar: ConversationList */}
       <div className={`w-full lg:w-80 bg-white rounded-[2rem] border border-graphite/10 flex flex-col min-h-0 shrink-0 shadow-sm ${activeChatId !== null ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 border-b border-graphite/10 flex flex-col gap-2">
-          {/* Dynamic Per-Account Channel Filter Tabs */}
-          <div className="flex bg-neige p-1 rounded-xl gap-1 mb-1 overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => setChannelFilter("all")}
-              className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all shrink-0 ${
-                channelFilter === "all" ? "bg-white text-encre shadow-xs" : "text-encre/50 hover:text-encre"
-              }`}
-            >
-              Tous ({conversations.length})
-            </button>
-            {availableLabels.map(lbl => {
-              const isAgent = lbl.toLowerCase().includes("agent");
-              const count = conversations.filter(c => (c.assignedLabel || "Agent IA") === lbl).length;
-              const active = channelFilter === lbl;
-              return (
-                <button
-                  key={lbl}
-                  onClick={() => setChannelFilter(lbl)}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all shrink-0 flex items-center gap-1 ${
-                    active
-                      ? isAgent ? "bg-purple-600 text-white shadow-xs" : "bg-blue-600 text-white shadow-xs"
-                      : "text-encre/50 hover:text-encre"
-                  }`}
-                >
-                  <span>{isAgent ? "🤖" : "👤"}</span>
-                  <span>{lbl} ({count})</span>
-                </button>
-              );
-            })}
-          </div>
-
           <input 
             type="text" 
             value={searchQuery}
@@ -715,19 +720,9 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
           ) : (
             <div className="p-6 text-center text-xs text-encre/60 flex flex-col gap-2 items-center">
               <span className="font-bold text-encre/70">Aucune discussion sous &quot;{channelFilter}&quot;</span>
-              <p className="text-[11px] text-encre/40 max-w-xs">
-                {channelFilter === "all"
-                  ? "Aucun message reçu pour le moment."
-                  : "Aucune conversation n'est attribuée à ce compte. Cliquez sur 'Tous' pour voir vos conversations actuelles et les attribuer à ce numéro."}
+              <p className="text-xs text-encre/50 text-center px-4">
+                Aucune conversation n&apos;est attribuée à ce compte. Clique sur &quot;Tous&quot; dans la colonne de gauche pour voir toutes tes conversations.
               </p>
-              {channelFilter !== "all" && (
-                <button
-                  onClick={() => setChannelFilter("all")}
-                  className="mt-1 px-3.5 py-1.5 bg-graphite text-white text-[10px] font-bold rounded-xl hover:opacity-90 transition-all shadow-xs"
-                >
-                  Afficher toutes les conversations ({conversations.length})
-                </button>
-              )}
             </div>
           )}
         </div>

@@ -52,7 +52,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
   triggerToast,
   ownerName
 }) => {
-  const activeChat = conversations.find(c => c.id === activeChatId);
+  const activeChat = conversations.find(c => String(c.id) === String(activeChatId));
   const [showCustomerSidebar, setShowCustomerSidebar] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -717,7 +717,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({
                     setShowCustomerSidebar(true);
                   }} 
                   className={`conv-item w-full text-left p-4 flex flex-col gap-1.5 transition-all hover:bg-neige/60 ${
-                    activeChatId === conv.id ? 'bg-neige-dark/40 border-l-4 border-menthe font-bold' : ''
+                    String(activeChatId) === String(conv.id) ? 'bg-neige-dark/40 border-l-4 border-menthe font-bold' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">

@@ -174,24 +174,50 @@ export default function Home() {
           triggerToast(`Erreur chargement discussions : ${convErr.message}`, "warning");
         } else {
           console.log("LOADED CONVERSATIONS for business:", businessId, convData);
-          const mappedConvs = (convData || []).map((c: any) => ({
-            id: c.id,
-            customerName: c.customer_name,
-            customerPhone: c.customer_phone,
-            status: c.status,
-            avatar: c.avatar,
-            unread: c.unread,
-            engagementStatus: c.engagement_status || "nouveau",
-            assignedLabel: c.assigned_label || "Agent IA",
-            businessPhoneNumberId: c.business_phone_number_id || null,
-            promisedDate: c.promised_date || null,
-            messages: (c.messages || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((m: any) => ({
-              id: m.id,
-              sender: m.sender,
-              text: m.text,
-              time: m.time
-            }))
-          }));
+          const convIds = (convData || []).map((c: any) => c.id);
+          
+          let fallbackMessagesByConv: Record<string, any[]> = {};
+          if (convIds.length > 0) {
+            const { data: directMsgs } = await supabase
+              .from("messages")
+              .select("*")
+              .in("conversation_id", convIds);
+            if (directMsgs && directMsgs.length > 0) {
+              directMsgs.forEach((m: any) => {
+                const key = String(m.conversation_id);
+                if (!fallbackMessagesByConv[key]) fallbackMessagesByConv[key] = [];
+                fallbackMessagesByConv[key].push(m);
+              });
+            }
+          }
+
+          const mappedConvs = (convData || []).map((c: any) => {
+            const nestedMsgs = (c.messages && c.messages.length > 0) ? c.messages : (fallbackMessagesByConv[String(c.id)] || []);
+            const sortedMsgs = [...nestedMsgs].sort((a: any, b: any) => {
+              const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
+              const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
+              return tA - tB;
+            });
+
+            return {
+              id: c.id,
+              customerName: c.customer_name,
+              customerPhone: c.customer_phone,
+              status: c.status,
+              avatar: c.avatar,
+              unread: c.unread,
+              engagementStatus: c.engagement_status || "nouveau",
+              assignedLabel: c.assigned_label || "Agent IA",
+              businessPhoneNumberId: c.business_phone_number_id || null,
+              promisedDate: c.promised_date || null,
+              messages: sortedMsgs.map((m: any) => ({
+                id: m.id,
+                sender: m.sender,
+                text: m.text,
+                time: m.time
+              }))
+            };
+          });
           setConversations(mappedConvs as Conversation[]);
         }
 

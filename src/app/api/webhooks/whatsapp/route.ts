@@ -755,7 +755,7 @@ export async function POST(req: NextRequest) {
 
         if (fromMe) {
           // Sync outgoing message sent manually by the human from their WhatsApp app
-          await saveMessageSafe(conversationId, "ai", cleanMsgText, timeStr, customerPhone, businessId);
+          await saveMessageSafe(conversationId, "human", cleanMsgText, timeStr, customerPhone, businessId);
           console.log(`Synced outgoing message fromMe for conversation ${conversationId}`);
           return;
         }

@@ -527,6 +527,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
     }
   };
 
+  const handleToggleAiForNumber = async (sec: BusinessPhoneNumber) => {
+    const newMode = sec.conversation_mode === "human_coexistence" ? "ai_active" : "human_coexistence";
+    const { error } = await supabase
+      .from("business_phone_numbers")
+      .update({ conversation_mode: newMode })
+      .eq("id", sec.id);
+
+    if (error) {
+      triggerToast("Erreur lors du changement de mode.", "error");
+      console.error("Error toggling conversation_mode:", error);
+      return;
+    }
+
+    setSecondaryNumbers((prev) =>
+      prev.map((n) => (n.id === sec.id ? { ...n, conversation_mode: newMode } : n))
+    );
+    triggerToast(
+      newMode === "human_coexistence"
+        ? `${sec.label || "Ce numéro"} : la commerciale reprend la main.`
+        : `${sec.label || "Ce numéro"} : l'agent IA prend le relais.`,
+      "success"
+    );
+  };
+
   const handleDeleteSecondaryNumber = async (id: string) => {
     try {
       setSecondaryNumbers(prev => prev.filter(n => n.id !== id));
@@ -933,9 +957,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ triggerToast, ownerN
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] bg-menthe/10 text-menthe border border-menthe/20 font-semibold px-2 py-0.5 rounded-full">
-                      Coexistence
-                    </span>
+                    <button
+                      onClick={() => handleToggleAiForNumber(sec)}
+                      className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                        sec.conversation_mode === "human_coexistence"
+                          ? "bg-menthe/10 text-menthe border-menthe/20 hover:bg-menthe/20"
+                          : "bg-blue-500/10 text-blue-600 border-blue-500/20 hover:bg-blue-500/20"
+                      }`}
+                      title="Cliquer pour changer de mode"
+                    >
+                      {sec.conversation_mode === "human_coexistence" ? "👤 Commerciale" : "🤖 IA active"}
+                    </button>
                     <button
                       onClick={() => handleDeleteSecondaryNumber(sec.id)}
                       className="text-red-500 hover:text-red-700 p-1 transition-colors"

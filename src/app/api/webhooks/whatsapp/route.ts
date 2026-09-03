@@ -762,6 +762,37 @@ export async function POST(req: NextRequest) {
 
         await saveMessageSafe(conversationId, "customer", cleanMsgText, timeStr, customerPhone, businessId);
 
+        // Détection légère d'une date/jour précis mentionné par le client
+        // (ex: "je passe commande jeudi", "je vous dis ça demain") pour permettre
+        // à l'agent IA de relancer intelligemment à la bonne date, même si une
+        // commerciale gère la conversation en attendant.
+        try {
+          const todayForDetection = new Date();
+          const detectionResponse = await anthropic.messages.create({
+            model: CLAUDE_MODEL,
+            max_tokens: 50,
+            system: `Tu analyses un message client pour détecter s'il mentionne une date ou un jour précis auquel il compte passer commande ou revenir vers nous (ex: "jeudi", "demain", "la semaine prochaine", "le 15"). La date d'aujourd'hui est ${todayForDetection.toISOString().substring(0, 10)} (format AAAA-MM-JJ), et nous sommes un ${todayForDetection.toLocaleDateString("fr-FR", { weekday: "long" })}. Réponds UNIQUEMENT avec un objet JSON strict, sans aucun texte autour : {"date": "AAAA-MM-JJ"} si une date précise est mentionnée, ou {"date": null} sinon. Ne réponds jamais avec autre chose que ce JSON.`,
+            messages: [{ role: "user", content: cleanMsgText }],
+          });
+          const detectionText = detectionResponse.content
+            .map((b: any) => (b.type === "text" ? b.text : ""))
+            .join("")
+            .trim();
+          const detectionMatch = detectionText.match(/\{[^}]*\}/);
+          if (detectionMatch) {
+            const detected = JSON.parse(detectionMatch[0]);
+            if (detected?.date) {
+              console.log(`Detected promised date ${detected.date} for conversation ${conversationId}`);
+              await supabaseServer
+                .from("conversations")
+                .update({ promised_date: detected.date })
+                .eq("id", conversationId);
+            }
+          }
+        } catch (dateDetectErr) {
+          console.warn("Promised date detection failed (non-blocking):", dateDetectErr);
+        }
+
         // If human takeover is active, stop here (do not call Claude / send AI reply)
         if (conversation.status === "human_takeover") {
           console.log("Conversation in human_takeover mode. AI response skipped.");

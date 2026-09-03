@@ -155,6 +155,75 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+      // --- RULE C-BIS: RELANCE SUR DATE PROMISE PAR LE CLIENT ---
+      // Si le client a mentionné une date précise à laquelle il compte commander,
+      // on respecte cette date : pas de relance avant, relance ciblée le jour J
+      // (ou après, si le cron n'a pas tourné exactement ce jour-là), et on ignore
+      // les paliers J+1/J+3/etc. classiques tant que cette date n'est pas atteinte.
+      const isMorningTimeForPromise = currentUTCHour >= 9 && currentUTCHour <= 10;
+      if (isMorningTimeForPromise && !order && conv.promised_date) {
+        const promisedDateStr = String(conv.promised_date).substring(0, 10);
+        if (promisedDateStr <= todayStr) {
+          const { data: promiseFollowupSent } = await supabaseServer
+            .from("followup_runs")
+            .select("id")
+            .eq("conversation_id", conversationId)
+            .eq("type", `promised_date_${promisedDateStr}`)
+            .maybeSingle();
+
+          if (!promiseFollowupSent) {
+            const formattedHistoryForPromise = history
+              .map((m) => `${m.sender === "customer" ? "Client" : "Agent"}: ${m.text}`)
+              .join("\n");
+            try {
+              const promiseResponse = await anthropic.messages.create({
+                model: CLAUDE_MODEL,
+                max_tokens: 150,
+                system: "Tu es un agent commercial de suivi client par messagerie. Le client avait mentionné vouloir passer commande à une date précise, qui est arrivée aujourd'hui (ou est passée) sans nouvelle de sa part. Rédige un message court (1-2 phrases maximum, style WhatsApp, ton naturel et chaleureux) qui fait référence à ce qu'il avait dit sans être insistant. Ne dis JAMAIS que tu es une IA ou un robot.",
+                messages: [
+                  {
+                    role: "user",
+                    content: `Voici l'historique de la conversation :\n\n${formattedHistoryForPromise}\n\nRédige uniquement le message de relance, sans en-tête ni fioritures.`,
+                  },
+                ],
+              });
+              const promiseText = promiseResponse.content
+                .map((b: any) => (b.type === "text" ? b.text : ""))
+                .join("")
+                .trim();
+
+              if (promiseText) {
+                const sentPromise = await sendWhatsAppMessage(customerPhone, promiseText, businessId);
+                if (sentPromise) {
+                  const timeStrPromise = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+                  await supabaseServer.from("messages").insert({
+                    conversation_id: conversationId,
+                    sender: "ai",
+                    text: promiseText,
+                    time: timeStrPromise,
+                  });
+                  await supabaseServer.from("followup_runs").insert({
+                    conversation_id: conversationId,
+                    type: `promised_date_${promisedDateStr}`,
+                    target_date: todayStr,
+                  });
+                  processedCount++;
+                }
+              }
+            } catch (promiseErr) {
+              console.warn("Failed to generate/send promised-date followup:", promiseErr);
+            }
+          }
+          // Une date promise a été traitée (ou déjà envoyée) : on saute la RULE C
+          // classique pour cette conversation afin d'éviter un double envoi.
+          continue;
+        } else {
+          // La date promise n'est pas encore arrivée : on saute la RULE C
+          // classique également, on attend la date dite par le client.
+          continue;
+        }
+      }
+
       // --- RULE C: RELANCES PROSPECTS MULTI-PALIERS (9h-10h UTC) ---
       const isMorningTime = currentUTCHour >= 9 && currentUTCHour <= 10;
       if (isMorningTime && !order) {

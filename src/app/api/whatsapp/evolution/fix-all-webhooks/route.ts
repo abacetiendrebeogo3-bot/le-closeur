@@ -34,16 +34,18 @@ export async function POST(req: NextRequest) {
             "apikey": apiKey,
           },
           body: JSON.stringify({
-            enabled: true,
-            url: webhookUrl,
-            byEvents: false,
-            base64: false,
-            events: [
-              "MESSAGES_UPSERT",
-              "MESSAGES_UPDATE",
-              "CONNECTION_UPDATE",
-              "QRCODE_UPDATED",
-            ],
+            webhook: {
+              enabled: true,
+              url: webhookUrl,
+              byEvents: false,
+              base64: false,
+              events: [
+                "MESSAGES_UPSERT",
+                "MESSAGES_UPDATE",
+                "CONNECTION_UPDATE",
+                "QRCODE_UPDATED",
+              ],
+            },
           }),
         });
         const data = await res.json().catch(() => ({}));

@@ -153,9 +153,9 @@ export async function POST(req: NextRequest) {
 
       let msgData = payload.data;
       if (Array.isArray(msgData)) {
-        msgData = msgData[0];
+        msgData = msgData[msgData.length - 1];
       } else if (msgData?.messages && Array.isArray(msgData.messages)) {
-        msgData = msgData.messages[0];
+        msgData = msgData.messages[msgData.messages.length - 1];
       }
 
       if (!msgData || !msgData.key) {

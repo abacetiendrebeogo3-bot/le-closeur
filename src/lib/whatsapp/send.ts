@@ -92,8 +92,8 @@ async function sendEvolutionRequest(instance: string, apiKey: string, path: stri
 /**
  * Helper to send an outgoing text message.
  */
-export async function sendWhatsAppMessage(to: string, text: string, businessId?: string): Promise<boolean> {
-  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+export async function sendWhatsAppMessage(to: string, text: string, businessId?: string, phoneIdOrLabel?: string): Promise<boolean> {
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId, phoneIdOrLabel);
   const cleanTo = to.replace(/[^0-9]/g, "");
 
   if (wabaId === "evolution") {
@@ -138,8 +138,8 @@ export async function sendWhatsAppMessage(to: string, text: string, businessId?:
 /**
  * Helper to send an outgoing image message.
  */
-export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: string, businessId?: string): Promise<boolean> {
-  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: string, businessId?: string, phoneIdOrLabel?: string): Promise<boolean> {
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId, phoneIdOrLabel);
   const cleanTo = to.replace(/[^0-9]/g, "");
 
   if (wabaId === "evolution") {
@@ -188,8 +188,8 @@ export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: 
 /**
  * Helper to send a typing indicator.
  */
-export async function sendWhatsAppTypingIndicator(to: string, businessId?: string): Promise<boolean> {
-  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+export async function sendWhatsAppTypingIndicator(to: string, businessId?: string, phoneIdOrLabel?: string): Promise<boolean> {
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId, phoneIdOrLabel);
   const cleanTo = to.replace(/[^0-9]/g, "");
 
   if (wabaId === "evolution") {
@@ -384,9 +384,10 @@ export async function sendWhatsAppInteractiveButtons(
   to: string,
   bodyText: string,
   buttons: { id: string; title: string }[],
-  businessId?: string
+  businessId?: string,
+  phoneIdOrLabel?: string
 ): Promise<boolean> {
-  const { token, phoneNumberId, wabaId } = await getCredentials(businessId);
+  const { token, phoneNumberId, wabaId } = await getCredentials(businessId, phoneIdOrLabel);
   const cleanTo = to.replace(/[^0-9]/g, "");
 
   if (wabaId === "evolution") {

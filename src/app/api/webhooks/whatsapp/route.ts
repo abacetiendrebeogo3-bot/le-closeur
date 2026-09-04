@@ -142,6 +142,7 @@ export async function POST(req: NextRequest) {
     let evolutionInstance = "";
     let messageObject: any = null;
     let assignedLabel = "Agent IA";
+    let resolvedPhoneNumberId = "";
 
     if (isEvolution) {
       const eventName = String(payload.event || "").toLowerCase();
@@ -200,6 +201,7 @@ export async function POST(req: NextRequest) {
         businessId = customPhone.business_id;
         coexistenceMode = customPhone.conversation_mode === "human_coexistence";
         assignedLabel = customPhone.label || "Commerciale 1";
+        resolvedPhoneNumberId = customPhone.phone_number_id || cleanInstance;
       } else {
         const { data: allSecs } = await supabaseServer
           .from("business_phone_numbers")
@@ -210,11 +212,13 @@ export async function POST(req: NextRequest) {
             businessId = matched.business_id;
             coexistenceMode = matched.conversation_mode === "human_coexistence";
             assignedLabel = matched.label || "Commerciale 1";
+            resolvedPhoneNumberId = matched.phone_number_id || cleanInstance;
           } else {
             // Fallback to first business_phone_number business_id
             businessId = allSecs[0].business_id;
             coexistenceMode = allSecs[0].conversation_mode === "human_coexistence";
             assignedLabel = allSecs[0].label || "Commerciale 1";
+            resolvedPhoneNumberId = allSecs[0].phone_number_id || cleanInstance;
           }
         } else {
           const { data: firstBus } = await supabaseServer
@@ -226,6 +230,9 @@ export async function POST(req: NextRequest) {
             businessId = firstBus.id;
           }
         }
+      }
+      if (!resolvedPhoneNumberId) {
+        resolvedPhoneNumberId = cleanInstance;
       }
     } else {
       // Meta Webhook logic
@@ -290,6 +297,7 @@ export async function POST(req: NextRequest) {
           businessId = customPhone.business_id;
           coexistenceMode = customPhone.conversation_mode === "human_coexistence";
           assignedLabel = customPhone.label || "Commerciale 1";
+          resolvedPhoneNumberId = customPhone.phone_number_id || cleanPhoneId;
           console.log(`Resolved from business_phone_numbers: business_id=${businessId}, label=${assignedLabel}`);
         } else {
           // Fallback search across all registered secondary numbers
@@ -308,6 +316,7 @@ export async function POST(req: NextRequest) {
               businessId = matched.business_id;
               coexistenceMode = matched.conversation_mode === "human_coexistence";
               assignedLabel = matched.label || "Commerciale 1";
+              resolvedPhoneNumberId = matched.phone_number_id || cleanPhoneId;
               console.log(`Resolved from fallback search: business_id=${businessId}, label=${assignedLabel}`);
             }
           }
@@ -323,6 +332,9 @@ export async function POST(req: NextRequest) {
               console.log(`Resolved from primary businesses table: business_id=${businessId}`);
             }
           }
+        }
+        if (!resolvedPhoneNumberId) {
+          resolvedPhoneNumberId = cleanPhoneId;
         }
       }
     }
@@ -646,7 +658,7 @@ export async function POST(req: NextRequest) {
             // If transcription failed or OpenAI key is not configured, fall back to the old behavior
             if (!transcribedText) {
               const audioReply = "Je ne peux pas encore lire les messages vocaux. Pouvez-vous m'écrire par texte s'il vous plaît ?";
-              await sendWhatsAppMessage(customerPhone, audioReply, businessId);
+              await sendWhatsAppMessage(customerPhone, audioReply, businessId, resolvedPhoneNumberId);
               
               const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
               const cleanMsgText = `[WA_MSG_ID: ${messageId}] [Message vocal reçu (Non lu)]`;
@@ -706,7 +718,7 @@ export async function POST(req: NextRequest) {
             }
           } else if (messageObject.type !== "text") {
             const fallbackReply = "Je ne peux pas encore traiter ce type de message, pouvez-vous m'écrire en texte ?";
-            await sendWhatsAppMessage(customerPhone, fallbackReply, businessId);
+            await sendWhatsAppMessage(customerPhone, fallbackReply, businessId, resolvedPhoneNumberId);
 
             const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
             const cleanMsgText = `[WA_MSG_ID: ${messageId}] [Fichier reçu non pris en charge: ${messageObject.type}]`;
@@ -748,7 +760,7 @@ export async function POST(req: NextRequest) {
 
           // Send polite waiting message to customer
           const customerWaitingMsg = "Un instant, je reviens vers vous 🙏";
-          await sendWhatsAppMessage(customerPhone, customerWaitingMsg, businessId);
+          await sendWhatsAppMessage(customerPhone, customerWaitingMsg, businessId, resolvedPhoneNumberId);
           
           // Save AI reply in messages table
           await saveMessageSafe(conversationId, "ai", customerWaitingMsg, timeStr, customerPhone, businessId);
@@ -815,7 +827,7 @@ export async function POST(req: NextRequest) {
         const runCloseurAgent = async () => {
           try {
             // Send typing indicator to WhatsApp to show the AI is active/typing
-            await sendWhatsAppTypingIndicator(customerPhone, businessId);
+            await sendWhatsAppTypingIndicator(customerPhone, businessId, resolvedPhoneNumberId);
 
             // Sleep 1 second to simulate human typing delay
             await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -1230,7 +1242,7 @@ ${formattedRules}
                     }
 
                     if (imageUrl && !imageUrl.startsWith("data:")) {
-                      const success = await sendWhatsAppImage(customerPhone, imageUrl, captionStr, businessId);
+                      const success = await sendWhatsAppImage(customerPhone, imageUrl, captionStr, businessId, resolvedPhoneNumberId);
                       
                       // Save visually sent image message in history safely (no base64 saved to DB)
                       const msgTime = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -1343,7 +1355,8 @@ ${formattedRules}
                               { id: `annule_${newOrderId}`, title: "❌ Annulé" },
                               { id: `reprogramme_${newOrderId}`, title: "🔄 Reprogrammé" }
                             ],
-                            businessId
+                            businessId,
+                            resolvedPhoneNumberId
                           );
                         }
                       }
@@ -1409,14 +1422,14 @@ ${formattedRules}
               const hasBase64 = clientMessage.toLowerCase().includes("base64") || clientMessage.includes("data:");
               
               if (clientMessage && !isTooLong && !hasBase64) {
-                await sendWhatsAppMessage(customerPhone, clientMessage, businessId);
+                await sendWhatsAppMessage(customerPhone, clientMessage, businessId, resolvedPhoneNumberId);
               }
               await saveMessageSafe(conversationId, "ai", assistantMessage, aiTimeStr, customerPhone, businessId);
             }
           } catch (err: any) {
             console.error("Error in background closeur agent:", err);
             const fallbackMessage = "Un instant, je reviens vers vous 🙏";
-            await sendWhatsAppMessage(customerPhone, fallbackMessage, businessId);
+            await sendWhatsAppMessage(customerPhone, fallbackMessage, businessId, resolvedPhoneNumberId);
 
             const aiTimeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
             await saveMessageSafe(

@@ -548,7 +548,8 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. Process Multimedia incoming messages
-        let messageText = "";
+        const evolutionExtractedMessageText = messageText; // valeur déjà extraite plus haut pour Evolution (texte, [Image], [Vocale], etc.)
+        messageText = "";
         let base64Data = "";
         let imageMimeType = "image/jpeg";
         let isLocalLanguageAudio = false;
@@ -721,6 +722,11 @@ export async function POST(req: NextRequest) {
           } else {
             messageText = messageObject.text?.body || "";
           }
+        } else {
+          // isEvolution === true : on restaure le texte déjà extrait plus haut
+          // (texte brut du client, [Image], ou [Vocale]) puisque le bloc
+          // ci-dessus ne traite que les messages Meta.
+          messageText = evolutionExtractedMessageText;
         }
 
         if (!messageText) {
